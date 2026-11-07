@@ -8,6 +8,7 @@ import { DataModal } from './components/DataModal';
 import { UploadModal } from './components/UploadModal';
 import { CadViewerModal } from './components/CadViewerModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
+import { VercelModal } from './components/VercelModal';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -47,6 +48,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [showAuthGate, setShowAuthGate] = useState<boolean>(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState<boolean>(false);
+  const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
 
   // App Navigation & Role State (Default role is Viewer: Read-only)
   const [currentView, setCurrentView] = useState<'monitoring' | 'kpi' | 'appsScript'>('monitoring');
@@ -464,6 +466,7 @@ export default function App() {
         logoUrl={logoUrl}
         onLogoChange={setLogoUrl}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
+        onOpenVercelModal={() => setIsVercelModalOpen(true)}
       />
 
       {/* Main Content Viewport */}
@@ -525,6 +528,12 @@ export default function App() {
         onClose={() => setIsFirebaseModalOpen(false)}
         projectsCount={projects.length}
         onRefreshSync={() => showToast('Sinkronisasi Google Firebase Firestore aktif & termutakhir!', 'success')}
+      />
+
+      {/* Vercel Deployment & Online Guide Modal */}
+      <VercelModal
+        isOpen={isVercelModalOpen}
+        onClose={() => setIsVercelModalOpen(false)}
       />
 
       {/* Project Data Modal (Add / Edit) */}

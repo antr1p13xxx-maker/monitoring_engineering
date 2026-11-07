@@ -43,9 +43,8 @@ export const AuthGateModal: React.FC<AuthGateModalProps> = ({ isOpen, onAuthenti
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
-              <span>Kode Akses / PIN WebApp</span>
-              <span className="text-[10px] text-blue-400 font-normal">Default PIN: {MASTER_PIN}</span>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Kode Akses / PIN WebApp
             </label>
             <div className="relative">
               <input
@@ -83,7 +82,7 @@ export const AuthGateModal: React.FC<AuthGateModalProps> = ({ isOpen, onAuthenti
             className="w-full py-2 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-white rounded-xl transition flex items-center justify-center space-x-1.5"
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Masuk Cepat dengan Master PIN (ENG2026)</span>
+            <span>Masuk Cepat (Authorized Session)</span>
           </button>
         </form>
 

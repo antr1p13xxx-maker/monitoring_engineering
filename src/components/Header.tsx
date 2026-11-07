@@ -23,6 +23,7 @@ interface HeaderProps {
   logoUrl: string | null;
   onLogoChange: (url: string) => void;
   onOpenFirebaseModal?: () => void;
+  onOpenVercelModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,7 +33,8 @@ export const Header: React.FC<HeaderProps> = ({
   onRoleChange,
   logoUrl,
   onLogoChange,
-  onOpenFirebaseModal
+  onOpenFirebaseModal,
+  onOpenVercelModal
 }) => {
   const [timeString, setTimeString] = useState<string>('');
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
@@ -185,8 +187,23 @@ export const Header: React.FC<HeaderProps> = ({
               className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all bg-gradient-to-r from-amber-500/15 to-orange-500/15 hover:from-amber-500/25 hover:to-orange-500/25 text-amber-300 border border-amber-500/30 shadow-sm"
             >
               <Flame className="w-3.5 h-3.5 text-amber-400" />
-              <span>Firebase Console</span>
+              <span>Firebase</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            </button>
+          )}
+
+          {/* Vercel Deploy & Online Button */}
+          {onOpenVercelModal && (
+            <button
+              onClick={onOpenVercelModal}
+              title="Konfigurasi & Panduan Deploy ke Vercel (vercel.app)"
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all bg-gradient-to-r from-slate-800 to-black hover:from-slate-700 hover:to-slate-900 text-white border border-slate-700 shadow-sm"
+            >
+              <svg viewBox="0 0 76 65" className="w-3 h-3 fill-current text-white">
+                <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
+              </svg>
+              <span>Vercel</span>
+              <span className="text-[9px] bg-slate-700 text-slate-300 px-1 rounded font-mono">App</span>
             </button>
           )}
 
@@ -246,10 +263,9 @@ export const Header: React.FC<HeaderProps> = ({
                   placeholder={`PIN rahasia...`}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
-                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>PIN default {pendingRole}: <strong className="text-blue-400">{ROLE_PINS[pendingRole]}</strong></span>
-                  <span>Master: <strong className="text-amber-400">{MASTER_PIN}</strong></span>
-                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">
+                  Masukkan PIN otentikasi resmi untuk mengaktifkan akses role {pendingRole}.
+                </p>
               </div>
 
               {pinError && (
