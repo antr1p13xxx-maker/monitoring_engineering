@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "engineering_projects": {
+      "title": "Engineering Projects",
+      "description": "Daftar project monitoring engineering, SPK, drawing CAD, dan checklist progres manufaktur.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik dokumen project" },
+        "No": { "type": "number", "description": "Nomor urut" },
+        "Bulan": { "type": "string", "description": "Bulan pengerjaan" },
+        "SPK": { "type": "string", "description": "Nomor Surat Perintah Kerja" },
+        "Nomor_PO": { "type": "string", "description": "Nomor Purchase Order pelanggan" },
+        "Customer": { "type": "string", "description": "Nama perusahaan pelanggan" },
+        "Status": { "type": "string", "description": "Status pengerjaan: Selesai, In Progress, Revisi" },
+        "Delivery_Time": { "type": "string", "description": "Target tanggal delivery" },
+        "Nama_Project": { "type": "string", "description": "Nama proyek mesin/jig/fixture" },
+        "PIC": { "type": "string", "description": "Person In Charge engineering" },
+        "Qty_Drawing": { "type": "number", "description": "Jumlah lembar gambar kerja" },
+        "Permintaan_Drawing": { "type": "string", "description": "Tanggal permintaan drawing" },
+        "Target_Design": { "type": "string", "description": "Target tanggal penyelesaian desain" },
+        "Tanggal_Penyelesaian": { "type": "string", "description": "Aktual tanggal selesai desain" },
+        "Aktual_Engineering": { "type": "string", "description": "Tanggal selesai engineering" },
+        "File_CAD_Drive": { "type": "string", "description": "Link file CAD atau URL Google Drive" },
+        "Konsep_3D_2D": { "type": "string", "description": "Tanggal checklist konsep 3D/2D" },
+        "APPROVAL": { "type": "string", "description": "Tanggal checklist approval" },
+        "Tiga_D": { "type": "string", "description": "Tanggal checklist 3D" },
+        "Dua_D": { "type": "string", "description": "Tanggal checklist 2D" },
+        "LIST_STANDARD_PART": { "type": "string", "description": "Tanggal checklist list standard part" },
+        "list_material": { "type": "string", "description": "Tanggal checklist list material" },
+        "IRD": { "type": "string", "description": "Tanggal checklist IRD" },
+        "Squence": { "type": "string", "description": "Tanggal checklist sequence" },
+        "animation": { "type": "string", "description": "Tanggal checklist animation" },
+        "dokumentasi": { "type": "string", "description": "Tanggal checklist dokumentasi" },
+        "layout_pengiriman": { "type": "string", "description": "Tanggal checklist layout pengiriman" },
+        "drawing_box_pengiriman": { "type": "string", "description": "Tanggal checklist box pengiriman" },
+        "simulation": { "type": "string", "description": "Tanggal checklist simulation" },
+        "penawaran": { "type": "string", "description": "Tanggal penawaran" },
+        "keterangan": { "type": "string", "description": "Catatan tambahan project" },
+        "updatedAt": { "type": "string", "description": "Timestamp update data" }
+      },
+      "required": ["SPK", "Customer", "Nama_Project"]
+    },
+    "kpi_records": {
+      "title": "KPI Records",
+      "description": "Pencatatan matriks dan evaluasi KPI bulanan engineering per tahun.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik KPI record" },
+        "year": { "type": "string", "description": "Tahun evaluasi (contoh: 2026)" },
+        "kpiId": { "type": "number", "description": "ID indikator KPI (1 sampai 9)" },
+        "months": { "type": "string", "description": "Penyimpanan nilai bulanan Jan-Des" },
+        "keterangan": { "type": "string", "description": "Keterangan capaian" },
+        "updatedAt": { "type": "string", "description": "Waktu pembaruan" }
+      },
+      "required": ["year", "kpiId"]
+    },
+    "review_cost_records": {
+      "title": "Review Cost Records",
+      "description": "Rincian anggaran dan pengeluaran desain engineering per project.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik review cost record" },
+        "month": { "type": "string", "description": "Bulan evaluasi" },
+        "customer": { "type": "string", "description": "Customer" },
+        "projectName": { "type": "string", "description": "Nama Project" },
+        "anggaran": { "type": "number", "description": "Anggaran alokasi desain" },
+        "pengeluaran": { "type": "string", "description": "JSON array rincian pengeluaran" },
+        "totalPengeluaran": { "type": "number", "description": "Total pengeluaran riil" },
+        "efisiensi": { "type": "number", "description": "Persentase efisiensi biaya" },
+        "updatedAt": { "type": "string", "description": "Timestamp update" }
+      },
+      "required": ["month", "customer", "projectName"]
+    },
+    "review_error_records": {
+      "title": "Review Error Records",
+      "description": "Rincian catatan kesalahan drawing teknik dan revisi dari lantai produksi.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik review error record" },
+        "month": { "type": "string", "description": "Bulan evaluasi" },
+        "customer": { "type": "string", "description": "Customer" },
+        "projectName": { "type": "string", "description": "Nama Project" },
+        "totalDrawing": { "type": "number", "description": "Total drawing" },
+        "revisiCount": { "type": "number", "description": "Total revisi drawing" },
+        "errorRate": { "type": "number", "description": "Tingkat error dalam %" },
+        "errors": { "type": "string", "description": "JSON array rincian error part" },
+        "updatedAt": { "type": "string", "description": "Timestamp update" }
+      },
+      "required": ["month", "customer", "projectName"]
+    }
+  },
+  "firestore": {
+    "/engineering_projects/{projectId}": {
+      "schema": "#/entities/engineering_projects",
+      "description": "Dokumen database project monitoring engineering terpusat."
+    },
+    "/kpi_records/{recordId}": {
+      "schema": "#/entities/kpi_records",
+      "description": "Dokumen evaluasi capaian KPI bulanan engineering."
+    },
+    "/review_cost_records/{recordId}": {
+      "schema": "#/entities/review_cost_records",
+      "description": "Dokumen evaluasi biaya dan efisiensi desain."
+    },
+    "/review_error_records/{recordId}": {
+      "schema": "#/entities/review_error_records",
+      "description": "Dokumen pencatatan drawing error dan revisi desain."
+    }
+  }
+}

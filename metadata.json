@@ -1,0 +1,6 @@
+{
+  "name": "Monitoring Design & Drawing Engineering & KPI",
+  "description": "Sistem cloud monitoring proyek desain & drawing engineering, tracking checklist 3D/2D, kalkulasi KPI departemen otomatis, CAD viewer, dan generator Google Apps Script (Code.gs & Index.html).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

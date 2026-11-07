@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Engineering Projects Collection
+    match /engineering_projects/{projectId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(projectId);
+    }
+
+    // KPI Records Collection
+    match /kpi_records/{recordId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(recordId);
+    }
+
+    // Review Cost Records Collection
+    match /review_cost_records/{recordId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(recordId);
+    }
+
+    // Review Error Records Collection
+    match /review_error_records/{recordId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(recordId);
+    }
+
+    // Connection testing endpoint
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Fallback default deny for any undefined paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
