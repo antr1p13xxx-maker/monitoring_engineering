@@ -163,24 +163,26 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[9px] bg-slate-700/70 text-slate-300 px-1.5 py-0.2 rounded font-normal">View-Only</span>
               )}
             </button>
-            <button
-              onClick={() => onViewChange('appsScript')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
-                currentView === 'appsScript'
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-              }`}
-            >
-              <FileCode2 className="w-3.5 h-3.5" />
-              <span>Code.gs & Index.html</span>
-              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-400 text-slate-950 rounded">
-                GAS
-              </span>
-            </button>
+            {userRole === 'Manager' && (
+              <button
+                onClick={() => onViewChange('appsScript')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                  currentView === 'appsScript'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                <FileCode2 className="w-3.5 h-3.5" />
+                <span>Code.gs & Index.html</span>
+                <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-400 text-slate-950 rounded">
+                  GAS
+                </span>
+              </button>
+            )}
           </div>
 
-          {/* Firebase Console Status & Config Button */}
-          {onOpenFirebaseModal && (
+          {/* Firebase Console Status & Config Button (Manager Only) */}
+          {userRole === 'Manager' && onOpenFirebaseModal && (
             <button
               onClick={onOpenFirebaseModal}
               title="Buka Konfigurasi & Status Google Firebase Console"
@@ -192,8 +194,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Vercel Deploy & Online Button */}
-          {onOpenVercelModal && (
+          {/* Vercel Deploy & Online Button (Manager Only) */}
+          {userRole === 'Manager' && onOpenVercelModal && (
             <button
               onClick={onOpenVercelModal}
               title="Konfigurasi & Panduan Deploy ke Vercel (vercel.app)"

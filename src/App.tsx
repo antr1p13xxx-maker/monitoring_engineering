@@ -217,6 +217,13 @@ export default function App() {
     }
   }, [projects]);
 
+  // Ensure appsScript view is strictly accessible only by Manager
+  useEffect(() => {
+    if (userRole !== 'Manager' && currentView === 'appsScript') {
+      setCurrentView('monitoring');
+    }
+  }, [userRole, currentView]);
+
   // Project CRUD operations (Synchronized with Google Firebase Firestore)
   const handleSaveProject = (formData: Partial<EngineeringProject>, isEdit: boolean) => {
     if (userRole === 'Viewer') {
@@ -519,7 +526,7 @@ export default function App() {
           />
         )}
 
-        {currentView === 'appsScript' && <AppsScriptCodeView />}
+        {currentView === 'appsScript' && userRole === 'Manager' && <AppsScriptCodeView />}
       </main>
 
       {/* Google Firebase Console Configuration & Status Modal */}
