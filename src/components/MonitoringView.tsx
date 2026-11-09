@@ -22,7 +22,8 @@ import {
   Filter,
   BarChart2,
   Calendar,
-  ShieldAlert
+  ShieldAlert,
+  FileText
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -805,7 +806,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <th className="p-3 border-b border-slate-700 text-center">Target Design</th>
                 <th className="p-3 border-b border-slate-700 text-center">Tanggal Penyelesaian</th>
                 <th className="p-3 border-b border-slate-700 text-center">Aktual Engineering</th>
-                <th className="p-3 border-b border-slate-700 text-center">File CAD Drive</th>
+                <th className="p-3 border-b border-slate-700 text-center">File CAD / PDF</th>
 
                 {/* 14 Checklist Columns */}
                 {CHECKLIST_KEYS.map((ck) => (
@@ -863,29 +864,48 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 text-center font-mono text-slate-600">{item['Tanggal Penyelesaian'] || '-'}</td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Aktual Engineering'] || '-'}</td>
 
-                      {/* CAD & 3D Viewer Links */}
+                      {/* CAD & PDF Viewer Links */}
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center space-x-1.5">
                           {!isReadOnly && (
                             <button
                               onClick={() => onUploadClick(item.SPK)}
                               className="p-1 rounded bg-sky-50 text-sky-600 hover:bg-sky-100 border border-sky-200 transition"
-                              title="Upload CAD File ke Drive"
+                              title="Upload File CAD atau Dokumen PDF Drawing"
                             >
                               <CloudUpload className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {item['File CAD Drive'] && (
-                            <a
-                              href={item['File CAD Drive']}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition"
-                              title="Buka File di Drive"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          )}
+                          {item['File CAD Drive'] && (() => {
+                            const driveUrl = item['File CAD Drive'];
+                            const isPdfDoc = typeof driveUrl === 'string' && (
+                              driveUrl.toLowerCase().includes('.pdf') || 
+                              driveUrl.startsWith('data:application/pdf') || 
+                              driveUrl.includes('/pdf_')
+                            );
+                            return (
+                              <a
+                                href={driveUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`px-1.5 py-1 rounded border transition flex items-center space-x-1 ${
+                                  isPdfDoc
+                                    ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-200 shadow-sm'
+                                    : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200'
+                                }`}
+                                title={isPdfDoc ? `Buka File Drawing PDF (${item.SPK})` : `Buka File di Drive (${item.SPK})`}
+                              >
+                                {isPdfDoc ? (
+                                  <>
+                                    <FileText className="w-3.5 h-3.5 text-rose-600" />
+                                    <span className="text-[10px] font-bold">PDF</span>
+                                  </>
+                                ) : (
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                )}
+                              </a>
+                            );
+                          })()}
                           <button
                             onClick={() => onOpenCadViewer(item.SPK, item['Nama Project'], item.Customer)}
                             className="p-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition"

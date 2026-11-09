@@ -275,6 +275,20 @@ export const DataModal: React.FC<DataModalProps> = ({
             </div>
 
             <div className="md:col-span-3">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Link File CAD / Drawing PDF (Google Drive / Cloud URL)
+              </label>
+              <input
+                type="text"
+                name="File CAD Drive"
+                value={formData['File CAD Drive'] || ''}
+                onChange={handleChange}
+                placeholder="https://drive.google.com/file/d/... atau upload file PDF/CAD langsung di tabel monitoring"
+                className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-3">
               <label className="block text-xs font-bold text-slate-700 mb-1">Keterangan / Catatan Tambahan</label>
               <textarea
                 name="keterangan"
