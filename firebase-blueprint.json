@@ -87,6 +87,28 @@
         "updatedAt": { "type": "string", "description": "Timestamp update" }
       },
       "required": ["month", "customer", "projectName"]
+    },
+    "standart_part_handovers": {
+      "title": "Serah Terima Standart Part",
+      "description": "Formulir kontrol dan serah terima standart part engineering ke produksi (KMIL/FM-ENG/01-004).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik form serah terima" },
+        "no": { "type": "number", "description": "Nomor urut" },
+        "month": { "type": "string", "description": "Bulan evaluasi" },
+        "prepareStaff": { "type": "string", "description": "JSON array nama staff prepare" },
+        "projectName": { "type": "string", "description": "Nama project dari monitoring" },
+        "partNames": { "type": "string", "description": "JSON array daftar nama part standard" },
+        "customer": { "type": "string", "description": "Nama customer" },
+        "distributionDate": { "type": "string", "description": "Tanggal distribusi" },
+        "distributionTime": { "type": "string", "description": "Waktu distribusi" },
+        "division": { "type": "string", "description": "Divisi penerima" },
+        "signature": { "type": "string", "description": "Tanda tangan atau status penyerahan" },
+        "spk": { "type": "string", "description": "Nomor SPK terkait" },
+        "notes": { "type": "string", "description": "Catatan tambahan" },
+        "updatedAt": { "type": "string", "description": "Timestamp update" }
+      },
+      "required": ["month", "projectName", "customer"]
     }
   },
   "firestore": {
@@ -105,6 +127,10 @@
     "/review_error_records/{recordId}": {
       "schema": "#/entities/review_error_records",
       "description": "Dokumen pencatatan drawing error dan revisi desain."
+    },
+    "/standart_part_handovers/{handoverId}": {
+      "schema": "#/entities/standart_part_handovers",
+      "description": "Dokumen kontrol serah terima standart part (KMIL/FM-ENG/01-004)."
     }
   }
 }

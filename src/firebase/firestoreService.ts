@@ -8,12 +8,13 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
 const REVIEW_COST_COLLECTION = 'review_cost_records';
 const REVIEW_ERROR_COLLECTION = 'review_error_records';
+const STANDART_PART_COLLECTION = 'standart_part_handovers';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -255,4 +256,107 @@ export async function saveReviewErrorToFirestore(
     errors: JSON.stringify(data.errors),
     updatedAt: new Date().toISOString(),
   }, { merge: true });
+}
+
+/**
+ * Real-time listener untuk Serah Terima Standart Part.
+ */
+export function subscribeToFirestoreStandartParts(
+  onUpdate: (items: SerahTerimaStandartPartItem[]) => void
+) {
+  const colRef = collection(db, STANDART_PART_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    const list: SerahTerimaStandartPartItem[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      let staff: string[] = [];
+      let parts: string[] = [];
+      try {
+        staff = typeof data.prepareStaff === 'string' ? JSON.parse(data.prepareStaff) : (data.prepareStaff || []);
+      } catch {
+        staff = data.prepareStaff || [];
+      }
+      try {
+        parts = typeof data.partNames === 'string' ? JSON.parse(data.partNames) : (data.partNames || []);
+      } catch {
+        parts = data.partNames || [];
+      }
+
+      list.push({
+        id: docSnap.id,
+        no: Number(data.no) || 1,
+        month: data.month || 'Oktober',
+        prepareStaff: staff,
+        projectName: data.projectName || '',
+        partNames: parts,
+        customer: data.customer || '',
+        distributionDate: data.distributionDate || '',
+        distributionTime: data.distributionTime || '',
+        division: data.division || 'Assembly',
+        signature: data.signature || '',
+        spk: data.spk || '',
+        notes: data.notes || ''
+      });
+    });
+    list.sort((a, b) => (a.no || 0) - (b.no || 0));
+    onUpdate(list);
+  }, (err) => {
+    console.warn('Firestore Standart Part listener notice:', err.message);
+  });
+}
+
+/**
+ * Menyimpan data Serah Terima Standart Part ke Firestore.
+ */
+export async function saveStandartPartToFirestore(
+  item: SerahTerimaStandartPartItem
+): Promise<void> {
+  const docId = (item.id || `stp_${Date.now()}`).replace(/[\/\\#\s]/g, '_');
+  const docRef = doc(db, STANDART_PART_COLLECTION, docId);
+  await setDoc(docRef, {
+    ...item,
+    prepareStaff: JSON.stringify(item.prepareStaff),
+    partNames: JSON.stringify(item.partNames),
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+/**
+ * Menghapus data Serah Terima Standart Part dari Firestore.
+ */
+export async function deleteStandartPartFromFirestore(
+  itemId: string
+): Promise<void> {
+  const docId = itemId.replace(/[\/\\#\s]/g, '_');
+  const docRef = doc(db, STANDART_PART_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed initial data Serah Terima Standart Part jika koleksi masih kosong.
+ */
+export async function seedStandartPartsIfEmpty(
+  initialItems: SerahTerimaStandartPartItem[]
+): Promise<void> {
+  try {
+    const colRef = collection(db, STANDART_PART_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    if (snapshot.empty && initialItems.length > 0) {
+      const batch = writeBatch(db);
+      initialItems.forEach((item) => {
+        const docId = (item.id || `stp_${Date.now()}`).replace(/[\/\\#\s]/g, '_');
+        const docRef = doc(db, STANDART_PART_COLLECTION, docId);
+        batch.set(docRef, {
+          ...item,
+          prepareStaff: JSON.stringify(item.prepareStaff),
+          partNames: JSON.stringify(item.partNames),
+          updatedAt: new Date().toISOString()
+        });
+      });
+      await batch.commit();
+      console.info(`Seeded ${initialItems.length} initial Standart Part handovers to Firestore.`);
+    }
+  } catch (err) {
+    console.warn('Could not seed initial Standart Parts to Firestore:', err);
+  }
 }

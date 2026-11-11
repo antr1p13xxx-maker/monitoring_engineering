@@ -21,7 +21,10 @@ import {
   subscribeToFirestoreReviewCost,
   saveReviewCostToFirestore,
   subscribeToFirestoreReviewError,
-  saveReviewErrorToFirestore
+  saveReviewErrorToFirestore,
+  subscribeToFirestoreStandartParts,
+  saveStandartPartToFirestore,
+  seedStandartPartsIfEmpty
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
@@ -31,7 +34,8 @@ import {
   ReviewCostItem, 
   ReviewErrorItem, 
   DesignFeedbackItem, 
-  AuditLog 
+  AuditLog,
+  SerahTerimaStandartPartItem
 } from './types/engineering';
 import { 
   INITIAL_PROJECTS, 
@@ -39,6 +43,7 @@ import {
   INITIAL_REVIEW_COST, 
   INITIAL_REVIEW_ERROR, 
   INITIAL_FEEDBACK, 
+  INITIAL_STANDART_PART_HANDOVERS,
   MONTH_FULL_NAMES 
 } from './data/initialData';
 import { CheckCircle2, AlertCircle, Info, Sparkles, Flame } from 'lucide-react';
@@ -84,6 +89,19 @@ export default function App() {
   const [reviewCostList, setReviewCostList] = useState<ReviewCostItem[]>(INITIAL_REVIEW_COST);
   const [reviewErrorList, setReviewErrorList] = useState<ReviewErrorItem[]>(INITIAL_REVIEW_ERROR);
   const [feedbackList, setFeedbackList] = useState<DesignFeedbackItem[]>(INITIAL_FEEDBACK);
+
+  // Serah Terima Standart Part State
+  const [standartPartList, setStandartPartList] = useState<SerahTerimaStandartPartItem[]>(() => {
+    const saved = localStorage.getItem('standart_part_handovers');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return INITIAL_STANDART_PART_HANDOVERS;
+  });
 
   // Audit Log State
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
@@ -200,11 +218,20 @@ export default function App() {
       }
     });
 
+    // 6. Real-time Serah Terima Standart Part Listener
+    seedStandartPartsIfEmpty(INITIAL_STANDART_PART_HANDOVERS);
+    const unsubStandartParts = subscribeToFirestoreStandartParts((items) => {
+      if (items && items.length > 0) {
+        setStandartPartList(items);
+      }
+    });
+
     return () => {
       unsubProjects();
       unsubKpis();
       unsubCost();
       unsubError();
+      unsubStandartParts();
     };
   }, [activeYear]);
 
@@ -216,6 +243,15 @@ export default function App() {
       console.error(e);
     }
   }, [projects]);
+
+  // Persist Serah Terima Standart Part to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('standart_part_handovers', JSON.stringify(standartPartList));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [standartPartList]);
 
   // Ensure appsScript view is strictly accessible only by Manager
   useEffect(() => {
@@ -438,6 +474,18 @@ export default function App() {
     });
   };
 
+  const handleUpdateStandartPartList = (
+    updater: SerahTerimaStandartPartItem[] | ((prev: SerahTerimaStandartPartItem[]) => SerahTerimaStandartPartItem[])
+  ) => {
+    setStandartPartList((prev) => {
+      const resolved = typeof updater === 'function' ? updater(prev) : updater;
+      resolved.forEach((item) => {
+        saveStandartPartToFirestore(item).catch((err) => console.warn('Firestore Standart Part save error:', err));
+      });
+      return resolved;
+    });
+  };
+
   const handleSyncCloud = () => {
     showToast('Menghubungkan ke Google Firebase Firestore... Data tersinkronisasi!', 'success');
   };
@@ -502,6 +550,9 @@ export default function App() {
             onChecklistToggle={handleChecklistToggle}
             onChecklistDateChange={handleChecklistDateChange}
             onSyncCloud={handleSyncCloud}
+            standartPartList={standartPartList}
+            onUpdateStandartPartList={handleUpdateStandartPartList}
+            showToast={showToast}
           />
         )}
 

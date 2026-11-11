@@ -30,6 +30,12 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(recordId);
     }
 
+    // Serah Terima Standart Part Collection
+    match /standart_part_handovers/{handoverId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(handoverId);
+    }
+
     // Connection testing endpoint
     match /test/{docId} {
       allow read, write: if true;

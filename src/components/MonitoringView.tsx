@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { EngineeringProject, ChecklistKey, UserRole } from '../types/engineering';
+import { EngineeringProject, ChecklistKey, UserRole, SerahTerimaStandartPartItem } from '../types/engineering';
 import { CHECKLIST_KEYS, MONTH_NAMES } from '../data/initialData';
+import { StandartPartHandoverView } from './StandartPartHandoverView';
 import { 
   FolderOpen, 
   RotateCw, 
@@ -23,7 +24,8 @@ import {
   BarChart2,
   Calendar,
   ShieldAlert,
-  FileText
+  FileText,
+  Layers
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -45,6 +47,9 @@ interface MonitoringViewProps {
   onChecklistToggle: (spk: string, key: ChecklistKey, isChecked: boolean) => void;
   onChecklistDateChange: (spk: string, key: ChecklistKey, date: string) => void;
   onSyncCloud: () => void;
+  standartPartList: SerahTerimaStandartPartItem[];
+  onUpdateStandartPartList: (items: SerahTerimaStandartPartItem[] | ((prev: SerahTerimaStandartPartItem[]) => SerahTerimaStandartPartItem[])) => void;
+  showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -57,8 +62,14 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   onOpenCadViewer,
   onChecklistToggle,
   onChecklistDateChange,
-  onSyncCloud
+  onSyncCloud,
+  standartPartList,
+  onUpdateStandartPartList,
+  showToast
 }) => {
+  // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
+  const [activeMonitoringTab, setActiveMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
+
   // Filters state
   const [filterMonth, setFilterMonth] = useState<string>('ALL');
   const [filterYear, setFilterYear] = useState<string>('2026');
@@ -363,8 +374,65 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 5 Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* Sub-Navigation Tabs: Monitoring Drawing vs Serah Terima Standart Part */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveMonitoringTab('drawingProjects')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition ${
+              activeMonitoringTab === 'drawingProjects'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Monitoring Drawing & SPK</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+              activeMonitoringTab === 'drawingProjects' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {projects.length} Proyek
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveMonitoringTab('standartPartHandover')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition ${
+              activeMonitoringTab === 'standartPartHandover'
+                ? 'bg-[#8B2635] text-white shadow-md shadow-rose-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Layers className={`w-4 h-4 ${activeMonitoringTab === 'standartPartHandover' ? 'text-rose-200' : 'text-[#8B2635]'}`} />
+            <span>Serah Terima Standart Part</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+              activeMonitoringTab === 'standartPartHandover' ? 'bg-[#701e2a] text-white' : 'bg-rose-100 text-[#8B2635] font-semibold'
+            }`}>
+              KMIL/FM-ENG/01-004
+            </span>
+          </button>
+        </div>
+
+        <div className="hidden md:flex items-center space-x-2 text-xs text-slate-500 px-3">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="font-medium text-slate-600">Departemen Engineering Plant CDR & BTG</span>
+        </div>
+      </div>
+
+      {/* Render Active View */}
+      {activeMonitoringTab === 'standartPartHandover' ? (
+        <StandartPartHandoverView
+          handoverList={standartPartList}
+          onUpdateHandoverList={onUpdateStandartPartList}
+          projects={projects}
+          userRole={userRole}
+          showToast={showToast}
+        />
+      ) : (
+        <>
+          {/* 5 Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Project</p>
@@ -652,6 +720,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Ekspor Excel (.xlsx)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveMonitoringTab('standartPartHandover')}
+              className="bg-[#8B2635] hover:bg-[#721f2b] text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              title="Buka Form Serah Terima Standart Part (KMIL/FM-ENG/01-004)"
+            >
+              <Layers className="w-4 h-4 text-rose-300" />
+              <span>Serah Terima Standart Part</span>
             </button>
           </div>
         </div>
@@ -1006,6 +1084,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

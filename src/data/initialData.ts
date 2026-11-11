@@ -1,4 +1,4 @@
-import { EngineeringProject, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, SerahTerimaStandartPartItem } from '../types/engineering';
 
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nop', 'Des'] as const;
 
@@ -627,5 +627,53 @@ export const INITIAL_FEEDBACK: DesignFeedbackItem[] = [
     fbProduksi: 'Clamping pneumatic presisi',
     fbKastamer: 'Approved tanpa catatan revisi',
     isNoRevision: true
+  }
+];
+
+export const INITIAL_STANDART_PART_HANDOVERS: SerahTerimaStandartPartItem[] = [
+  {
+    id: 'stp-1',
+    no: 1,
+    month: 'Oktober',
+    prepareStaff: ['Fadil', 'Hendra'],
+    projectName: 'Wheel Loader Frame Positioner',
+    partNames: ['Linear Bearing LM20UU', 'Hex Socket Bolt M10x35 8.8', 'Dowel Pin Dia 10x40'],
+    customer: 'PT. Hitachi Construction Machinery',
+    distributionDate: '2026-10-18',
+    distributionTime: '09:30 WIB',
+    division: 'Assembly Jig',
+    signature: 'Fadil (Lead Eng)',
+    spk: 'SPK-2026-001',
+    notes: 'Kebutuhan standar part tahap perakitan base plate'
+  },
+  {
+    id: 'stp-2',
+    no: 2,
+    month: 'Oktober',
+    prepareStaff: ['Rian'],
+    projectName: 'Forklift Mast Assembly Jig',
+    partNames: ['Pneumatic Cylinder DNC-40-100', 'Toggle Clamp GH-201-B', 'Speed Controller 8mm'],
+    customer: 'PT. Kobexindo Tractors',
+    distributionDate: '2026-10-22',
+    distributionTime: '13:45 WIB',
+    division: 'Machining & Tooling',
+    signature: 'Rian (Drafter)',
+    spk: 'SPK-2026-002',
+    notes: 'Komponen pneumatic clamping system'
+  },
+  {
+    id: 'stp-3',
+    no: 3,
+    month: 'Oktober',
+    prepareStaff: ['Andry', 'Budi'],
+    projectName: 'Robot Gripper Arm Fixture',
+    partNames: ['Proximity Sensor M12 Omron', 'Thrust Ball Bearing 51104', 'Countersunk Bolt M6x20'],
+    customer: 'PT. Astra Honda Motor',
+    distributionDate: '2026-10-26',
+    distributionTime: '10:15 WIB',
+    division: 'QC & Testing',
+    signature: 'Andry (Manager)',
+    spk: 'SPK-2026-003',
+    notes: 'Kelengkapan sensor interlock & bearing gripper'
   }
 ];

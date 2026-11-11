@@ -100,3 +100,20 @@ export interface AuditLog {
   month: string;
   newValue: string;
 }
+
+export interface SerahTerimaStandartPartItem {
+  id: string;
+  no: number;
+  month: string;
+  prepareStaff: string[];
+  projectName: string;
+  partNames: string[];
+  customer: string;
+  distributionDate: string;
+  distributionTime: string;
+  division: string;
+  signature: string;
+  spk?: string;
+  notes?: string;
+}
+
