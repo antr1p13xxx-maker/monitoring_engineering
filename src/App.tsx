@@ -96,19 +96,28 @@ export default function App() {
     if (saved) {
       try {
         const parsed: SerahTerimaStandartPartItem[] = JSON.parse(saved);
-        // Clear default dummy part names if present from initial setup
+        // Clear default dummy part names and placeholder dates if present from initial setup
         return parsed.map((item) => {
+          const updated = { ...item };
           if (
-            item.partNames?.some((p) =>
+            updated.partNames?.some((p) =>
               p.includes('Linear Bearing') ||
               p.includes('Pneumatic Cylinder') ||
               p.includes('Proximity Sensor') ||
               p.startsWith('Standard Part ')
             )
           ) {
-            return { ...item, partNames: [] };
+            updated.partNames = [];
           }
-          return item;
+          if (
+            updated.distributionDate === '2026-10-18' ||
+            updated.distributionDate === '2026-10-22' ||
+            updated.distributionDate === '2026-10-26' ||
+            updated.distributionDate === '2026-11-05'
+          ) {
+            updated.distributionDate = '';
+          }
+          return updated;
         });
       } catch (e) {
         console.error(e);

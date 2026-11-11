@@ -68,7 +68,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     customer: '',
     prepareStaff: [''],
     partNames: [],
-    distributionDate: new Date().toISOString().split('T')[0],
+    distributionDate: '',
     distributionTime: '09:00 WIB',
     division: 'Assembly',
     signature: '',
@@ -137,7 +137,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
             projectName: p['Nama Project'],
             partNames: [],
             customer: p.Customer,
-            distributionDate: p['Target Design'] || new Date().toISOString().split('T')[0],
+            distributionDate: '',
             distributionTime: '09:00 WIB',
             division: 'Assembly Jig',
             signature: p.PIC ? `${p.PIC} (Diserahkan)` : 'Pending',
@@ -248,7 +248,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       customer: '',
       prepareStaff: [''],
       partNames: [],
-      distributionDate: new Date().toISOString().split('T')[0],
+      distributionDate: '',
       distributionTime: '09:00 WIB',
       division: 'Assembly Jig',
       signature: '',
@@ -854,18 +854,27 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         {item.customer}
                       </td>
 
-                      {/* Distribution Date */}
-                      <td className="p-2 text-center border-r border-slate-200 font-mono text-[11px] text-slate-700">
-                        {!isReadOnly ? (
+                      {/* Distribution Date (Pemilih Tanggal) */}
+                      <td className="p-2 text-center border-r border-slate-200 font-mono text-[11px] text-slate-700 min-w-[125px]">
+                        <div className="flex items-center justify-center space-x-1">
                           <input
                             type="date"
                             value={item.distributionDate || ''}
                             onChange={(e) => handleInlineFieldChange(item.id, 'distributionDate', e.target.value)}
-                            className="bg-transparent border-b border-dashed border-slate-300 hover:border-slate-500 text-center font-mono text-[11px] focus:outline-none w-full cursor-pointer"
+                            disabled={isReadOnly}
+                            className="bg-transparent border-b border-dashed border-slate-300 hover:border-slate-500 text-center font-mono text-[11px] focus:outline-none w-full cursor-pointer disabled:cursor-not-allowed"
                           />
-                        ) : (
-                          item.distributionDate || '-'
-                        )}
+                          {!isReadOnly && item.distributionDate && (
+                            <button
+                              type="button"
+                              onClick={() => handleInlineFieldChange(item.id, 'distributionDate', '')}
+                              title="Hapus / Kosongkan Tanggal"
+                              className="text-slate-400 hover:text-rose-500 text-xs px-0.5"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Distribution Time */}
