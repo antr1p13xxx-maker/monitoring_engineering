@@ -642,7 +642,7 @@ export const INITIAL_STANDART_PART_HANDOVERS: SerahTerimaStandartPartItem[] = [
     distributionDate: '',
     distributionTime: '09:30 WIB',
     division: 'Assembly Jig',
-    signature: 'Fadil (Lead Eng)',
+    signature: 'Fadil (Diterima)',
     spk: 'SPK-2026-001',
     notes: 'Kebutuhan standar part tahap perakitan base plate'
   },
@@ -672,7 +672,7 @@ export const INITIAL_STANDART_PART_HANDOVERS: SerahTerimaStandartPartItem[] = [
     distributionDate: '',
     distributionTime: '10:15 WIB',
     division: 'QC & Testing',
-    signature: 'Andry (Manager)',
+    signature: 'Andry (Diterima)',
     spk: 'SPK-2026-003',
     notes: 'Kelengkapan sensor interlock & bearing gripper'
   }

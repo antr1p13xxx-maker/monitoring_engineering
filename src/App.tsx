@@ -117,6 +117,12 @@ export default function App() {
           ) {
             updated.distributionDate = '';
           }
+          if (updated.signature) {
+            updated.signature = updated.signature.replace(/\(Diserahkan\)/gi, '(Diterima)');
+            if (updated.signature.includes('(Lead Eng)') || updated.signature.includes('(Drafter)') || updated.signature.includes('(Manager)')) {
+              updated.signature = updated.signature.replace(/\((Lead Eng|Drafter|Manager)\)/gi, '(Diterima)');
+            }
+          }
           return updated;
         });
       } catch (e) {
