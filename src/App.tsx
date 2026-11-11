@@ -95,7 +95,21 @@ export default function App() {
     const saved = localStorage.getItem('standart_part_handovers');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: SerahTerimaStandartPartItem[] = JSON.parse(saved);
+        // Clear default dummy part names if present from initial setup
+        return parsed.map((item) => {
+          if (
+            item.partNames?.some((p) =>
+              p.includes('Linear Bearing') ||
+              p.includes('Pneumatic Cylinder') ||
+              p.includes('Proximity Sensor') ||
+              p.startsWith('Standard Part ')
+            )
+          ) {
+            return { ...item, partNames: [] };
+          }
+          return item;
+        });
       } catch (e) {
         console.error(e);
       }

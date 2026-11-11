@@ -67,7 +67,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     projectName: '',
     customer: '',
     prepareStaff: [''],
-    partNames: [''],
+    partNames: [],
     distributionDate: new Date().toISOString().split('T')[0],
     distributionTime: '09:00 WIB',
     division: 'Assembly',
@@ -135,7 +135,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
             month: p.Bulan,
             prepareStaff: p.PIC ? [p.PIC] : ['Staff Engineering'],
             projectName: p['Nama Project'],
-            partNames: ['Standard Part ' + p['Nama Project']],
+            partNames: [],
             customer: p.Customer,
             distributionDate: p['Target Design'] || new Date().toISOString().split('T')[0],
             distributionTime: '09:00 WIB',
@@ -247,7 +247,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       projectName: '',
       customer: '',
       prepareStaff: [''],
-      partNames: [''],
+      partNames: [],
       distributionDate: new Date().toISOString().split('T')[0],
       distributionTime: '09:00 WIB',
       division: 'Assembly Jig',
@@ -268,8 +268,8 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       month: item.month,
       projectName: item.projectName,
       customer: item.customer,
-      prepareStaff: item.prepareStaff.length > 0 ? item.prepareStaff : [''],
-      partNames: item.partNames.length > 0 ? item.partNames : [''],
+      prepareStaff: item.prepareStaff && item.prepareStaff.length > 0 ? item.prepareStaff : [''],
+      partNames: item.partNames && item.partNames.length > 0 ? item.partNames : [],
       distributionDate: item.distributionDate,
       distributionTime: item.distributionTime,
       division: item.division,
@@ -305,7 +305,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 projectName: formData.projectName,
                 customer: formData.customer,
                 prepareStaff: cleanStaff.length > 0 ? cleanStaff : ['Staff'],
-                partNames: cleanParts.length > 0 ? cleanParts : ['Part Standard'],
+                partNames: cleanParts,
                 distributionDate: formData.distributionDate,
                 distributionTime: formData.distributionTime,
                 division: formData.division,
@@ -324,7 +324,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         projectName: formData.projectName,
         customer: formData.customer,
         prepareStaff: cleanStaff.length > 0 ? cleanStaff : ['Staff Engineering'],
-        partNames: cleanParts.length > 0 ? cleanParts : ['Part Standard Baru'],
+        partNames: cleanParts,
         distributionDate: formData.distributionDate,
         distributionTime: formData.distributionTime,
         division: formData.division,
@@ -625,27 +625,15 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 </th>
                 <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[170px]">
                   Prepare
-                  <span className="block text-[9px] font-normal text-amber-200 mt-0.5">
-                    (bisa tambah / hapus nama staff)
-                  </span>
                 </th>
                 <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[190px]">
                   Project Name
-                  <span className="block text-[9px] font-normal text-amber-200 mt-0.5">
-                    (isi otomatis dari monitoring)
-                  </span>
                 </th>
                 <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[220px]">
                   Part Name
-                  <span className="block text-[9px] font-normal text-amber-200 mt-0.5">
-                    (bisa isi beberapa nama part)
-                  </span>
                 </th>
                 <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[180px]">
                   Customer
-                  <span className="block text-[9px] font-normal text-amber-200 mt-0.5">
-                    (isi otomatis dari monitoring)
-                  </span>
                 </th>
                 <th colSpan={3} className="p-2 text-center border-r border-[#b34747] bg-[#892d2d]">
                   Distribution
@@ -786,30 +774,32 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       {/* Part Name (Multiple Parts with Add/Delete) */}
                       <td className="p-3 border-r border-slate-200">
                         <div className="space-y-1.5">
-                          <ul className="space-y-1">
-                            {item.partNames.map((part, pIdx) => (
-                              <li
-                                key={pIdx}
-                                className="group flex items-center justify-between text-[11px] bg-slate-50 hover:bg-slate-100 p-1 rounded border border-slate-200 text-slate-800"
-                              >
-                                <span className="font-medium truncate pr-1">
-                                  {pIdx + 1}. {part}
-                                </span>
-                                {!isReadOnly && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemovePart(item.id, pIdx)}
-                                    title="Hapus part"
-                                    className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0 ml-1"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                          {item.partNames && item.partNames.length > 0 && (
+                            <ul className="space-y-1">
+                              {item.partNames.map((part, pIdx) => (
+                                <li
+                                  key={pIdx}
+                                  className="group flex items-center justify-between text-[11px] bg-slate-50 hover:bg-slate-100 p-1 rounded border border-slate-200 text-slate-800"
+                                >
+                                  <span className="font-medium truncate pr-1">
+                                    {pIdx + 1}. {part}
+                                  </span>
+                                  {!isReadOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePart(item.id, pIdx)}
+                                      title="Hapus part"
+                                      className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0 ml-1"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
 
-                          {!isReadOnly && (
+                          {!isReadOnly ? (
                             <div>
                               {quickPartInput?.rowId === item.id ? (
                                 <div className="flex items-center space-x-1 mt-1">
@@ -844,13 +834,17 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                                 <button
                                   type="button"
                                   onClick={() => setQuickPartInput({ rowId: item.id, name: '' })}
-                                  className="text-[10px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center space-x-0.5 pt-0.5"
+                                  className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center space-x-1 pt-0.5 transition hover:underline"
                                 >
-                                  <Plus className="w-3 h-3" />
+                                  <Plus className="w-3.5 h-3.5" />
                                   <span>Tambah Part</span>
                                 </button>
                               )}
                             </div>
+                          ) : (
+                            (!item.partNames || item.partNames.length === 0) && (
+                              <span className="text-slate-400 italic text-[11px]">-</span>
+                            )
                           )}
                         </div>
                       </td>
@@ -1113,20 +1107,24 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     <span>Tambah Part</span>
                   </button>
                 </div>
-                {formData.partNames.map((part, pIdx) => (
-                  <div key={pIdx} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={part}
-                      onChange={(e) => {
-                        const newParts = [...formData.partNames];
-                        newParts[pIdx] = e.target.value;
-                        setFormData({ ...formData, partNames: newParts });
-                      }}
-                      placeholder={`Nama Part ${pIdx + 1} (cth: Linear Bearing, Bolt M8, Cylinder)...`}
-                      className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-xs"
-                    />
-                    {formData.partNames.length > 1 && (
+                {formData.partNames.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic py-1">
+                    Kolom part name kosong. Klik "+ Tambah Part" jika ingin menambahkan part standard.
+                  </p>
+                ) : (
+                  formData.partNames.map((part, pIdx) => (
+                    <div key={pIdx} className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={part}
+                        onChange={(e) => {
+                          const newParts = [...formData.partNames];
+                          newParts[pIdx] = e.target.value;
+                          setFormData({ ...formData, partNames: newParts });
+                        }}
+                        placeholder={`Nama Part ${pIdx + 1} (cth: Linear Bearing, Bolt M8, Cylinder)...`}
+                        className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-xs"
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -1137,9 +1135,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Distribution Details */}
