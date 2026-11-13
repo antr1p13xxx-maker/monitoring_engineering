@@ -1095,9 +1095,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <th className="p-3 border-b border-slate-700 sticky-col-6 text-center font-bold">Status</th>
                 <th className="p-3 border-b border-slate-700 sticky-col-7 text-center font-bold">Delivery Time</th>
                 <th className="p-3 border-b border-slate-700 sticky-col-8 font-bold">Nama Project</th>
+                <th className="p-3 border-b border-slate-700 sticky-col-9 font-bold">PIC</th>
 
                 {/* Middle scrollable columns */}
-                <th className="p-3 border-b border-slate-700">PIC</th>
                 <th className="p-3 border-b border-slate-700 text-right">Qty Drawing</th>
                 <th className="p-3 border-b border-slate-700 text-center">Permintaan Drawing/Design</th>
                 <th className="p-3 border-b border-slate-700 text-center">Target Design</th>
@@ -1136,8 +1136,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 sticky-col-1 text-center font-medium text-slate-600">{globalIdx}</td>
                       <td className="p-3 sticky-col-2 text-center font-semibold text-indigo-700">{item.Bulan}</td>
                       <td className="p-3 sticky-col-3 font-bold text-blue-600 font-mono">{item.SPK}</td>
-                      <td className="p-3 sticky-col-4 font-mono text-slate-700">{item['Nomor PO']}</td>
-                      <td className="p-3 sticky-col-5 font-medium text-slate-800">{item.Customer}</td>
+                      <td className="p-3 sticky-col-4 font-mono text-slate-700 truncate" title={item['Nomor PO']}>{item['Nomor PO']}</td>
+                      <td className="p-3 sticky-col-5 font-medium text-slate-800 truncate" title={item.Customer}>{item.Customer}</td>
                       <td className="p-3 sticky-col-6 text-center">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
                           item.Status === 'Selesai'
@@ -1153,8 +1153,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 sticky-col-8 font-semibold text-slate-800 max-w-[220px] truncate" title={item['Nama Project']}>
                         {item['Nama Project']}
                       </td>
-
-                      <td className="p-3 text-slate-700">{item.PIC}</td>
+                      <td className="p-3 sticky-col-9 text-slate-700 font-medium truncate" title={item.PIC}>
+                        {item.PIC}
+                      </td>
                       <td className="p-3 text-right font-bold text-slate-800">{item['Qty Drawing']}</td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Permintaan Drawing/Design'] || '-'}</td>
                       <td className="p-3 text-center font-mono font-medium text-slate-700">{item['Target Design'] || '-'}</td>
