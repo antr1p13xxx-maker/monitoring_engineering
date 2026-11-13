@@ -57,7 +57,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     projectName: string;
     customer: string;
     prepareStaff: string[];
-    partNames: string[];
+    partNames: Array<{ name: string; qty: string }>;
     distributionDate: string;
     distributionTime: string;
     division: string;
@@ -78,10 +78,27 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
   // Quick Inline Add Staff / Part / Receiver State
   const [quickStaffInput, setQuickStaffInput] = useState<{ rowId: string; name: string } | null>(null);
-  const [quickPartInput, setQuickPartInput] = useState<{ rowId: string; name: string } | null>(null);
+  const [quickPartInput, setQuickPartInput] = useState<{ rowId: string; name: string; qty: string } | null>(null);
+  const [editingPartQty, setEditingPartQty] = useState<{ rowId: string; partIdx: number; qty: string } | null>(null);
   const [quickReceiverInput, setQuickReceiverInput] = useState<{ rowId: string; name: string } | null>(null);
 
   const isReadOnly = userRole === 'Viewer';
+
+  // Helper parse & format Part Name + Qty (contoh: "Bolt M8 (Qty: 4)")
+  const parsePartWithQty = (raw: string): { name: string; qty: string } => {
+    const match = raw.match(/^(.*?)\s*\(Qty:\s*([^)]+)\)\s*$/i);
+    if (match) {
+      return { name: match[1].trim(), qty: match[2].trim() };
+    }
+    return { name: raw.trim(), qty: '1' };
+  };
+
+  const formatPartWithQty = (name: string, qty: string | number): string => {
+    const cleanName = name.trim();
+    const cleanQty = String(qty ?? '').trim() || '1';
+    if (!cleanName) return '';
+    return `${cleanName} (Qty: ${cleanQty})`;
+  };
 
   // Filtered List based on selectedMonth and searchQuery
   const filteredList = useMemo(() => {
@@ -195,22 +212,47 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     showToast(`Staff "${staffName}" dihapus.`);
   };
 
-  // Part Name Tag Management (Add / Remove)
-  const handleAddPart = (itemId: string, partName: string) => {
+  // Part Name Tag Management (Add / Update Qty / Remove)
+  const handleAddPart = (itemId: string, partName: string, partQty: string = '1') => {
     if (!partName.trim() || isReadOnly) return;
+    const cleanQty = partQty.trim() || '1';
+    const formattedPart = formatPartWithQty(partName, cleanQty);
     onUpdateHandoverList((prev) =>
       prev.map((item) => {
         if (item.id === itemId) {
           return {
             ...item,
-            partNames: [...item.partNames, partName.trim()]
+            partNames: [...item.partNames, formattedPart]
           };
         }
         return item;
       })
     );
     setQuickPartInput(null);
-    showToast(`Part "${partName.trim()}" ditambahkan.`);
+    showToast(`Part "${partName.trim()}" (Qty: ${cleanQty}) ditambahkan.`);
+  };
+
+  const handleUpdatePartQty = (itemId: string, partIdx: number, newQty: string) => {
+    if (isReadOnly) return;
+    const cleanQty = newQty.trim() || '1';
+    onUpdateHandoverList((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          const updatedParts = item.partNames.map((p, idx) => {
+            if (idx !== partIdx) return p;
+            const parsed = parsePartWithQty(p);
+            return formatPartWithQty(parsed.name, cleanQty);
+          });
+          return {
+            ...item,
+            partNames: updatedParts
+          };
+        }
+        return item;
+      })
+    );
+    setEditingPartQty(null);
+    showToast(`Qty part diperbarui menjadi ${cleanQty}.`);
   };
 
   const handleRemovePart = (itemId: string, indexToRemove: number) => {
@@ -307,7 +349,10 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       projectName: item.projectName,
       customer: item.customer,
       prepareStaff: item.prepareStaff && item.prepareStaff.length > 0 ? item.prepareStaff : [''],
-      partNames: item.partNames && item.partNames.length > 0 ? item.partNames : [],
+      partNames:
+        item.partNames && item.partNames.length > 0
+          ? item.partNames.map((p) => parsePartWithQty(p))
+          : [],
       distributionDate: item.distributionDate,
       distributionTime: item.distributionTime,
       division: item.division,
@@ -331,7 +376,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanStaff = formData.prepareStaff.map((s) => s.trim()).filter((s) => s.length > 0);
-    const cleanParts = formData.partNames.map((p) => p.trim()).filter((p) => p.length > 0);
+    const cleanParts = formData.partNames
+      .filter((p) => p.name.trim().length > 0)
+      .map((p) => formatPartWithQty(p.name, p.qty));
 
     if (editingItem) {
       onUpdateHandoverList((prev) =>
@@ -681,13 +728,17 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         : [];
 
       const partsRows = activeParts.length > 0
-        ? activeParts.map((p, pIdx) => [
-            pIdx + 1,
-            p,
-            '1 Set / Sesuai BOM',
-            item.division || 'Assembly',
-            'Lengkap & Sesuai Spesifikasi'
-          ])
+        ? activeParts.map((rawPart, pIdx) => {
+            const { name, qty } = parsePartWithQty(rawPart);
+            const qtyDisplay = qty ? `${qty} Pcs` : '1 Set / Sesuai BOM';
+            return [
+              pIdx + 1,
+              name,
+              qtyDisplay,
+              item.division || 'Assembly',
+              'Lengkap & Sesuai Spesifikasi'
+            ];
+          })
         : [[1, 'Semua Standart Part Sesuai Drawing Project', '1 Lot', item.division || 'Assembly', 'Lengkap & Sesuai Spesifikasi']];
 
       autoTable(doc, {
@@ -1121,31 +1172,93 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         </div>
                       </td>
 
-                      {/* Part Name (Multiple Parts with Add/Delete) */}
-                      <td className="p-3 border-r border-slate-200">
+                      {/* Part Name (Multiple Parts with Qty, Add/Delete) */}
+                      <td className="p-3 border-r border-slate-200 min-w-[260px]">
                         <div className="space-y-1.5">
                           {item.partNames && item.partNames.length > 0 && (
                             <ul className="space-y-1">
-                              {item.partNames.map((part, pIdx) => (
-                                <li
-                                  key={pIdx}
-                                  className="group flex items-center justify-between text-[11px] bg-slate-50 hover:bg-slate-100 p-1 rounded border border-slate-200 text-slate-800"
-                                >
-                                  <span className="font-medium truncate pr-1">
-                                    {pIdx + 1}. {part}
-                                  </span>
-                                  {!isReadOnly && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemovePart(item.id, pIdx)}
-                                      title="Hapus part"
-                                      className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0 ml-1"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  )}
-                                </li>
-                              ))}
+                              {item.partNames.map((part, pIdx) => {
+                                const parsed = parsePartWithQty(part);
+                                const isEditingThisQty =
+                                  editingPartQty?.rowId === item.id && editingPartQty?.partIdx === pIdx;
+
+                                return (
+                                  <li
+                                    key={pIdx}
+                                    className="group flex items-center justify-between gap-1.5 text-[11px] bg-slate-50 hover:bg-slate-100 p-1.5 rounded border border-slate-200 text-slate-800"
+                                  >
+                                    <span className="font-medium truncate flex-1">
+                                      {pIdx + 1}. {parsed.name}
+                                    </span>
+
+                                    <div className="flex items-center space-x-1 shrink-0">
+                                      {isEditingThisQty && !isReadOnly ? (
+                                        <div className="flex items-center space-x-1">
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            autoFocus
+                                            value={editingPartQty.qty}
+                                            onChange={(e) =>
+                                              setEditingPartQty({
+                                                rowId: item.id,
+                                                partIdx: pIdx,
+                                                qty: e.target.value
+                                              })
+                                            }
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter')
+                                                handleUpdatePartQty(item.id, pIdx, editingPartQty.qty);
+                                              if (e.key === 'Escape') setEditingPartQty(null);
+                                            }}
+                                            className="w-12 px-1 py-0.5 text-[10px] font-bold text-center border border-emerald-400 rounded bg-white focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleUpdatePartQty(item.id, pIdx, editingPartQty.qty)
+                                            }
+                                            className="p-0.5 bg-emerald-600 text-white rounded hover:bg-emerald-500"
+                                            title="Simpan Qty"
+                                          >
+                                            <Check className="w-2.5 h-2.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={isReadOnly}
+                                          onClick={() =>
+                                            !isReadOnly &&
+                                            setEditingPartQty({
+                                              rowId: item.id,
+                                              partIdx: pIdx,
+                                              qty: parsed.qty
+                                            })
+                                          }
+                                          title={isReadOnly ? undefined : 'Klik untuk ubah Qty'}
+                                          className={`px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px] whitespace-nowrap ${
+                                            !isReadOnly ? 'hover:bg-emerald-100 cursor-pointer' : 'cursor-default'
+                                          }`}
+                                        >
+                                          Qty: {parsed.qty}
+                                        </button>
+                                      )}
+
+                                      {!isReadOnly && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemovePart(item.id, pIdx)}
+                                          title="Hapus part"
+                                          className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
 
@@ -1156,26 +1269,52 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                                   <input
                                     type="text"
                                     autoFocus
-                                    placeholder="Nama part standard..."
+                                    placeholder="Nama part..."
                                     value={quickPartInput.name}
-                                    onChange={(e) => setQuickPartInput({ rowId: item.id, name: e.target.value })}
+                                    onChange={(e) =>
+                                      setQuickPartInput({ ...quickPartInput, name: e.target.value })
+                                    }
                                     onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleAddPart(item.id, quickPartInput.name);
+                                      if (e.key === 'Enter')
+                                        handleAddPart(item.id, quickPartInput.name, quickPartInput.qty);
                                       if (e.key === 'Escape') setQuickPartInput(null);
                                     }}
-                                    className="px-2 py-0.5 text-xs border border-emerald-400 rounded focus:outline-none w-36 bg-white"
+                                    className="px-2 py-0.5 text-xs border border-emerald-400 rounded focus:outline-none flex-1 min-w-[110px] bg-white"
                                   />
+                                  <div className="flex items-center border border-emerald-400 rounded bg-white overflow-hidden shrink-0">
+                                    <span className="px-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border-r border-emerald-200 py-0.5">
+                                      Qty
+                                    </span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      placeholder="1"
+                                      value={quickPartInput.qty}
+                                      onChange={(e) =>
+                                        setQuickPartInput({ ...quickPartInput, qty: e.target.value })
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter')
+                                          handleAddPart(item.id, quickPartInput.name, quickPartInput.qty);
+                                        if (e.key === 'Escape') setQuickPartInput(null);
+                                      }}
+                                      className="w-12 px-1 py-0.5 text-xs text-center font-semibold focus:outline-none bg-white"
+                                    />
+                                  </div>
                                   <button
                                     type="button"
-                                    onClick={() => handleAddPart(item.id, quickPartInput.name)}
-                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500"
+                                    onClick={() =>
+                                      handleAddPart(item.id, quickPartInput.name, quickPartInput.qty)
+                                    }
+                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 shrink-0"
+                                    title="Simpan Part & Qty"
                                   >
                                     <Check className="w-3 h-3" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setQuickPartInput(null)}
-                                    className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+                                    className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300 shrink-0"
                                   >
                                     <X className="w-3 h-3" />
                                   </button>
@@ -1183,7 +1322,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => setQuickPartInput({ rowId: item.id, name: '' })}
+                                  onClick={() =>
+                                    setQuickPartInput({ rowId: item.id, name: '', qty: '1' })
+                                  }
                                   className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center space-x-1 pt-0.5 transition hover:underline"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
@@ -1581,11 +1722,16 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-slate-800">
-                    Part Name (Dapat diisi beberapa nama part)
+                    Part Name & Qty (Dapat diisi beberapa nama part)
                   </label>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, partNames: [...formData.partNames, ''] })}
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        partNames: [...formData.partNames, { name: '', qty: '1' }]
+                      })
+                    }
                     className="text-[11px] text-emerald-600 font-bold flex items-center space-x-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1594,29 +1740,50 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 </div>
                 {formData.partNames.length === 0 ? (
                   <p className="text-[11px] text-slate-400 italic py-1">
-                    Kolom part name kosong. Klik "+ Tambah Part" jika ingin menambahkan part standard.
+                    Kolom part name kosong. Klik "+ Tambah Part" jika ingin menambahkan part standard beserta Qty.
                   </p>
                 ) : (
                   formData.partNames.map((part, pIdx) => (
                     <div key={pIdx} className="flex items-center space-x-2">
+                      <span className="text-[11px] font-bold text-slate-400 w-5 text-center shrink-0">
+                        {pIdx + 1}.
+                      </span>
                       <input
                         type="text"
-                        value={part}
+                        value={part.name}
                         onChange={(e) => {
                           const newParts = [...formData.partNames];
-                          newParts[pIdx] = e.target.value;
+                          newParts[pIdx] = { ...newParts[pIdx], name: e.target.value };
                           setFormData({ ...formData, partNames: newParts });
                         }}
                         placeholder={`Nama Part ${pIdx + 1} (cth: Linear Bearing, Bolt M8, Cylinder)...`}
                         className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-xs"
                       />
+                      <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shrink-0">
+                        <span className="px-2 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 border-r border-slate-300">
+                          Qty
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={part.qty}
+                          onChange={(e) => {
+                            const newParts = [...formData.partNames];
+                            newParts[pIdx] = { ...newParts[pIdx], qty: e.target.value };
+                            setFormData({ ...formData, partNames: newParts });
+                          }}
+                          placeholder="1"
+                          className="w-16 p-1.5 text-xs text-center font-semibold focus:outline-none bg-white"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
                           const newParts = formData.partNames.filter((_, idx) => idx !== pIdx);
                           setFormData({ ...formData, partNames: newParts });
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600"
+                        className="p-1 text-slate-400 hover:text-rose-600 shrink-0"
+                        title="Hapus Part"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
