@@ -27,7 +27,8 @@ import {
   TrendingUp,
   TrendingDown,
   Activity,
-  Sliders
+  Sliders,
+  Box
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import {
@@ -51,6 +52,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { chartValueLabelsPlugin } from '../utils/chartPlugin';
 import { AIInsightsSection } from './AIInsightsSection';
+import { ThreeDChart } from './ThreeDChart';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, BarController, LineController, Title, Tooltip, Legend);
 
@@ -162,6 +164,53 @@ export const KPIView: React.FC<KPIViewProps> = ({
   const quarterlyChartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<ChartJS | null>(null);
   const qChartInstanceRef = useRef<ChartJS | null>(null);
+
+  const [kpiPerfDim, setKpiPerfDim] = useState<'2D' | '3D'>('2D');
+
+  const kpiPerf3DData = useMemo(() => {
+    const targetMonths = getKpiMonthsForFilter(kpiPeriodFilter);
+    const targetVals: number[] = [];
+    const actualVals: number[] = [];
+
+    if (selectedChartKpi === 'all') {
+      targetMonths.forEach((m) => {
+        let sumTarget = 0;
+        let countTarget = 0;
+        let sumActual = 0;
+        let countActual = 0;
+
+        kpiList.forEach((item) => {
+          sumTarget += Number(item.targetVal);
+          countTarget++;
+          const val = item.months[m];
+          if (val !== null && val !== undefined && !isNaN(val)) {
+            sumActual += Number(val);
+            countActual++;
+          }
+        });
+
+        targetVals.push(countTarget > 0 ? Number((sumTarget / countTarget).toFixed(1)) : 0);
+        actualVals.push(countActual > 0 ? Number((sumActual / countActual).toFixed(1)) : 0);
+      });
+    } else {
+      const kpiObj = kpiList.find((k) => String(k.id) === selectedChartKpi);
+      if (kpiObj) {
+        targetMonths.forEach((m) => {
+          targetVals.push(kpiObj.targetVal);
+          const val = kpiObj.months[m];
+          actualVals.push(val !== null && val !== undefined && !isNaN(val) ? Number(val) : 0);
+        });
+      }
+    }
+
+    return {
+      labels: targetMonths.map((m) => MONTH_FULL_NAMES[m] || m),
+      series: [
+        { name: 'Target KPI', data: targetVals, color: '#64748b' },
+        { name: 'Aktual Tercapai', data: actualVals, color: '#10b981' }
+      ]
+    };
+  }, [kpiList, selectedChartKpi, kpiPeriodFilter]);
 
   const isManager = userRole === 'Manager';
   const isReadOnly = userRole === 'Viewer';
@@ -1482,12 +1531,46 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       ))}
                     </select>
                   </div>
+
+                  {/* 2D / 3D pill toggle */}
+                  <div className="flex items-center space-x-0.5 bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => setKpiPerfDim('2D')}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
+                        kpiPerfDim === '2D' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      2D
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKpiPerfDim('3D')}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition flex items-center space-x-1 ${
+                        kpiPerfDim === '3D' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Box className="w-3 h-3" />
+                      <span>3D</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="relative flex-grow w-full h-80">
+              <div className={kpiPerfDim === '2D' ? 'relative flex-grow w-full h-80' : 'hidden'}>
                 <canvas ref={perfChartRef} />
               </div>
+              {kpiPerfDim === '3D' && (
+                <div className="w-full animate-in fade-in duration-200">
+                  <ThreeDChart
+                    title={`Pencapaian KPI vs Target (3D WebGL Multi-Series) - ${selectedChartKpi === 'all' ? 'Rata-Rata Seluruh KPI' : kpiList.find(k => String(k.id) === selectedChartKpi)?.objective || ''}`}
+                    labels={kpiPerf3DData.labels}
+                    series={kpiPerf3DData.series}
+                    unit="%"
+                    height={360}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">

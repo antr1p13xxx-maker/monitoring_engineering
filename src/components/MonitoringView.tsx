@@ -33,6 +33,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { chartValueLabelsPlugin } from '../utils/chartPlugin';
 import { AIInsightsSection } from './AIInsightsSection';
+import { ThreeDChart } from './ThreeDChart';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, BarController, LineController, Title, Tooltip, Legend);
 
@@ -88,6 +89,12 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const chart2Ref = useRef<HTMLCanvasElement>(null);
   const chart3Ref = useRef<HTMLCanvasElement>(null);
   const chartInstancesRef = useRef<{ [key: string]: ChartJS | null }>({ c1: null, c2: null, c3: null });
+
+  // 2D and 3D Chart View Modes
+  const [globalChartDim, setGlobalChartDim] = useState<'2D' | '3D'>('2D');
+  const [chart1Dim, setChart1Dim] = useState<'2D' | '3D'>('2D');
+  const [chart2Dim, setChart2Dim] = useState<'2D' | '3D'>('2D');
+  const [chart3Dim, setChart3Dim] = useState<'2D' | '3D'>('2D');
 
   const isReadOnly = userRole === 'Viewer';
 
@@ -189,6 +196,82 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
     const start = (currentPage - 1) * rowsPerPage;
     return filteredProjects.slice(start, start + rowsPerPage);
   }, [filteredProjects, currentPage]);
+
+  // 3D Chart Data structures
+  const chart1Data3D = useMemo(() => {
+    const customerQtyMap: Record<string, number> = {};
+    filteredProjects.forEach((d) => {
+      const cust = d.Customer || 'Unknown';
+      customerQtyMap[cust] = (customerQtyMap[cust] || 0) + Number(d['Qty Drawing'] || 0);
+    });
+    return {
+      labels: Object.keys(customerQtyMap),
+      series: [
+        {
+          name: 'Total Qty Drawing',
+          color: '#2563eb',
+          data: Object.values(customerQtyMap)
+        }
+      ]
+    };
+  }, [filteredProjects]);
+
+  const chart2Data3D = useMemo(() => {
+    const customerSpkMap: Record<string, number> = {};
+    filteredProjects.forEach((d) => {
+      const cust = d.Customer || 'Unknown';
+      customerSpkMap[cust] = (customerSpkMap[cust] || 0) + 1;
+    });
+    return {
+      labels: Object.keys(customerSpkMap),
+      series: [
+        {
+          name: 'Jumlah SPK Project',
+          color: '#059669',
+          data: Object.values(customerSpkMap)
+        }
+      ]
+    };
+  }, [filteredProjects]);
+
+  const chart3Data3D = useMemo(() => {
+    const allMonths = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const activeMonths = getMonthsForFilter(filterMonth) || allMonths;
+    const monthAgg: Record<string, { customers: Set<string>; permintaan: number; qty: number }> = {};
+    allMonths.forEach((m) => {
+      monthAgg[m] = { customers: new Set(), permintaan: 0, qty: 0 };
+    });
+
+    filteredProjects.forEach((d) => {
+      const m = String(d.Bulan || '').trim();
+      if (monthAgg[m]) {
+        if (d.Customer) monthAgg[m].customers.add(d.Customer);
+        monthAgg[m].permintaan += 1;
+        monthAgg[m].qty += Number(d['Qty Drawing'] || 0);
+      }
+    });
+
+    return {
+      labels: activeMonths,
+      series: [
+        {
+          name: 'Customer Aktif',
+          color: '#3b82f6',
+          data: activeMonths.map((m) => monthAgg[m].customers.size)
+        },
+        {
+          name: 'Permintaan SPK',
+          color: '#10b981',
+          data: activeMonths.map((m) => monthAgg[m].permintaan)
+        },
+        {
+          name: 'Total Qty Drawing',
+          color: '#8b5cf6',
+          data: activeMonths.map((m) => monthAgg[m].qty)
+        }
+      ]
+    };
+  }, [filteredProjects, filterMonth]);
 
   // Synchronize Charts
   useEffect(() => {
@@ -521,6 +604,46 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* 2D / 3D Global Mode Switcher */}
+            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setGlobalChartDim('2D');
+                  setChart1Dim('2D');
+                  setChart2Dim('2D');
+                  setChart3Dim('2D');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                  globalChartDim === '2D'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                <span>2D Standar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGlobalChartDim('3D');
+                  setChart1Dim('3D');
+                  setChart2Dim('3D');
+                  setChart3Dim('3D');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                  globalChartDim === '3D'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Box className="w-3.5 h-3.5" />
+                <span>3D WebGL</span>
+              </button>
+            </div>
+
+            <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
+
             <span className="text-xs font-semibold text-slate-600">Filter Periode:</span>
             {/* Filter Bulan / Kuartal */}
             <select
@@ -574,9 +697,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         </div>
 
         {/* 3 Modern Charts Stacked Vertically */}
-        <div className="flex flex-col space-y-5">
+        <div className="flex flex-col space-y-6">
           {/* Chart 1: Customer vs Qty Drawing */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
@@ -591,18 +714,50 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <span className="text-[10px] bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-200">
                   {filterMonth === 'ALL' ? 'Semua Periode' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
-                <span className="text-[10px] bg-slate-200/70 text-slate-700 font-semibold px-2 py-1 rounded-full">
-                  Vertical Bar
-                </span>
+
+                {/* Per-chart 2D / 3D pill toggle */}
+                <div className="flex items-center space-x-0.5 bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
+                  <button
+                    type="button"
+                    onClick={() => setChart1Dim('2D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                      chart1Dim === '2D' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    2D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChart1Dim('3D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                      chart1Dim === '3D' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Box className="w-2.5 h-2.5" />
+                    <span>3D</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="h-72 w-full">
+
+            <div className={chart1Dim === '2D' ? 'h-72 w-full' : 'hidden'}>
               <canvas ref={chart1Ref} />
             </div>
+            {chart1Dim === '3D' && (
+              <div className="w-full animate-in fade-in duration-200">
+                <ThreeDChart
+                  title="Grafik Customer vs Qty Drawing (3D WebGL)"
+                  labels={chart1Data3D.labels}
+                  series={chart1Data3D.series}
+                  unit="lembar"
+                  height={360}
+                />
+              </div>
+            )}
           </div>
 
           {/* Chart 2: Permintaan Drawing (Customer vs SPK) */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
@@ -617,18 +772,50 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">
                   {filterMonth === 'ALL' ? 'Semua Periode' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
-                <span className="text-[10px] bg-slate-200/70 text-slate-700 font-semibold px-2 py-1 rounded-full">
-                  Workload SPK Bar
-                </span>
+
+                {/* Per-chart 2D / 3D pill toggle */}
+                <div className="flex items-center space-x-0.5 bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
+                  <button
+                    type="button"
+                    onClick={() => setChart2Dim('2D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                      chart2Dim === '2D' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    2D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChart2Dim('3D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                      chart2Dim === '3D' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Box className="w-2.5 h-2.5" />
+                    <span>3D</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="h-72 w-full">
+
+            <div className={chart2Dim === '2D' ? 'h-72 w-full' : 'hidden'}>
               <canvas ref={chart2Ref} />
             </div>
+            {chart2Dim === '3D' && (
+              <div className="w-full animate-in fade-in duration-200">
+                <ThreeDChart
+                  title="Grafik Permintaan Drawing (Customer vs SPK) (3D WebGL)"
+                  labels={chart2Data3D.labels}
+                  series={chart2Data3D.series}
+                  unit="SPK"
+                  height={360}
+                />
+              </div>
+            )}
           </div>
 
           {/* Chart 3: Rekap Engineering Bulanan & Kuartal */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
@@ -643,14 +830,46 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <span className="text-[10px] bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full border border-purple-200">
                   {filterMonth === 'ALL' ? 'Jan - Des' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
-                <span className="text-[10px] bg-slate-200/70 text-slate-700 font-semibold px-2 py-1 rounded-full">
-                  Horizontal Bar
-                </span>
+
+                {/* Per-chart 2D / 3D pill toggle */}
+                <div className="flex items-center space-x-0.5 bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
+                  <button
+                    type="button"
+                    onClick={() => setChart3Dim('2D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                      chart3Dim === '2D' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    2D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChart3Dim('3D')}
+                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                      chart3Dim === '3D' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Box className="w-2.5 h-2.5" />
+                    <span>3D</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="h-80 w-full">
+
+            <div className={chart3Dim === '2D' ? 'h-80 w-full' : 'hidden'}>
               <canvas ref={chart3Ref} />
             </div>
+            {chart3Dim === '3D' && (
+              <div className="w-full animate-in fade-in duration-200">
+                <ThreeDChart
+                  title="Grafik Rekap Engineering Bulanan & Kuartal (3D WebGL Multi-Series)"
+                  labels={chart3Data3D.labels}
+                  series={chart3Data3D.series}
+                  unit=""
+                  height={380}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -23,7 +23,8 @@ import {
   Printer,
   Sparkles,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -517,6 +518,320 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     showToast('Data berhasil diekspor ke Excel!', 'success');
   };
 
+  // Helper untuk format tanggal Indonesia yang rapi (misal: "18 Oktober 2026")
+  const formatIndonesianDate = (dateStr?: string): string => {
+    if (!dateStr || !dateStr.trim()) return '- (Belum Ditentukan)';
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const y = parts[0];
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const indonesianMonths = [
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        if (mIdx >= 0 && mIdx < 12 && !isNaN(d)) {
+          return `${d} ${indonesianMonths[mIdx]} ${y}`;
+        }
+      }
+    }
+    return dateStr;
+  };
+
+  // Cetak Dokumen Resmi BAP (Berita Acara Penyerahan) Standart Part per Baris Data
+  const handlePrintSingleBAP = (item: SerahTerimaStandartPartItem) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+
+      // 1. Company Letterhead (PT. KMIL)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(154, 52, 52); // Maroon KMIL
+      doc.text('PT. KURNIA MUSTIKA INDAH LESTARI', margin, 18);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(50, 50, 50);
+      doc.text('Precision Parts Specialist & Engineering Manufacturing', margin, 22.5);
+
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Jl. Cendrawasih Raya No. 10A RT.006, RW.007, Cengkareng, Jakarta Barat 11730', margin, 26.5);
+      doc.text('Phone: (021) 5438 2995, 5439 4681 | Fax: (021) 545 8040 | Email: kmil@cbn.net.id', margin, 30);
+
+      // Top Right Document Control Box
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.2);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(pageWidth - margin - 64, 12, 64, 21, 1.5, 1.5, 'FD');
+
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      doc.text('No. Dokumen', pageWidth - margin - 62, 16.5);
+      doc.text('Tgl. Berlaku', pageWidth - margin - 62, 21);
+      doc.text('No. Revisi', pageWidth - margin - 62, 25.5);
+      doc.text('Halaman', pageWidth - margin - 62, 30);
+
+      doc.setFont('helvetica', 'normal');
+      doc.text(': KMIL/BAP-ENG/01-004', pageWidth - margin - 42, 16.5);
+      doc.text(': 02 Januari 2024', pageWidth - margin - 42, 21);
+      doc.text(': 00', pageWidth - margin - 42, 25.5);
+      doc.text(': 1 dari 1', pageWidth - margin - 42, 30);
+
+      // Decorative divider bar
+      doc.setDrawColor(154, 52, 52);
+      doc.setLineWidth(0.8);
+      doc.line(margin, 35, pageWidth - margin, 35);
+
+      doc.setDrawColor(210, 210, 210);
+      doc.setLineWidth(0.2);
+      doc.line(margin, 36.5, pageWidth - margin, 36.5);
+
+      // 2. Title Section
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13.5);
+      doc.setTextColor(20, 20, 20);
+      doc.text('BERITA ACARA PENYERAHAN (BAP)', pageWidth / 2, 45, { align: 'center' });
+
+      doc.setFontSize(10.5);
+      doc.setTextColor(154, 52, 52);
+      doc.text('STANDART PART ENGINEERING', pageWidth / 2, 50.5, { align: 'center' });
+
+      // Generate Clean BAP Number
+      const year = '2026';
+      const cleanBAPNo = `BAP/ENG/${year}/${item.month.substring(0, 3).toUpperCase()}/${String(item.no || 1).padStart(3, '0')}`;
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(70, 70, 70);
+      doc.text(`Nomor Dokumen: ${cleanBAPNo}`, pageWidth / 2, 55.5, { align: 'center' });
+
+      // 3. Preamble Paragraph
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 30, 30);
+      const preambleText = 'Pada hari ini, bertempat di Departemen Engineering PT. Kurnia Mustika Indah Lestari, telah diserahkan sejumlah Standart Part untuk kebutuhan perakitan dan proses produksi dengan rincian data sebagai berikut:';
+      const splitPreamble = doc.splitTextToSize(preambleText, contentWidth);
+      doc.text(splitPreamble, margin, 63);
+
+      // 4. Detail Metadata Table
+      const formattedDate = formatIndonesianDate(item.distributionDate);
+      const recipientName = item.signature && item.signature.trim() ? item.signature.trim() : '- (Belum Diisi)';
+      const prepareNames = item.prepareStaff && item.prepareStaff.length > 0
+        ? item.prepareStaff.filter(Boolean).join(', ')
+        : '-';
+
+      autoTable(doc, {
+        startY: 70,
+        margin: { left: margin, right: margin },
+        theme: 'plain',
+        body: [
+          [
+            { content: 'Project Name', styles: { fontStyle: 'bold', cellWidth: 32 } },
+            { content: `: ${item.projectName || '-'}`, styles: { fontStyle: 'bold', cellWidth: 59 } },
+            { content: 'Tanggal Penyerahan', styles: { fontStyle: 'bold', cellWidth: 36 } },
+            { content: `: ${formattedDate}`, styles: { fontStyle: 'bold', textColor: [154, 52, 52], cellWidth: 55 } }
+          ],
+          [
+            { content: 'Customer', styles: { fontStyle: 'bold' } },
+            { content: `: ${item.customer || '-'}` },
+            { content: 'Waktu Distribusi', styles: { fontStyle: 'bold' } },
+            { content: `: ${item.distributionTime || '-'}` }
+          ],
+          [
+            { content: 'Diserahkan Oleh', styles: { fontStyle: 'bold' } },
+            { content: `: ${prepareNames}` },
+            { content: 'Divisi Penerima', styles: { fontStyle: 'bold' } },
+            { content: `: ${item.division || 'Assembly'}` }
+          ],
+          [
+            { content: 'Diterima Oleh', styles: { fontStyle: 'bold' } },
+            { content: `: ${recipientName}`, styles: { fontStyle: 'bold', textColor: [16, 120, 60] } },
+            { content: 'Bulan / Periode', styles: { fontStyle: 'bold' } },
+            { content: `: ${item.month} 2026` }
+          ]
+        ],
+        styles: {
+          fontSize: 8.5,
+          textColor: [30, 30, 30],
+          cellPadding: 1.6
+        }
+      });
+
+      const metaEndY = (doc as any).lastAutoTable?.finalY || 92;
+
+      // 5. Parts List Section Header
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(20, 20, 20);
+      doc.text('A. DAFTAR STANDART PART YANG DISERAHKAN', margin, metaEndY + 7);
+
+      const activeParts = item.partNames && item.partNames.filter(p => p && p.trim()).length > 0
+        ? item.partNames.filter(p => p && p.trim())
+        : [];
+
+      const partsRows = activeParts.length > 0
+        ? activeParts.map((p, pIdx) => [
+            pIdx + 1,
+            p,
+            '1 Set / Sesuai BOM',
+            item.division || 'Assembly',
+            'Lengkap & Sesuai Spesifikasi'
+          ])
+        : [[1, 'Semua Standart Part Sesuai Drawing Project', '1 Lot', item.division || 'Assembly', 'Lengkap & Sesuai Spesifikasi']];
+
+      autoTable(doc, {
+        startY: metaEndY + 10,
+        margin: { left: margin, right: margin },
+        head: [
+          [
+            { content: 'No', styles: { halign: 'center', cellWidth: 10 } },
+            { content: 'Nama Part / Standart Part', styles: { cellWidth: 78 } },
+            { content: 'Qty / Satuan', styles: { halign: 'center', cellWidth: 32 } },
+            { content: 'Divisi Tujuan', styles: { halign: 'center', cellWidth: 30 } },
+            { content: 'Kondisi & Status', styles: { halign: 'center', cellWidth: 32 } }
+          ]
+        ],
+        body: partsRows,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [154, 52, 52],
+          textColor: [255, 255, 255],
+          fontSize: 8.5,
+          fontStyle: 'bold',
+          lineColor: [80, 80, 80],
+          lineWidth: 0.2
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [30, 30, 30],
+          lineColor: [180, 180, 180],
+          lineWidth: 0.15,
+          cellPadding: 2.2
+        },
+        columnStyles: {
+          0: { halign: 'center' },
+          1: { fontStyle: 'bold' },
+          2: { halign: 'center' },
+          3: { halign: 'center' },
+          4: { halign: 'center', textColor: [16, 120, 60] }
+        }
+      });
+
+      const partsEndY = (doc as any).lastAutoTable?.finalY || 140;
+
+      // 6. Notes & Terms Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(220, 226, 232);
+      doc.roundedRect(margin, partsEndY + 5, contentWidth, 20, 1.5, 1.5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(154, 52, 52);
+      doc.text('CATATAN & KETENTUAN SERAH TERIMA:', margin + 3, partsEndY + 9.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(60, 60, 60);
+      doc.text('1. Standart part telah diverifikasi fisik dan ukurannya sesuai dengan dokumen drawing CAD engineering.', margin + 3, partsEndY + 14);
+      doc.text('2. Divisi penerima bertanggung jawab penuh atas penyimpanan dan perakitan part setelah berita acara ini diserahterimakan.', margin + 3, partsEndY + 18);
+      doc.text('3. Apabila ditemukan ketidaksesuaian atau cacat komponen, segera laporkan ke Departemen Engineering maksimal 1x24 jam kerja.', margin + 3, partsEndY + 22);
+
+      // 7. Signature Block (3 Columns)
+      const signStartY = partsEndY + 32;
+      const colWidth = contentWidth / 3;
+
+      // Diserahkan Oleh
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Diserahkan Oleh,', margin + colWidth * 0.5, signStartY, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Staff Engineering / Drafter', margin + colWidth * 0.5, signStartY + 4.5, { align: 'center' });
+
+      // Mengetahui
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Mengetahui,', margin + colWidth * 1.5, signStartY, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Engineering Manager', margin + colWidth * 1.5, signStartY + 4.5, { align: 'center' });
+
+      // Diterima Oleh
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Diterima Oleh,', margin + colWidth * 2.5, signStartY, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Penerima (${item.division || 'Assembly'})`, margin + colWidth * 2.5, signStartY + 4.5, { align: 'center' });
+
+      const lineY = signStartY + 27;
+
+      doc.setDrawColor(120, 120, 120);
+      doc.setLineWidth(0.3);
+      doc.line(margin + 5, lineY, margin + colWidth - 5, lineY);
+      doc.line(margin + colWidth + 5, lineY, margin + colWidth * 2 - 5, lineY);
+      doc.line(margin + colWidth * 2 + 5, lineY, margin + contentWidth - 5, lineY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(20, 20, 20);
+
+      const primaryStaff = item.prepareStaff && item.prepareStaff[0] ? item.prepareStaff[0] : 'Tim Engineering';
+      doc.text(`( ${primaryStaff} )`, margin + colWidth * 0.5, lineY + 4.5, { align: 'center' });
+      doc.text('( Andry Setyawan )', margin + colWidth * 1.5, lineY + 4.5, { align: 'center' });
+
+      const cleanReceiver = item.signature ? item.signature.replace(/\(Diterima\)/gi, '').trim() : '';
+      doc.text(`( ${cleanReceiver || '................................'} )`, margin + colWidth * 2.5, lineY + 4.5, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(110, 110, 110);
+      const signDate = formattedDate !== '- (Belum Ditentukan)' ? formattedDate : '................';
+      doc.text(`Tgl: ${signDate}`, margin + colWidth * 0.5, lineY + 8.5, { align: 'center' });
+      doc.text(`Tgl: ${signDate}`, margin + colWidth * 1.5, lineY + 8.5, { align: 'center' });
+      doc.text(`Tgl: ${signDate}`, margin + colWidth * 2.5, lineY + 8.5, { align: 'center' });
+
+      // 8. Footer & Verification
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.2);
+      doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+
+      const now = new Date();
+      const printDateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} WIB`;
+
+      doc.setFontSize(6.5);
+      doc.setTextColor(130, 130, 130);
+      doc.text(`Dokumen Sah Serah Terima Standart Part • PT. KMIL • Dicetak pada: ${printDateStr}`, margin, pageHeight - 8);
+      doc.text('Dokumen BAP Elektronik Resmi', pageWidth - margin, pageHeight - 8, { align: 'right' });
+
+      const safeProject = (item.projectName || 'Project').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeReceiver = (cleanReceiver || 'Penerima').replace(/[^a-zA-Z0-9_-]/g, '_');
+      doc.save(`BAP_Standart_Part_${safeProject}_${safeReceiver}.pdf`);
+
+      showToast(`Berita Acara Penyerahan (BAP) project "${item.projectName}" berhasil di-generate!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal men-generate file PDF BAP.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* Official Document Letterhead Banner (Exact Match to PDF) */}
@@ -678,11 +993,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 <th rowSpan={2} className="p-3 text-center border-r border-[#b34747] min-w-[130px]">
                   Signature
                 </th>
-                {!isReadOnly && (
-                  <th rowSpan={2} className="p-3 text-center w-24">
-                    Aksi
-                  </th>
-                )}
+                <th rowSpan={2} className="p-3 text-center min-w-[140px]">
+                  Cetak BAP / Aksi
+                </th>
               </tr>
 
               {/* Row 2 Subheader under Distribution */}
@@ -702,7 +1015,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
             <tbody className="divide-y divide-slate-200">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={isReadOnly ? 9 : 10} className="p-10 text-center text-slate-400 italic">
+                  <td colSpan={10} className="p-10 text-center text-slate-400 italic">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <Layers className="w-8 h-8 text-slate-300" />
                       <p>Belum ada data Serah Terima Standart Part pada bulan ini.</p>
@@ -1082,29 +1395,41 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         </div>
                       </td>
 
-                      {/* Action Buttons */}
-                      {!isReadOnly && (
-                        <td className="p-2 text-center">
-                          <div className="flex items-center justify-center space-x-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(item)}
-                              title="Edit Form"
-                              className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
-                            >
-                              <PenSquare className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteItem(item.id, item.projectName)}
-                              title="Hapus Form"
-                              className="p-1 rounded text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      {/* Action Buttons: Cetak BAP & Edit/Delete */}
+                      <td className="p-2 text-center">
+                        <div className="flex items-center justify-center space-x-1.5 flex-wrap gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handlePrintSingleBAP(item)}
+                            title={`Cetak Berita Acara Penyerahan (BAP) PDF untuk project ${item.projectName || ''}`}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 text-[11px] font-bold shadow-2xs transition group"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white transition-colors" />
+                            <span>Cetak BAP</span>
+                          </button>
+
+                          {!isReadOnly && (
+                            <div className="flex items-center space-x-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(item)}
+                                title="Edit Form"
+                                className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
+                              >
+                                <PenSquare className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItem(item.id, item.projectName)}
+                                title="Hapus Form"
+                                className="p-1 rounded-md text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
@@ -1394,20 +1719,34 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               </div>
 
               {/* Modal Footer */}
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#8B2635] hover:bg-[#701e2a] text-white rounded-xl text-xs font-bold shadow-md"
-                >
-                  {editingItem ? 'Simpan Perubahan' : 'Simpan Data'}
-                </button>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                {editingItem ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePrintSingleBAP(editingItem)}
+                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+                    title="Cetak Berita Acara Penyerahan (BAP)"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cetak BAP</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#8B2635] hover:bg-[#701e2a] text-white rounded-xl text-xs font-bold shadow-md transition"
+                  >
+                    {editingItem ? 'Simpan Perubahan' : 'Simpan Data'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
