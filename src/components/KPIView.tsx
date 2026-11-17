@@ -167,6 +167,146 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
   const [kpiPerfDim, setKpiPerfDim] = useState<'2D' | '3D'>('2D');
 
+  const getProjectsForMonthYear = (monthFullName: string, year: string) => {
+    return projects.filter((p) => {
+      const pMonth = String(p.Bulan || '').trim();
+      const matchMonth =
+        pMonth.toLowerCase().includes(monthFullName.toLowerCase()) ||
+        monthFullName.toLowerCase().includes(pMonth.toLowerCase());
+      if (!matchMonth) return false;
+
+      const dateStr = p['Delivery Time'] || p['Target Design'] || p['Permintaan Drawing/Design'] || '';
+      const spk = p.SPK || '';
+      const hasYearInDate = /^\d{4}/.test(dateStr);
+      const hasYearInSpk = /20\d{2}/.test(spk);
+      if (hasYearInDate) return dateStr.startsWith(year);
+      if (hasYearInSpk) return spk.includes(year);
+      return year === '2026';
+    });
+  };
+
+  const calculateRecapCategoryPercentage = (
+    category: 'designQuality' | 'onTimeDesign' | 'distribusiDrawing' | 'costEfficiency' | 'designErrorRate',
+    monthFullName: string,
+    monthProjects: EngineeringProject[]
+  ): number | null => {
+    if (monthProjects.length === 0) return null;
+    const totalCount = monthProjects.length;
+
+    if (category === 'designQuality') {
+      let noFeedbackCount = 0;
+      monthProjects.forEach((p) => {
+        const fb = feedbackList.find(
+          (f) => f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === monthFullName
+        );
+        const hasFeedback =
+          fb && ((fb.fbProduksi && fb.fbProduksi.trim() !== '') || (fb.fbKastamer && fb.fbKastamer.trim() !== ''));
+        if (!hasFeedback) {
+          noFeedbackCount++;
+        }
+      });
+      return Number(((noFeedbackCount / totalCount) * 100).toFixed(1));
+    }
+
+    if (category === 'onTimeDesign') {
+      let onTimeCount = 0;
+      monthProjects.forEach((p) => {
+        const target = p['Target Design'];
+        const actual = p['Tanggal Penyelesaian'] || p['Aktual Engineering'];
+        if (target && actual) {
+          if (new Date(actual) <= new Date(target)) onTimeCount++;
+        } else if (p.Status === 'Selesai') {
+          onTimeCount++;
+        }
+      });
+      return Number(((onTimeCount / totalCount) * 100).toFixed(1));
+    }
+
+    if (category === 'distribusiDrawing') {
+      let delayCount = 0;
+      monthProjects.forEach((p) => {
+        const target = p['Target Design'];
+        const date2D = p['2D'];
+        if (target && date2D) {
+          if (new Date(date2D) > new Date(target)) delayCount++;
+        } else if (target && !date2D) {
+          if (new Date(target) < new Date()) delayCount++;
+        }
+      });
+      return Number(((delayCount / totalCount) * 100).toFixed(1));
+    }
+
+    if (category === 'costEfficiency') {
+      let totalBudget = 0;
+      let totalExp = 0;
+      monthProjects.forEach((p) => {
+        const item = reviewCostList.find(
+          (c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === monthFullName
+        );
+        if (item) {
+          totalBudget += item.anggaran;
+          totalExp += item.pengeluaran.reduce((sum, e) => sum + e.amount, 0);
+        }
+      });
+      return totalBudget > 0 ? Number(((totalExp / totalBudget) * 100).toFixed(1)) : null;
+    }
+
+    if (category === 'designErrorRate') {
+      let totalQtyDrawing = 0;
+      let totalErrors = 0;
+      monthProjects.forEach((p) => {
+        totalQtyDrawing += Number(p['Qty Drawing'] || 0);
+        const item = reviewErrorList.find(
+          (e) => e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === monthFullName
+        );
+        if (item) {
+          totalErrors += item.errors.length;
+        }
+      });
+      return totalQtyDrawing > 0 ? Number(((totalErrors / totalQtyDrawing) * 100).toFixed(1)) : null;
+    }
+
+    return null;
+  };
+
+  // Sinkronisasi otomatis Nilai Aktual (A) KPI 1-5 dari hasil perhitungan % pada Input Rekapitulasi
+  const { syncedKpiList, autoSyncedCells } = useMemo(() => {
+    const categoryByKpiId: Record<
+      number,
+      'designQuality' | 'onTimeDesign' | 'distribusiDrawing' | 'costEfficiency' | 'designErrorRate'
+    > = {
+      1: 'designQuality',
+      2: 'onTimeDesign',
+      3: 'distribusiDrawing',
+      4: 'costEfficiency',
+      5: 'designErrorRate'
+    };
+
+    const autoSet = new Set<string>();
+    const list = kpiList.map((item) => {
+      const category = categoryByKpiId[item.id];
+      if (!category) return item;
+
+      const updatedMonths: Record<string, number | null> = { ...item.months };
+      MONTH_NAMES.forEach((mShort) => {
+        const fullMonth = MONTH_FULL_NAMES[mShort];
+        const mProjects = getProjectsForMonthYear(fullMonth, activeYear);
+        const autoScore = calculateRecapCategoryPercentage(category, fullMonth, mProjects);
+        if (autoScore !== null) {
+          updatedMonths[mShort] = autoScore;
+          autoSet.add(`${item.id}_${mShort}`);
+        }
+      });
+
+      return {
+        ...item,
+        months: updatedMonths
+      };
+    });
+
+    return { syncedKpiList: list, autoSyncedCells: autoSet };
+  }, [kpiList, projects, activeYear, feedbackList, reviewCostList, reviewErrorList]);
+
   const kpiPerf3DData = useMemo(() => {
     const targetMonths = getKpiMonthsForFilter(kpiPeriodFilter);
     const targetVals: number[] = [];
@@ -179,7 +319,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
         let sumActual = 0;
         let countActual = 0;
 
-        kpiList.forEach((item) => {
+        syncedKpiList.forEach((item) => {
           sumTarget += Number(item.targetVal);
           countTarget++;
           const val = item.months[m];
@@ -193,7 +333,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
         actualVals.push(countActual > 0 ? Number((sumActual / countActual).toFixed(1)) : 0);
       });
     } else {
-      const kpiObj = kpiList.find((k) => String(k.id) === selectedChartKpi);
+      const kpiObj = syncedKpiList.find((k) => String(k.id) === selectedChartKpi);
       if (kpiObj) {
         targetMonths.forEach((m) => {
           targetVals.push(kpiObj.targetVal);
@@ -210,7 +350,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
         { name: 'Aktual Tercapai', data: actualVals, color: '#10b981' }
       ]
     };
-  }, [kpiList, selectedChartKpi, kpiPeriodFilter]);
+  }, [syncedKpiList, selectedChartKpi, kpiPeriodFilter]);
 
   const isManager = userRole === 'Manager';
   const isReadOnly = userRole === 'Viewer';
@@ -237,7 +377,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
     let weightedScore = 0;
     let countWithData = 0;
 
-    kpiList.forEach((item) => {
+    syncedKpiList.forEach((item) => {
       let sum = 0;
       let count = 0;
       MONTH_NAMES.forEach((m) => {
@@ -260,7 +400,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
       averageScore,
       health: averageScore >= 90 ? 'Optimal & Prima' : averageScore >= 75 ? 'Dalam Pemantauan' : 'Perlu Intervensi'
     };
-  }, [kpiList]);
+  }, [syncedKpiList]);
 
   // Main Performance Chart setup (Synchronized with kpiPeriodFilter)
   useEffect(() => {
@@ -277,7 +417,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
         let sumActual = 0;
         let countActual = 0;
 
-        kpiList.forEach((item) => {
+        syncedKpiList.forEach((item) => {
           sumTarget += Number(item.targetVal);
           countTarget++;
           const val = item.months[m];
@@ -291,7 +431,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
         actualVals.push(countActual > 0 ? Number((sumActual / countActual).toFixed(1)) : 0);
       });
     } else {
-      const kpiObj = kpiList.find((k) => String(k.id) === selectedChartKpi);
+      const kpiObj = syncedKpiList.find((k) => String(k.id) === selectedChartKpi);
       if (kpiObj) {
         targetMonths.forEach((m) => {
           targetVals.push(kpiObj.targetVal);
@@ -350,7 +490,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
     return () => {
       if (chartInstanceRef.current) chartInstanceRef.current.destroy();
     };
-  }, [activeTab, selectedChartKpi, kpiPeriodFilter, kpiList]);
+  }, [activeTab, selectedChartKpi, kpiPeriodFilter, syncedKpiList]);
 
   // Quarterly Chart setup
   useEffect(() => {
@@ -360,7 +500,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
       let sum = 0;
       let count = 0;
       months.forEach((m) => {
-        kpiList.forEach((item) => {
+        syncedKpiList.forEach((item) => {
           const val = item.months[m];
           if (val !== null && val !== undefined && !isNaN(val)) {
             sum += Number(val);
@@ -403,36 +543,27 @@ export const KPIView: React.FC<KPIViewProps> = ({
     return () => {
       if (qChartInstanceRef.current) qChartInstanceRef.current.destroy();
     };
-  }, [activeTab, kpiList]);
+  }, [activeTab, syncedKpiList]);
 
   // Filter projects relevant to active category & month for recap
   const recapProjects = useMemo(() => {
-    return projects.filter((p) => {
-      const pMonth = String(p.Bulan || '').trim();
-      return pMonth.toLowerCase().includes(designMonth.toLowerCase()) || designMonth.toLowerCase().includes(pMonth.toLowerCase());
-    });
-  }, [projects, designMonth]);
+    return getProjectsForMonthYear(designMonth, activeYear);
+  }, [projects, designMonth, activeYear]);
 
   // Filter projects for Review Cost
   const costProjects = useMemo(() => {
-    return projects.filter((p) => {
-      const pMonth = String(p.Bulan || '').trim();
-      return pMonth.toLowerCase().includes(costMonth.toLowerCase()) || costMonth.toLowerCase().includes(pMonth.toLowerCase());
-    });
-  }, [projects, costMonth]);
+    return getProjectsForMonthYear(costMonth, activeYear);
+  }, [projects, costMonth, activeYear]);
 
   // Filter projects for Review Error
   const errorProjects = useMemo(() => {
-    return projects.filter((p) => {
-      const pMonth = String(p.Bulan || '').trim();
-      return pMonth.toLowerCase().includes(errorMonth.toLowerCase()) || errorMonth.toLowerCase().includes(pMonth.toLowerCase());
-    });
-  }, [projects, errorMonth]);
+    return getProjectsForMonthYear(errorMonth, activeYear);
+  }, [projects, errorMonth, activeYear]);
 
   // Active KPI item for Recharts Trends analysis
   const activeTrendKpi = useMemo(() => {
-    return kpiList.find((k) => k.id === trendKpiId) || kpiList[0] || null;
-  }, [kpiList, trendKpiId]);
+    return syncedKpiList.find((k) => k.id === trendKpiId) || syncedKpiList[0] || null;
+  }, [syncedKpiList, trendKpiId]);
 
   // Monthly data points for Recharts visualization (adapted to kpiPeriodFilter)
   const trendData = useMemo(() => {
@@ -466,7 +597,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
   // KPI Executive summary data for Manager AI Insights
   const kpiSummary = useMemo(() => {
     const activeMonths = getKpiMonthsForFilter(kpiPeriodFilter);
-    const kpiStatusList = kpiList.map((item) => {
+    const kpiStatusList = syncedKpiList.map((item) => {
       const values = activeMonths.map((m) => item.months[m]).filter((v) => v !== null && v !== undefined && !isNaN(v as any)) as number[];
       const avg = values.length > 0 ? Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)) : null;
       const evalRes = evaluateKPI(item, avg);
@@ -487,11 +618,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
       activeYear,
       period: kpiPeriodFilter === 'ALL' ? 'Setahun Penuh (Jan - Des)' : kpiPeriodFilter,
       healthStatus: kpiStats.health,
-      targetAchievedCount: `${achievedCount} dari ${kpiList.length} parameter KPI`,
+      targetAchievedCount: `${achievedCount} dari ${syncedKpiList.length} parameter KPI`,
       totalWeightScore: `${kpiStats.averageScore}%`,
       kpiDetails: kpiStatusList
     };
-  }, [kpiList, kpiPeriodFilter, activeYear, kpiStats]);
+  }, [syncedKpiList, kpiPeriodFilter, activeYear, kpiStats]);
 
   // Statistical summary of monthly fluctuations
   const trendStats = useMemo(() => {
@@ -541,78 +672,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
   // Calculate live formula score for Design Recap categories
   const calculatedCategoryScore = useMemo(() => {
-    const totalCount = Math.max(1, recapProjects.length);
-
-    if (designCategory === 'designQuality') {
-      let noFeedbackCount = 0;
-      recapProjects.forEach((p) => {
-        const fb = feedbackList.find((f) => f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === designMonth);
-        const hasFeedback = fb && (
-          (fb.fbProduksi && fb.fbProduksi.trim() !== '') ||
-          (fb.fbKastamer && fb.fbKastamer.trim() !== '')
-        );
-        if (!hasFeedback) {
-          noFeedbackCount++;
-        }
-      });
-      return Number(((noFeedbackCount / totalCount) * 100).toFixed(1));
-    }
-
-    if (designCategory === 'onTimeDesign') {
-      let onTimeCount = 0;
-      recapProjects.forEach((p) => {
-        const target = p['Target Design'];
-        const actual = p['Tanggal Penyelesaian'] || p['Aktual Engineering'];
-        if (target && actual) {
-          if (new Date(actual) <= new Date(target)) onTimeCount++;
-        } else if (p.Status === 'Selesai') {
-          onTimeCount++;
-        }
-      });
-      return Number(((onTimeCount / totalCount) * 100).toFixed(1));
-    }
-
-    if (designCategory === 'distribusiDrawing') {
-      let delayCount = 0;
-      recapProjects.forEach((p) => {
-        const target = p['Target Design'];
-        const date2D = p['2D'];
-        if (target && date2D) {
-          if (new Date(date2D) > new Date(target)) delayCount++;
-        } else if (target && !date2D) {
-          if (new Date(target) < new Date()) delayCount++;
-        }
-      });
-      return Number(((delayCount / totalCount) * 100).toFixed(1));
-    }
-
-    if (designCategory === 'costEfficiency') {
-      let totalBudget = 0;
-      let totalExp = 0;
-      recapProjects.forEach((p) => {
-        const item = reviewCostList.find((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth);
-        if (item) {
-          totalBudget += item.anggaran;
-          totalExp += item.pengeluaran.reduce((sum, e) => sum + e.amount, 0);
-        }
-      });
-      return totalBudget > 0 ? Number(((totalExp / totalBudget) * 100).toFixed(1)) : 85.0;
-    }
-
-    if (designCategory === 'designErrorRate') {
-      let totalQtyDrawing = 0;
-      let totalErrors = 0;
-      recapProjects.forEach((p) => {
-        totalQtyDrawing += Number(p['Qty Drawing'] || 0);
-        const item = reviewErrorList.find((e) => e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth);
-        if (item) {
-          totalErrors += item.errors.length;
-        }
-      });
-      return totalQtyDrawing > 0 ? Number(((totalErrors / totalQtyDrawing) * 100).toFixed(1)) : 0.8;
-    }
-
-    return 100;
+    const score = calculateRecapCategoryPercentage(designCategory, designMonth, recapProjects);
+    return score !== null ? score : 0;
   }, [designCategory, designMonth, recapProjects, feedbackList, reviewCostList, reviewErrorList]);
 
   // Export Matrix to PDF
@@ -627,8 +688,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
       doc.setFont('helvetica', 'normal');
       doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Engineering Department Plant CDR & BTG`, 14, 18);
 
+      const fmtActualPdf = (val: number | null | undefined, unit: string) => {
+        if (val === null || val === undefined) return '-';
+        return unit === '%' ? `${val}%` : val;
+      };
+
       const tableRows: any[] = [];
-      kpiList.forEach((kpi) => {
+      syncedKpiList.forEach((kpi) => {
         // Row 1: Target
         tableRows.push([
           kpi.no,
@@ -661,18 +727,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
           '',
           '',
           'A',
-          kpi.months.Jan ?? '-',
-          kpi.months.Feb ?? '-',
-          kpi.months.Mar ?? '-',
-          kpi.months.Apr ?? '-',
-          kpi.months.Mei ?? '-',
-          kpi.months.Jun ?? '-',
-          kpi.months.Jul ?? '-',
-          kpi.months.Aug ?? '-',
-          kpi.months.Sep ?? '-',
-          kpi.months.Okt ?? '-',
-          kpi.months.Nop ?? '-',
-          kpi.months.Des ?? '-',
+          fmtActualPdf(kpi.months.Jan, kpi.unit),
+          fmtActualPdf(kpi.months.Feb, kpi.unit),
+          fmtActualPdf(kpi.months.Mar, kpi.unit),
+          fmtActualPdf(kpi.months.Apr, kpi.unit),
+          fmtActualPdf(kpi.months.Mei, kpi.unit),
+          fmtActualPdf(kpi.months.Jun, kpi.unit),
+          fmtActualPdf(kpi.months.Jul, kpi.unit),
+          fmtActualPdf(kpi.months.Aug, kpi.unit),
+          fmtActualPdf(kpi.months.Sep, kpi.unit),
+          fmtActualPdf(kpi.months.Okt, kpi.unit),
+          fmtActualPdf(kpi.months.Nop, kpi.unit),
+          fmtActualPdf(kpi.months.Des, kpi.unit),
           ''
         ]);
       });
@@ -700,7 +766,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
       ['No', 'Quality Objective', 'KPI', 'Bobot', 'Unit', 'Target', 'T/A', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nop', 'Des', 'Keterangan']
     ];
 
-    kpiList.forEach((item) => {
+    syncedKpiList.forEach((item) => {
       aoa.push([
         item.no,
         item.objective,
@@ -952,7 +1018,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 onChange={(e) => setTrendKpiId(Number(e.target.value))}
                 className="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
-                {kpiList.map((k) => (
+                {syncedKpiList.map((k) => (
                   <option key={k.id} value={k.id}>
                     {k.no}. {k.objective} (Target: {k.target})
                   </option>
@@ -1524,7 +1590,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     >
                       <option value="all">Rata-Rata Seluruh KPI</option>
-                      {kpiList.map((item) => (
+                      {syncedKpiList.map((item) => (
                         <option key={item.id} value={String(item.id)}>
                           {item.no}. {item.objective}
                         </option>
@@ -1563,7 +1629,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               {kpiPerfDim === '3D' && (
                 <div className="w-full animate-in fade-in duration-200">
                   <ThreeDChart
-                    title={`Pencapaian KPI vs Target (3D WebGL Multi-Series) - ${selectedChartKpi === 'all' ? 'Rata-Rata Seluruh KPI' : kpiList.find(k => String(k.id) === selectedChartKpi)?.objective || ''}`}
+                    title={`Pencapaian KPI vs Target (3D WebGL Multi-Series) - ${selectedChartKpi === 'all' ? 'Rata-Rata Seluruh KPI' : syncedKpiList.find(k => String(k.id) === selectedChartKpi)?.objective || ''}`}
                     labels={kpiPerf3DData.labels}
                     series={kpiPerf3DData.series}
                     unit="%"
@@ -1639,11 +1705,17 @@ export const KPIView: React.FC<KPIViewProps> = ({
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800">
-                KPI - ENGINEERING DEPARTMENT (Matriks Resmi {activeYear})
-              </h3>
-              <p className="text-xs text-slate-500">
-                Tampilan rekapitulasi target dan pencapaian aktual bulanan lengkap sesuai dokumen resmi industri
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-slate-800">
+                  KPI - ENGINEERING DEPARTMENT (Matriks Resmi {activeYear})
+                </h3>
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                  <span>Auto-Sync % Input Rekapitulasi (KPI 1–5)</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Tampilan rekapitulasi target dan pencapaian aktual bulanan lengkap sesuai dokumen resmi industri • Nilai Aktual (A) KPI 1–5 terisi otomatis dari hasil % Input Rekapitulasi
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -1685,7 +1757,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300 text-slate-800 bg-white">
-                {kpiList.map((item) => (
+                {syncedKpiList.map((item) => (
                   <React.Fragment key={item.id}>
                     {/* Row 1: Target (T) */}
                     <tr className="border-b border-slate-300 text-center bg-white hover:bg-slate-50">
@@ -1708,14 +1780,41 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     {/* Row 2: Actual (A) */}
                     <tr className="border-b border-slate-300 text-center bg-white hover:bg-slate-50">
                       <td className="p-2 border border-slate-300 text-left" colSpan={5}>
-                        <span className="text-[10px] text-slate-400 italic">Pencapaian Aktual Departemen</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-400 italic">Pencapaian Aktual Departemen</span>
+                          {item.id >= 1 && item.id <= 5 && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              Auto % Input Rekapitulasi
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2 border border-slate-300 font-bold bg-blue-50 text-blue-800">A</td>
                       {MONTH_NAMES.map((m) => {
                         const val = item.months[m];
+                        const isAuto = autoSyncedCells.has(`${item.id}_${m}`);
+                        const evalRes = evaluateKPI(item, val);
+                        const hasVal = val !== null && val !== undefined;
+                        const displayVal = hasVal ? (item.unit === '%' ? `${val}%` : val) : '-';
                         return (
-                          <td key={m} className="p-1 border border-slate-300 font-bold text-emerald-700">
-                            {val !== null && val !== undefined ? val : '-'}
+                          <td
+                            key={m}
+                            title={
+                              isAuto
+                                ? `Terisi otomatis dari hasil % Input Rekapitulasi (${MONTH_FULL_NAMES[m]}): ${displayVal}`
+                                : undefined
+                            }
+                            className={`p-1 border border-slate-300 font-bold ${
+                              !hasVal
+                                ? 'text-slate-400'
+                                : evalRes.achieved
+                                ? isAuto
+                                  ? 'text-emerald-700 bg-emerald-50/50'
+                                  : 'text-emerald-700'
+                                : 'text-rose-600 bg-rose-50/50'
+                            }`}
+                          >
+                            {displayVal}
                           </td>
                         );
                       })}
@@ -1776,10 +1875,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-700">
-                {kpiList
+                {syncedKpiList
                   .filter((item) => !searchKpi || item.objective.toLowerCase().includes(searchKpi.toLowerCase()))
                   .map((item) => {
                     const val = item.months[activeGlobalMonth];
+                    const isAuto = autoSyncedCells.has(`${item.id}_${activeGlobalMonth}`);
                     const status = evaluateKPI(item, val);
                     const unitStr = item.id === 7 ? 'Angka' : item.unit;
 
@@ -1794,7 +1894,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
                         <td className="p-3 text-center">{unitStr}</td>
                         <td className="p-3 text-center font-semibold">{item.target}</td>
                         <td className="p-3 text-center font-bold text-emerald-600">
-                          {val !== null && val !== undefined ? `${val} ${unitStr}` : <span className="text-slate-400 italic">Belum diisi</span>}
+                          {val !== null && val !== undefined ? (
+                            <div className="flex flex-col items-center">
+                              <span>{`${val} ${unitStr}`}</span>
+                              {isAuto && (
+                                <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 mt-0.5">
+                                  Auto Rekapitulasi
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Belum diisi</span>
+                          )}
                         </td>
                         <td className="p-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${status.color}`}>
@@ -2510,7 +2621,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     </div>
                   </div>
                   <div className="p-2.5 bg-[#dc2626] bg-red-600 text-white font-bold text-center text-sm border border-black tracking-wide">
-                    Design Cost Efisiensi = {calculatedCategoryScore}%
+                    Design Error Rate = {calculatedCategoryScore}%
                   </div>
                 </div>
               </div>
