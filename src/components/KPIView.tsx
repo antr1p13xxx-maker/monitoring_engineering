@@ -3507,9 +3507,12 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   );
                   const isClean = !modalFbProduksi.trim() && !modalFbKastamer.trim();
                   if (idx !== -1) {
-                    updated[idx].fbProduksi = modalFbProduksi.trim();
-                    updated[idx].fbKastamer = modalFbKastamer.trim();
-                    updated[idx].isNoRevision = isClean;
+                    updated[idx] = {
+                      ...updated[idx],
+                      fbProduksi: modalFbProduksi.trim(),
+                      fbKastamer: modalFbKastamer.trim(),
+                      isNoRevision: isClean
+                    };
                   } else {
                     updated.push({
                       month: designMonth,

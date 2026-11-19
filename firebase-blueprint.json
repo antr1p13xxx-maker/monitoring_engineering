@@ -109,6 +109,22 @@
         "updatedAt": { "type": "string", "description": "Timestamp update" }
       },
       "required": ["month", "projectName", "customer"]
+    },
+    "design_feedback_records": {
+      "title": "Design Quality Feedback Records",
+      "description": "Catatan feedback tim produksi dan tim kastamer untuk perhitungan KPI Design Quality.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik feedback record" },
+        "month": { "type": "string", "description": "Bulan evaluasi" },
+        "customer": { "type": "string", "description": "Nama customer" },
+        "projectName": { "type": "string", "description": "Nama project" },
+        "fbProduksi": { "type": "string", "description": "Feedback dari team produksi" },
+        "fbKastamer": { "type": "string", "description": "Feedback dari team kastamer" },
+        "isNoRevision": { "type": "boolean", "description": "True jika tidak ada catatan feedback revisi" },
+        "updatedAt": { "type": "string", "description": "Timestamp update" }
+      },
+      "required": ["month", "customer", "projectName"]
     }
   },
   "firestore": {
@@ -131,6 +147,10 @@
     "/standart_part_handovers/{handoverId}": {
       "schema": "#/entities/standart_part_handovers",
       "description": "Dokumen kontrol serah terima standart part (KMIL/FM-ENG/01-004)."
+    },
+    "/design_feedback_records/{recordId}": {
+      "schema": "#/entities/design_feedback_records",
+      "description": "Dokumen pencatatan feedback tim produksi & kastamer untuk KPI Design Quality."
     }
   }
 }

@@ -8,13 +8,14 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
 const REVIEW_COST_COLLECTION = 'review_cost_records';
 const REVIEW_ERROR_COLLECTION = 'review_error_records';
 const STANDART_PART_COLLECTION = 'standart_part_handovers';
+const DESIGN_FEEDBACK_COLLECTION = 'design_feedback_records';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -358,5 +359,129 @@ export async function seedStandartPartsIfEmpty(
     }
   } catch (err) {
     console.warn('Could not seed initial Standart Parts to Firestore:', err);
+  }
+}
+
+/**
+ * Helper aman membuat docId <= 128 karakter untuk Design Feedback.
+ */
+export function buildDesignFeedbackDocId(month: string, customer: string, projectName: string): string {
+  const rawKey = `${month}_${customer}_${projectName}`;
+  const sanitized = rawKey.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
+  if (sanitized.length > 0 && sanitized.length <= 120) {
+    return sanitized;
+  }
+  let hash = 0;
+  for (let i = 0; i < rawKey.length; i++) {
+    hash = ((hash << 5) - hash + rawKey.charCodeAt(i)) | 0;
+  }
+  const suffix = Math.abs(hash).toString(36);
+  return `${sanitized.slice(0, 100)}_${suffix}`;
+}
+
+/**
+ * Real-time listener untuk Feedback Design Quality (Tim Produksi & Kastamer).
+ */
+export function subscribeToFirestoreDesignFeedback(
+  onUpdate: (items: DesignFeedbackItem[]) => void
+) {
+  const colRef = collection(db, DESIGN_FEEDBACK_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: DesignFeedbackItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.month && data.customer && data.projectName) {
+          const fbProduksi = String(data.fbProduksi || '');
+          const fbKastamer = String(data.fbKastamer || '');
+          list.push({
+            month: String(data.month),
+            customer: String(data.customer),
+            projectName: String(data.projectName),
+            fbProduksi,
+            fbKastamer,
+            isNoRevision:
+              typeof data.isNoRevision === 'boolean'
+                ? data.isNoRevision
+                : !fbProduksi.trim() && !fbKastamer.trim(),
+          });
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Design Feedback listener notice:', err.message);
+    }
+  );
+}
+
+/**
+ * Menyimpan / memperbarui Feedback Design Quality ke Firestore.
+ */
+export async function saveDesignFeedbackToFirestore(
+  item: DesignFeedbackItem
+): Promise<void> {
+  const docId = buildDesignFeedbackDocId(item.month, item.customer, item.projectName);
+  const docRef = doc(db, DESIGN_FEEDBACK_COLLECTION, docId);
+  await setDoc(
+    docRef,
+    {
+      month: item.month,
+      customer: item.customer,
+      projectName: item.projectName,
+      fbProduksi: item.fbProduksi || '',
+      fbKastamer: item.fbKastamer || '',
+      isNoRevision: Boolean(item.isNoRevision),
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Menghapus Feedback Design Quality dari Firestore.
+ */
+export async function deleteDesignFeedbackFromFirestore(
+  item: Pick<DesignFeedbackItem, 'month' | 'customer' | 'projectName'>
+): Promise<void> {
+  const docId = buildDesignFeedbackDocId(item.month, item.customer, item.projectName);
+  const docRef = doc(db, DESIGN_FEEDBACK_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed initial Design Feedback jika koleksi masih kosong dan belum pernah di-seed.
+ */
+export async function seedDesignFeedbackIfEmpty(
+  initialItems: DesignFeedbackItem[]
+): Promise<void> {
+  try {
+    if (localStorage.getItem('eng_design_feedback_seeded') === 'true') {
+      return;
+    }
+    const colRef = collection(db, DESIGN_FEEDBACK_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    if (snapshot.empty && initialItems.length > 0) {
+      const batch = writeBatch(db);
+      initialItems.forEach((item) => {
+        const docId = buildDesignFeedbackDocId(item.month, item.customer, item.projectName);
+        const docRef = doc(db, DESIGN_FEEDBACK_COLLECTION, docId);
+        batch.set(docRef, {
+          month: item.month,
+          customer: item.customer,
+          projectName: item.projectName,
+          fbProduksi: item.fbProduksi || '',
+          fbKastamer: item.fbKastamer || '',
+          isNoRevision: Boolean(item.isNoRevision),
+          updatedAt: new Date().toISOString(),
+        });
+      });
+      await batch.commit();
+      console.info(`Seeded ${initialItems.length} initial Design Feedback records to Firestore.`);
+    }
+    localStorage.setItem('eng_design_feedback_seeded', 'true');
+  } catch (err) {
+    console.warn('Could not seed initial Design Feedback to Firestore:', err);
   }
 }

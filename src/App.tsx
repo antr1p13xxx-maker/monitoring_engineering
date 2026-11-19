@@ -24,7 +24,11 @@ import {
   saveReviewErrorToFirestore,
   subscribeToFirestoreStandartParts,
   saveStandartPartToFirestore,
-  seedStandartPartsIfEmpty
+  seedStandartPartsIfEmpty,
+  subscribeToFirestoreDesignFeedback,
+  saveDesignFeedbackToFirestore,
+  deleteDesignFeedbackFromFirestore,
+  seedDesignFeedbackIfEmpty
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
@@ -88,7 +92,20 @@ export default function App() {
   // Review Cost & Error State
   const [reviewCostList, setReviewCostList] = useState<ReviewCostItem[]>(INITIAL_REVIEW_COST);
   const [reviewErrorList, setReviewErrorList] = useState<ReviewErrorItem[]>(INITIAL_REVIEW_ERROR);
-  const [feedbackList, setFeedbackList] = useState<DesignFeedbackItem[]>(INITIAL_FEEDBACK);
+  const [feedbackList, setFeedbackList] = useState<DesignFeedbackItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_design_feedback');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading feedback from localStorage:', e);
+    }
+    return INITIAL_FEEDBACK;
+  });
 
   // Serah Terima Standart Part State
   const [standartPartList, setStandartPartList] = useState<SerahTerimaStandartPartItem[]>(() => {
@@ -255,12 +272,28 @@ export default function App() {
       }
     });
 
+    // 7. Real-time Design Quality Feedback Listener
+    let isFeedbackMounted = true;
+    let unsubFeedback: (() => void) | undefined;
+    seedDesignFeedbackIfEmpty(INITIAL_FEEDBACK).finally(() => {
+      if (!isFeedbackMounted) return;
+      unsubFeedback = subscribeToFirestoreDesignFeedback((items) => {
+        if (items.length > 0) {
+          setFeedbackList(items);
+        } else if (localStorage.getItem('eng_design_feedback_seeded') === 'true') {
+          setFeedbackList([]);
+        }
+      });
+    });
+
     return () => {
+      isFeedbackMounted = false;
       unsubProjects();
       unsubKpis();
       unsubCost();
       unsubError();
       unsubStandartParts();
+      if (unsubFeedback) unsubFeedback();
     };
   }, [activeYear]);
 
@@ -281,6 +314,15 @@ export default function App() {
       console.error(e);
     }
   }, [standartPartList]);
+
+  // Persist Design Quality Feedback to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_design_feedback', JSON.stringify(feedbackList));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [feedbackList]);
 
   // Ensure appsScript view is strictly accessible only by Manager
   useEffect(() => {
@@ -515,6 +557,44 @@ export default function App() {
     });
   };
 
+  const handleUpdateFeedback = (
+    updater: DesignFeedbackItem[] | ((prev: DesignFeedbackItem[]) => DesignFeedbackItem[])
+  ) => {
+    const prevSnapshot = feedbackList;
+    const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
+    setFeedbackList(resolved);
+
+    try {
+      localStorage.setItem('eng_design_feedback', JSON.stringify(resolved));
+      localStorage.setItem('eng_design_feedback_seeded', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+
+    resolved.forEach((item) => {
+      saveDesignFeedbackToFirestore(item).catch((err) =>
+        console.warn('Firestore Design Feedback save error:', err)
+      );
+    });
+
+    // Hapus record di Firestore jika item dihapus dari daftar
+    prevSnapshot.forEach((oldItem) => {
+      const stillExists = resolved.some(
+        (newItem) =>
+          newItem.month === oldItem.month &&
+          newItem.customer === oldItem.customer &&
+          newItem.projectName === oldItem.projectName
+      );
+      if (!stillExists) {
+        deleteDesignFeedbackFromFirestore(oldItem).catch((err) =>
+          console.warn('Firestore Design Feedback delete error:', err)
+        );
+      }
+    });
+
+    showToast('Feedback Design Quality berhasil disimpan ke Cloud & Local Storage!', 'success');
+  };
+
   const handleSyncCloud = () => {
     showToast('Menghubungkan ke Google Firebase Firestore... Data tersinkronisasi!', 'success');
   };
@@ -601,7 +681,7 @@ export default function App() {
             reviewErrorList={reviewErrorList}
             onUpdateReviewError={handleUpdateReviewError}
             feedbackList={feedbackList}
-            onUpdateFeedback={setFeedbackList}
+            onUpdateFeedback={handleUpdateFeedback}
             auditLogs={auditLogs}
           />
         )}

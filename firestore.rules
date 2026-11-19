@@ -36,6 +36,12 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(handoverId);
     }
 
+    // Design Quality Feedback Records Collection
+    match /design_feedback_records/{recordId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(recordId);
+    }
+
     // Connection testing endpoint
     match /test/{docId} {
       allow read, write: if true;
