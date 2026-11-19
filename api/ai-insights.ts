@@ -1,5 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http';
-import { generateAIInsights } from '../src/server/aiService';
+import { generateAIInsights } from '../src/server/aiService.ts';
 
 // Vercel Serverless Function Handler for /api/ai-insights
 export default async function handler(req: any, res: any) {
@@ -22,12 +21,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { contextType, period, dataSummary, role } = req.body || {};
+    const rawBody = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { contextType, period, dataSummary, role } = rawBody;
 
-    // Strict role check: only Manager is authorized
-    if (role !== 'Manager') {
+    const isAuthorized = role === 'Manager' || (role === 'Supervisor' && contextType === 'kpi');
+    if (!isAuthorized) {
       return res.status(403).json({
-        error: 'Akses ditolak: Fitur AI Insight & Rekomendasi hanya dapat diakses oleh Engineering Manager.',
+        error: 'Akses ditolak: Fitur AI Insight & Rekomendasi hanya dapat diakses oleh Engineering Manager atau Supervisor (KPI CDR).',
       });
     }
 
@@ -36,7 +36,7 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error('Vercel API Error:', error);
     return res.status(500).json({
-      error: error.message || 'Gagal memproses AI insight.',
+      error: error?.message || 'Gagal memproses AI insight.',
     });
   }
 }

@@ -2,7 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import { generateAIInsights } from './src/server/aiService.ts';
 
 dotenv.config();
 
@@ -14,17 +14,16 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-import { generateAIInsights } from './src/server/aiService';
-
-// AI Insights & Strategic Recommendations Endpoint (Manager Only)
+// AI Insights & Strategic Recommendations Endpoint (Manager, or Supervisor on KPI CDR)
 app.post('/api/ai-insights', async (req, res) => {
   try {
-    const { contextType, period, dataSummary, role } = req.body;
+    const rawBody = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { contextType, period, dataSummary, role } = rawBody;
 
-    // Strict role check: only Manager is authorized
-    if (role !== 'Manager') {
+    const isAuthorized = role === 'Manager' || (role === 'Supervisor' && contextType === 'kpi');
+    if (!isAuthorized) {
       return res.status(403).json({
-        error: 'Akses ditolak: Fitur AI Insight & Rekomendasi hanya dapat diakses oleh Engineering Manager.',
+        error: 'Akses ditolak: Fitur AI Insight & Rekomendasi hanya dapat diakses oleh Engineering Manager atau Supervisor (KPI CDR).',
       });
     }
 
@@ -33,7 +32,7 @@ app.post('/api/ai-insights', async (req, res) => {
   } catch (error: any) {
     console.error('AI Insights API Error:', error);
     return res.status(500).json({
-      error: error.message || 'Gagal memproses AI insight.',
+      error: error?.message || 'Gagal memproses AI insight.',
     });
   }
 });

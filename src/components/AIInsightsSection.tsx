@@ -63,12 +63,19 @@ export const AIInsightsSection: React.FC<AIInsightsSectionProps> = ({
         }),
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || `Server error (${response.status})`);
+      const rawText = await response.text();
+      let parsedBody: any = {};
+      try {
+        parsedBody = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        parsedBody = {};
       }
 
-      const data: AIInsightData = await response.json();
+      if (!response.ok) {
+        throw new Error(parsedBody.error || `Server error (${response.status})`);
+      }
+
+      const data: AIInsightData = parsedBody;
       setInsight(data);
       const now = new Date();
       setLastGeneratedAt(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -145,7 +152,7 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
               </h3>
               <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1">
                 <Cpu className="w-3 h-3 text-indigo-300" />
-                <span>Gemini 3.8 Flash</span>
+                <span>Gemini 4 Flash</span>
               </span>
             </div>
             <p className="text-[11px] text-slate-300 mt-0.5">
