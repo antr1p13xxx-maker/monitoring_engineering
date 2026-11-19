@@ -43,9 +43,10 @@ export const AIInsightsSection: React.FC<AIInsightsSectionProps> = ({
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null);
 
   const isManager = userRole === 'Manager';
+  const canAccessAI = isManager || (userRole === 'Supervisor' && contextType === 'kpi');
 
   const fetchAIInsights = async () => {
-    if (!isManager) return;
+    if (!canAccessAI) return;
     setLoading(true);
     setError(null);
     try {
@@ -105,8 +106,8 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // If user is not manager, show compact locked notification
-  if (!isManager) {
+  // If user is not authorized, show compact locked notification
+  if (!canAccessAI) {
     return (
       <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between text-slate-500 shadow-sm">
         <div className="flex items-center space-x-3">
@@ -118,12 +119,12 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
               AI Insight & Rekomendasi Manajerial (Terkunci)
             </p>
             <p className="text-[11px] text-slate-500">
-              Analisis cerdas, prediksi bottleneck & rekomendasi aksi strategis hanya dapat diakses oleh <strong className="text-slate-700">Engineering Manager</strong>.
+              Analisis cerdas, prediksi bottleneck & rekomendasi aksi strategis hanya dapat diakses oleh <strong className="text-slate-700">Engineering Manager</strong>{contextType === 'kpi' ? ' atau Supervisor' : ''}.
             </p>
           </div>
         </div>
         <span className="text-[10px] font-semibold bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full">
-          Khusus Manager
+          {contextType === 'kpi' ? 'Manager / Supervisor' : 'Khusus Manager'}
         </span>
       </div>
     );

@@ -32,7 +32,10 @@ import {
   subscribeToFirestoreDesignFeedback,
   saveDesignFeedbackToFirestore,
   deleteDesignFeedbackFromFirestore,
-  seedDesignFeedbackIfEmpty
+  seedDesignFeedbackIfEmpty,
+  subscribeToFirestoreApprovals,
+  saveApprovalToFirestore,
+  deleteApprovalFromFirestore
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
@@ -43,7 +46,8 @@ import {
   ReviewErrorItem, 
   DesignFeedbackItem, 
   AuditLog,
-  SerahTerimaStandartPartItem
+  SerahTerimaStandartPartItem,
+  KPIApprovalRequest
 } from './types/engineering';
 import { 
   INITIAL_PROJECTS, 
@@ -175,27 +179,52 @@ export default function App() {
     return INITIAL_STANDART_PART_HANDOVERS;
   });
 
-  // Audit Log State
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    {
-      id: 'log-1',
-      timestamp: '2026-10-15 08:30:12',
-      user: 'Andry Setyawan (Manager)',
-      activity: 'Verifikasi & Pengesahan target KPI kuartal 4',
-      year: '2026',
-      month: 'Okt',
-      newValue: 'Target Disahkan'
-    },
-    {
-      id: 'log-2',
-      timestamp: '2026-10-18 14:15:40',
-      user: 'Fadil (Lead Engineer)',
-      activity: 'Update capaian aktual On-Time Design',
-      year: '2026',
-      month: 'Okt',
-      newValue: '97%'
+  // Audit Log State (persisted to localStorage)
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_kpi_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
     }
-  ]);
+    return [
+      {
+        id: 'log-1',
+        timestamp: '2026-10-15 08:30:12',
+        user: 'Andry Setyawan (Manager)',
+        activity: 'Verifikasi & Pengesahan target KPI kuartal 4',
+        year: '2026',
+        month: 'Okt',
+        newValue: 'Target Disahkan'
+      },
+      {
+        id: 'log-2',
+        timestamp: '2026-10-18 14:15:40',
+        user: 'Fadil (Lead Engineer)',
+        activity: 'Update capaian aktual On-Time Design',
+        year: '2026',
+        month: 'Okt',
+        newValue: '97%'
+      }
+    ];
+  });
+
+  // KPI Approval Requests State (Supervisor submissions waiting for Manager approval)
+  const [approvalRequests, setApprovalRequests] = useState<KPIApprovalRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_kpi_approvals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading approval requests from localStorage:', e);
+    }
+    return [];
+  });
 
   // Modals state
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
@@ -303,6 +332,18 @@ export default function App() {
       });
     });
 
+    // 8. Real-time KPI Supervisor Approval Requests Listener
+    const unsubApprovals = subscribeToFirestoreApprovals((items) => {
+      if (items.length > 0 || localStorage.getItem('eng_kpi_approvals_synced') === 'true') {
+        setApprovalRequests(items);
+        try {
+          localStorage.setItem('eng_kpi_approvals_synced', 'true');
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    });
+
     return () => {
       isCostMounted = false;
       isErrorMounted = false;
@@ -313,6 +354,7 @@ export default function App() {
       if (unsubError) unsubError();
       unsubStandartParts();
       if (unsubFeedback) unsubFeedback();
+      unsubApprovals();
     };
   }, [activeYear]);
 
@@ -359,6 +401,22 @@ export default function App() {
       console.error(e);
     }
   }, [reviewErrorList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_kpi_approvals', JSON.stringify(approvalRequests));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [approvalRequests]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_kpi_audit_logs', JSON.stringify(auditLogs));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [auditLogs]);
 
   // Ensure appsScript view is strictly accessible only by Manager
   useEffect(() => {
@@ -688,6 +746,224 @@ export default function App() {
     showToast(`Data proyek ${updated.SPK} berhasil diperbarui di Firebase.`);
   };
 
+  // Submit Supervisor Input Request (Menunggu Persetujuan Manager)
+  const handleSubmitApprovalRequest = (
+    input: Omit<KPIApprovalRequest, 'id' | 'requestedBy' | 'requestedAt' | 'status'>
+  ) => {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const newReq: KPIApprovalRequest = {
+      ...input,
+      id: `apr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      requestedBy: `${userRole} Engineering`,
+      requestedAt: nowStr,
+      status: 'pending'
+    };
+
+    const nextList = [newReq, ...approvalRequests];
+    setApprovalRequests(nextList);
+    try {
+      localStorage.setItem('eng_kpi_approvals', JSON.stringify(nextList));
+      localStorage.setItem('eng_kpi_approvals_synced', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+    saveApprovalToFirestore(newReq).catch((err) =>
+      console.warn('Firestore approval submit error:', err)
+    );
+
+    setAuditLogs((prev) => [
+      {
+        id: `log-${Date.now()}`,
+        timestamp: nowStr,
+        user: `${userRole} (Menunggu Persetujuan Manager)`,
+        activity: `[Pengajuan] ${input.categoryLabel}: ${input.targetLabel}`,
+        year: input.payload.year || activeYear,
+        month: input.payload.month || '-',
+        newValue: `${input.summaryNew} (Pending)`
+      },
+      ...prev
+    ]);
+
+    showToast('Pengajuan input data berhasil dikirim! Menunggu persetujuan Manager.', 'info');
+  };
+
+  // Manager Approves Supervisor Request -> applies live change + saves to Firestore
+  const handleApproveRequest = (requestId: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menyetujui pengajuan perubahan!', 'error');
+      return;
+    }
+    const req = approvalRequests.find((r) => r.id === requestId);
+    if (!req || req.status !== 'pending') return;
+
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const { category, payload } = req;
+
+    if (category === 'kpi_actual' && payload.year && payload.kpiId !== undefined && payload.month) {
+      handleUpdateActual(
+        payload.year,
+        payload.kpiId,
+        payload.month,
+        payload.actualValue ?? null,
+        payload.keterangan || ''
+      );
+    } else if (category === 'design_quality_feedback' && payload.feedbackItem) {
+      const fb = payload.feedbackItem;
+      const updated = [...feedbackList];
+      const idx = updated.findIndex(
+        (f) => f.customer === fb.customer && f.projectName === fb.projectName && f.month === fb.month
+      );
+      if (idx !== -1) {
+        updated[idx] = fb;
+      } else {
+        updated.push(fb);
+      }
+      handleUpdateFeedback(updated);
+    } else if ((category === 'on_time_design' || category === 'distribusi_drawing') && payload.projectSpk && payload.projectPatch) {
+      const targetProj = projects.find((p) => p.SPK === payload.projectSpk);
+      if (targetProj) {
+        handleUpdateProject({ ...targetProj, ...payload.projectPatch });
+      }
+    } else if (category === 'cost_efficiency' && payload.costTarget) {
+      const { month, customer, projectName } = payload.costTarget;
+      const updated = [...reviewCostList];
+      const idx = updated.findIndex(
+        (c) => c.month === month && c.customer === customer && c.projectName === projectName
+      );
+      if (idx !== -1) {
+        const current = updated[idx];
+        const nextAnggaran = payload.updatedAnggaran !== undefined ? payload.updatedAnggaran : current.anggaran;
+        const alreadyHasExp = payload.addedExpense
+          ? current.pengeluaran.some((x) => x.id === payload.addedExpense!.id)
+          : true;
+        const nextPengeluaran =
+          payload.addedExpense && !alreadyHasExp
+            ? [...current.pengeluaran, payload.addedExpense]
+            : current.pengeluaran;
+        updated[idx] = {
+          ...current,
+          anggaran: nextAnggaran,
+          pengeluaran: nextPengeluaran
+        };
+      } else {
+        updated.push({
+          month,
+          customer,
+          projectName,
+          anggaran: payload.updatedAnggaran ?? 0,
+          pengeluaran: payload.addedExpense ? [payload.addedExpense] : []
+        });
+      }
+      handleUpdateReviewCost(updated);
+    } else if (category === 'design_error_rate' && payload.errorTarget && payload.addedError) {
+      const { month, customer, projectName } = payload.errorTarget;
+      const updated = [...reviewErrorList];
+      const idx = updated.findIndex(
+        (e) => e.month === month && e.customer === customer && e.projectName === projectName
+      );
+      if (idx !== -1) {
+        const current = updated[idx];
+        const alreadyHas = current.errors.some((x) => x.id === payload.addedError!.id);
+        updated[idx] = {
+          ...current,
+          errors: alreadyHas ? current.errors : [...current.errors, payload.addedError]
+        };
+      } else {
+        updated.push({
+          month,
+          customer,
+          projectName,
+          errors: [payload.addedError]
+        });
+      }
+      handleUpdateReviewError(updated);
+    }
+
+    const updatedReq: KPIApprovalRequest = {
+      ...req,
+      status: 'approved',
+      reviewedBy: 'Manager Engineering',
+      reviewedAt: nowStr,
+      reviewNote: 'Disetujui & diterapkan oleh Manager'
+    };
+    const nextApprovals = approvalRequests.map((r) => (r.id === requestId ? updatedReq : r));
+    setApprovalRequests(nextApprovals);
+    saveApprovalToFirestore(updatedReq).catch((err) =>
+      console.warn('Firestore approval update error:', err)
+    );
+
+    setAuditLogs((prev) => [
+      {
+        id: `log-${Date.now() + 1}`,
+        timestamp: nowStr,
+        user: 'Manager Engineering (Persetujuan)',
+        activity: `[Disetujui] ${req.categoryLabel}: ${req.targetLabel}`,
+        year: payload.year || activeYear,
+        month: payload.month || '-',
+        newValue: req.summaryNew
+      },
+      ...prev
+    ]);
+
+    showToast(`Pengajuan "${req.targetLabel}" telah disetujui & diterapkan!`, 'success');
+  };
+
+  // Manager Rejects Supervisor Request
+  const handleRejectRequest = (requestId: string, note?: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menolak pengajuan perubahan!', 'error');
+      return;
+    }
+    const req = approvalRequests.find((r) => r.id === requestId);
+    if (!req || req.status !== 'pending') return;
+
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const updatedReq: KPIApprovalRequest = {
+      ...req,
+      status: 'rejected',
+      reviewedBy: 'Manager Engineering',
+      reviewedAt: nowStr,
+      reviewNote: note?.trim() || 'Ditolak oleh Manager'
+    };
+    const nextApprovals = approvalRequests.map((r) => (r.id === requestId ? updatedReq : r));
+    setApprovalRequests(nextApprovals);
+    saveApprovalToFirestore(updatedReq).catch((err) =>
+      console.warn('Firestore rejection update error:', err)
+    );
+
+    setAuditLogs((prev) => [
+      {
+        id: `log-${Date.now()}`,
+        timestamp: nowStr,
+        user: 'Manager Engineering (Penolakan)',
+        activity: `[Ditolak] ${req.categoryLabel}: ${req.targetLabel}`,
+        year: req.payload.year || activeYear,
+        month: req.payload.month || '-',
+        newValue: `Ditolak (${updatedReq.reviewNote})`
+      },
+      ...prev
+    ]);
+
+    showToast(`Pengajuan "${req.targetLabel}" ditolak.`, 'info');
+  };
+
+  // Manager Clears Reviewed Approval History
+  const handleClearReviewedApprovals = () => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menghapus riwayat persetujuan!', 'error');
+      return;
+    }
+    const toRemove = approvalRequests.filter((r) => r.status !== 'pending');
+    const remaining = approvalRequests.filter((r) => r.status === 'pending');
+    setApprovalRequests(remaining);
+    toRemove.forEach((r) => {
+      deleteApprovalFromFirestore(r.id).catch((err) =>
+        console.warn('Firestore approval delete error:', err)
+      );
+    });
+    showToast('Riwayat pengajuan yang telah diproses berhasil dibersihkan.', 'info');
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans antialiased flex flex-col selection:bg-blue-600 selection:text-white">
       {/* Auth Gate Modal */}
@@ -762,6 +1038,11 @@ export default function App() {
             feedbackList={feedbackList}
             onUpdateFeedback={handleUpdateFeedback}
             auditLogs={auditLogs}
+            approvalRequests={approvalRequests}
+            onSubmitApprovalRequest={handleSubmitApprovalRequest}
+            onApproveRequest={handleApproveRequest}
+            onRejectRequest={handleRejectRequest}
+            onClearReviewedApprovals={handleClearReviewedApprovals}
           />
         )}
 

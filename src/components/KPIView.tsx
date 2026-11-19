@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { KPIItem, EngineeringProject, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, AuditLog, UserRole } from '../types/engineering';
+import { KPIItem, EngineeringProject, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, AuditLog, UserRole, KPIApprovalRequest } from '../types/engineering';
 import { MONTH_NAMES, MONTH_FULL_NAMES } from '../data/initialData';
 import { 
   ArrowLeft, 
@@ -28,7 +28,11 @@ import {
   TrendingDown,
   Activity,
   Sliders,
-  Box
+  Box,
+  Clock,
+  Check,
+  XCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import {
@@ -73,6 +77,11 @@ interface KPIViewProps {
   feedbackList: DesignFeedbackItem[];
   onUpdateFeedback: (list: DesignFeedbackItem[]) => void;
   auditLogs: AuditLog[];
+  approvalRequests?: KPIApprovalRequest[];
+  onSubmitApprovalRequest?: (req: Omit<KPIApprovalRequest, 'id' | 'requestedBy' | 'requestedAt' | 'status'>) => void;
+  onApproveRequest?: (requestId: string) => void;
+  onRejectRequest?: (requestId: string, note?: string) => void;
+  onClearReviewedApprovals?: () => void;
 }
 
 export const KPIView: React.FC<KPIViewProps> = ({
@@ -91,9 +100,14 @@ export const KPIView: React.FC<KPIViewProps> = ({
   onUpdateReviewError,
   feedbackList,
   onUpdateFeedback,
-  auditLogs
+  auditLogs,
+  approvalRequests = [],
+  onSubmitApprovalRequest,
+  onApproveRequest,
+  onRejectRequest,
+  onClearReviewedApprovals
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trends' | 'matrix' | 'monitoring' | 'designInput' | 'reviewCost' | 'reviewError' | 'quarterly' | 'audit'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'trends' | 'matrix' | 'monitoring' | 'designInput' | 'reviewCost' | 'reviewError' | 'quarterly' | 'approvals' | 'audit'>('dashboard');
   const [selectedChartKpi, setSelectedChartKpi] = useState<string>('all');
   const [activeGlobalMonth, setActiveGlobalMonth] = useState<string>('Okt');
   const [searchKpi, setSearchKpi] = useState<string>('');
@@ -353,7 +367,20 @@ export const KPIView: React.FC<KPIViewProps> = ({
   }, [syncedKpiList, selectedChartKpi, kpiPeriodFilter]);
 
   const isManager = userRole === 'Manager';
+  const isSupervisor = userRole === 'Supervisor';
+  const canAccessFullKpiCdr = isManager || isSupervisor;
+  const canDelete = isManager;
   const isReadOnly = userRole === 'Viewer';
+
+  const pendingApprovals = useMemo(
+    () => approvalRequests.filter((r) => r.status === 'pending'),
+    [approvalRequests]
+  );
+  const reviewedApprovals = useMemo(
+    () => approvalRequests.filter((r) => r.status !== 'pending'),
+    [approvalRequests]
+  );
+  const pendingCount = pendingApprovals.length;
 
   // Evaluate single KPI status
   const evaluateKPI = (item: KPIItem, val: number | null | undefined) => {
@@ -1400,7 +1427,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
             <span>Tabel & Input</span>
           </button>
 
-          {isManager && (
+          {canAccessFullKpiCdr && (
             <>
               <button
                 onClick={() => setActiveTab('designInput')}
@@ -1445,6 +1472,23 @@ export const KPIView: React.FC<KPIViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('approvals')}
+            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
+              activeTab === 'approvals' ? 'bg-amber-600 text-white shadow-md' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Persetujuan Manager</span>
+            {pendingCount > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'approvals' ? 'bg-white text-amber-700' : 'bg-rose-600 text-white'
+              }`}>
+                {pendingCount}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('audit')}
             className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
               activeTab === 'audit' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -1471,6 +1515,44 @@ export const KPIView: React.FC<KPIViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Role Supervisor & Pending Approval Status Banners */}
+      {isSupervisor && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
+          <div className="flex items-start sm:items-center space-x-2.5 text-xs text-amber-950">
+            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <span className="font-bold">Akses Supervisor Engineering (Persetujuan Manager Aktif):</span>{' '}
+              Anda dapat mengakses & menginput seluruh menu di Dashboard KPI CDR. Setiap pengajuan perubahan akan masuk ke antrean <strong>Persetujuan Manager</strong> sebelum diterapkan ke data resmi, dan tombol <strong>Hapus</strong> dinonaktifkan.
+            </div>
+          </div>
+          {pendingCount > 0 && (
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
+            >
+              Lihat {pendingCount} Pengajuan Pending
+            </button>
+          )}
+        </div>
+      )}
+
+      {isManager && pendingCount > 0 && activeTab !== 'approvals' && (
+        <div className="bg-blue-50 border border-blue-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
+          <div className="flex items-center space-x-2.5 text-xs text-blue-950">
+            <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <span>
+              Terdapat <strong>{pendingCount} pengajuan input data</strong> dari Supervisor yang menunggu persetujuan Manager.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveTab('approvals')}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
+          >
+            Tinjau & Setujui Sekarang →
+          </button>
+        </div>
+      )}
 
       {/* SUBTAB 1: DASHBOARD */}
       {activeTab === 'dashboard' && (
@@ -1939,8 +2021,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
         </div>
       )}
 
-      {/* SUBTAB 4: INPUT TABEL REKAPITULASI (MANAGER ONLY) */}
-      {activeTab === 'designInput' && isManager && (
+      {/* SUBTAB 4: INPUT TABEL REKAPITULASI (MANAGER & SUPERVISOR) */}
+      {activeTab === 'designInput' && canAccessFullKpiCdr && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -2065,17 +2147,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                   >
                                     Edit
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      const updated = feedbackList.filter(
-                                        (f) => !(f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === designMonth)
-                                      );
-                                      onUpdateFeedback(updated);
-                                    }}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
-                                  >
-                                    Hapus
-                                  </button>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => {
+                                        const updated = feedbackList.filter(
+                                          (f) => !(f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === designMonth)
+                                        );
+                                        onUpdateFeedback(updated);
+                                      }}
+                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
+                                    >
+                                      Hapus
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -2195,16 +2279,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                   >
                                     Edit
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      if (onUpdateProject) {
-                                        onUpdateProject({ ...p, 'Tanggal Penyelesaian': '', 'Aktual Engineering': '' });
-                                      }
-                                    }}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
-                                  >
-                                    Hapus
-                                  </button>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => {
+                                        if (onUpdateProject) {
+                                          onUpdateProject({ ...p, 'Tanggal Penyelesaian': '', 'Aktual Engineering': '' });
+                                        }
+                                      }}
+                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
+                                    >
+                                      Hapus
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -2321,16 +2407,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                   >
                                     Edit
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      if (onUpdateProject) {
-                                        onUpdateProject({ ...p, '2D': '' });
-                                      }
-                                    }}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
-                                  >
-                                    Hapus
-                                  </button>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => {
+                                        if (onUpdateProject) {
+                                          onUpdateProject({ ...p, '2D': '' });
+                                        }
+                                      }}
+                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold transition shadow-sm"
+                                    >
+                                      Hapus
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -2437,17 +2525,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                     >
                                       Edit
                                     </button>
-                                    <button
-                                      onClick={() => {
-                                        if (confirm(`Hapus data anggaran/pengeluaran untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                          const updated = reviewCostList.filter((c) => !(c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth));
-                                          onUpdateReviewCost(updated);
-                                        }
-                                      }}
-                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
-                                    >
-                                      Hapus
-                                    </button>
+                                    {canDelete && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Hapus data anggaran/pengeluaran untuk ${p.Customer} - ${p['Nama Project']}?`)) {
+                                            const updated = reviewCostList.filter((c) => !(c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth));
+                                            onUpdateReviewCost(updated);
+                                          }
+                                        }}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
+                                      >
+                                        Hapus
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -2565,17 +2655,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                     >
                                       Edit
                                     </button>
-                                    <button
-                                      onClick={() => {
-                                        if (confirm(`Hapus data error/revisi untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                          const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth));
-                                          onUpdateReviewError(updated);
-                                        }
-                                      }}
-                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
-                                    >
-                                      Hapus
-                                    </button>
+                                    {canDelete && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Hapus data error/revisi untuk ${p.Customer} - ${p['Nama Project']}?`)) {
+                                            const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth));
+                                            onUpdateReviewError(updated);
+                                          }
+                                        }}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
+                                      >
+                                        Hapus
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -2630,8 +2722,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
         </div>
       )}
 
-      {/* SUBTAB 5: REVIEW COST (MANAGER ONLY) */}
-      {activeTab === 'reviewCost' && isManager && (
+      {/* SUBTAB 5: REVIEW COST (MANAGER & SUPERVISOR) */}
+      {activeTab === 'reviewCost' && canAccessFullKpiCdr && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -2766,7 +2858,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                 <span className="font-medium text-slate-800">{exp.desc}</span>
                                 <div className="flex items-center space-x-2 font-mono font-semibold text-slate-900">
                                   <span>Rp {exp.amount.toLocaleString('id-ID')},00</span>
-                                  {!isReadOnly && (
+                                  {!isReadOnly && canDelete && (
                                     <button
                                       onClick={() => {
                                         const updated = reviewCostList.map((c) => {
@@ -2818,6 +2910,22 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                         const newAnggaran = prompt('Ubah Anggaran Design (angka saja):', String(anggaran));
                                         if (newAnggaran !== null) {
                                           const num = Number(newAnggaran) || 0;
+                                          if (isSupervisor && onSubmitApprovalRequest) {
+                                            onSubmitApprovalRequest({
+                                              category: 'cost_efficiency',
+                                              categoryLabel: '4. Cost Efficiency / Review Cost',
+                                              targetLabel: `${costMonth} • ${p.Customer} - ${p['Nama Project']}`,
+                                              summaryOld: `Anggaran: Rp ${anggaran.toLocaleString('id-ID')}`,
+                                              summaryNew: `Anggaran: Rp ${num.toLocaleString('id-ID')}`,
+                                              payload: {
+                                                year: activeYear,
+                                                month: costMonth,
+                                                costTarget: { month: costMonth, customer: p.Customer, projectName: p['Nama Project'] },
+                                                updatedAnggaran: num
+                                              }
+                                            });
+                                            return;
+                                          }
                                           const updated = [...reviewCostList];
                                           const idx = updated.findIndex((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth);
                                           if (idx !== -1) {
@@ -2861,8 +2969,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
         </div>
       )}
 
-      {/* SUBTAB 6: REVIEW ERROR (MANAGER ONLY) */}
-      {activeTab === 'reviewError' && isManager && (
+      {/* SUBTAB 6: REVIEW ERROR (MANAGER & SUPERVISOR) */}
+      {activeTab === 'reviewError' && canAccessFullKpiCdr && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -2997,7 +3105,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                             <td className="p-2 border border-black text-slate-700">
                               <div className="flex justify-between items-center">
                                 <span>{err.feedback}</span>
-                                {!isReadOnly && (
+                                {!isReadOnly && canDelete && (
                                   <button
                                     onClick={() => {
                                       const updated = reviewErrorList.map((e) => {
@@ -3043,17 +3151,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                     >
                                       + Tambah Error
                                     </button>
-                                    <button
-                                      onClick={() => {
-                                        if (confirm(`Hapus semua kasus drawing error untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                          const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth));
-                                          onUpdateReviewError(updated);
-                                        }
-                                      }}
-                                      className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-semibold w-full transition"
-                                    >
-                                      Hapus Semua
-                                    </button>
+                                    {canDelete && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Hapus semua kasus drawing error untuk ${p.Customer} - ${p['Nama Project']}?`)) {
+                                            const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth));
+                                            onUpdateReviewError(updated);
+                                          }
+                                        }}
+                                        className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-semibold w-full transition"
+                                      >
+                                        Hapus Semua
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -3173,7 +3283,169 @@ export const KPIView: React.FC<KPIViewProps> = ({
         </div>
       )}
 
-      {/* SUBTAB 8: AUDIT TRAIL */}
+      {/* SUBTAB 8: PERSETUJUAN MANAGER (ANTREAN PENGAJUAN SUPERVISOR) */}
+      {activeTab === 'approvals' && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <span>Antrean Persetujuan Manager (KPI Engineering CDR)</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Seluruh pengajuan input/perubahan data oleh Supervisor wajib disetujui oleh Manager sebelum masuk ke data resmi KPI.
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold">
+                Menunggu: {pendingCount}
+              </span>
+              {isManager && reviewedApprovals.length > 0 && onClearReviewedApprovals && (
+                <button
+                  onClick={() => {
+                    if (confirm('Bersihkan semua riwayat pengajuan yang sudah diproses?')) {
+                      onClearReviewedApprovals();
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                >
+                  Bersihkan Riwayat
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Requests Section */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              Menunggu Persetujuan Manager ({pendingCount})
+            </h4>
+            {pendingApprovals.length === 0 ? (
+              <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
+                Tidak ada pengajuan perubahan yang sedang menunggu persetujuan.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingApprovals.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 text-[10px] font-bold">
+                          {req.categoryLabel}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900">{req.targetLabel}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-semibold">
+                          Menunggu Persetujuan
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-1">
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-[10px] font-semibold text-slate-400 block">Data Resmi Saat Ini:</span>
+                          <span className="text-slate-700 font-medium">{req.summaryOld}</span>
+                        </div>
+                        <div className="p-2 bg-emerald-50/60 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] font-semibold text-emerald-700 block">Usulan Data Baru (Supervisor):</span>
+                          <span className="text-emerald-950 font-bold">{req.summaryNew}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Diajukan oleh <strong className="text-slate-700">{req.requestedBy}</strong> • {req.requestedAt}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      {isManager ? (
+                        <>
+                          <button
+                            onClick={() => onApproveRequest && onApproveRequest(req.id)}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Setujui & Terapkan</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const note = prompt('Alasan penolakan (opsional):', 'Perlu revisi data');
+                              if (note !== null && onRejectRequest) {
+                                onRejectRequest(req.id, note);
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Tolak</span>
+                          </button>
+                        </>
+                      ) : (
+                        <span className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-xl text-[11px] font-semibold border border-amber-300">
+                          Menunggu Tinjauan Manager
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Reviewed History Section */}
+          {reviewedApprovals.length > 0 && (
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Riwayat Persetujuan ({reviewedApprovals.length})
+              </h4>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider">
+                      <th className="p-2.5">Kategori & Target</th>
+                      <th className="p-2.5">Perubahan Diajukan</th>
+                      <th className="p-2.5">Pengaju</th>
+                      <th className="p-2.5 text-center">Status</th>
+                      <th className="p-2.5">Catatan Manager</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-slate-700">
+                    {reviewedApprovals.map((req) => (
+                      <tr key={req.id} className="hover:bg-slate-50">
+                        <td className="p-2.5">
+                          <span className="font-bold text-slate-800 block">{req.categoryLabel}</span>
+                          <span className="text-[11px] text-slate-500">{req.targetLabel}</span>
+                        </td>
+                        <td className="p-2.5 font-medium">{req.summaryNew}</td>
+                        <td className="p-2.5 text-[11px]">
+                          <span className="block font-semibold">{req.requestedBy}</span>
+                          <span className="text-slate-400">{req.requestedAt}</span>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              req.status === 'approved'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {req.status === 'approved' ? 'Disetujui' : 'Ditolak'}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-[11px] text-slate-600">
+                          {req.reviewNote || '-'}
+                          {req.reviewedAt && <span className="block text-[10px] text-slate-400">{req.reviewedAt}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SUBTAB 9: AUDIT TRAIL */}
       {activeTab === 'audit' && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div>
@@ -3258,6 +3530,25 @@ export const KPIView: React.FC<KPIViewProps> = ({
               onSubmit={(e) => {
                 e.preventDefault();
                 const val = editModalValue !== '' ? parseFloat(editModalValue) : null;
+                if (isSupervisor && onSubmitApprovalRequest) {
+                  const prevVal = editModalItem.months[editModalMonth];
+                  onSubmitApprovalRequest({
+                    category: 'kpi_actual',
+                    categoryLabel: 'Input Nilai Aktual KPI',
+                    targetLabel: `${editModalItem.objective} • ${MONTH_FULL_NAMES[editModalMonth] || editModalMonth} ${activeYear}`,
+                    summaryOld: prevVal !== null && prevVal !== undefined ? `${prevVal} ${editModalItem.unit}` : 'Kosong',
+                    summaryNew: val !== null ? `${val} ${editModalItem.unit}${editModalKet ? ` (${editModalKet})` : ''}` : 'Kosong',
+                    payload: {
+                      year: activeYear,
+                      kpiId: editModalItem.id,
+                      month: editModalMonth,
+                      actualValue: val,
+                      keterangan: editModalKet
+                    }
+                  });
+                  setEditModalItem(null);
+                  return;
+                }
                 onUpdateActual(activeYear, editModalItem.id, editModalMonth, val, editModalKet);
                 setEditModalItem(null);
               }}
@@ -3316,10 +3607,12 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5"
+                  className={`px-5 py-2 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 ${
+                    isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Perubahan</span>
+                  <span>{isSupervisor ? 'Ajukan Persetujuan Manager' : 'Simpan Perubahan'}</span>
                 </button>
               </div>
             </form>
@@ -3498,6 +3791,43 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </button>
               <button
                 onClick={() => {
+                  const fbProd = modalFbProduksi.trim();
+                  const fbKast = modalFbKastamer.trim();
+                  const isClean = !fbProd && !fbKast;
+                  const newFeedbackItem: DesignFeedbackItem = {
+                    month: designMonth,
+                    customer: feedbackModalProject.Customer,
+                    projectName: feedbackModalProject['Nama Project'],
+                    fbProduksi: fbProd,
+                    fbKastamer: fbKast,
+                    isNoRevision: isClean
+                  };
+
+                  if (isSupervisor && onSubmitApprovalRequest) {
+                    const existingFb = feedbackList.find(
+                      (f) =>
+                        f.customer === feedbackModalProject.Customer &&
+                        f.projectName === feedbackModalProject['Nama Project'] &&
+                        f.month === designMonth
+                    );
+                    onSubmitApprovalRequest({
+                      category: 'design_quality_feedback',
+                      categoryLabel: '1. Design Quality Feedback',
+                      targetLabel: `${designMonth} • ${feedbackModalProject.Customer} - ${feedbackModalProject['Nama Project']}`,
+                      summaryOld: existingFb
+                        ? `Produksi: "${existingFb.fbProduksi || '-'}" | Kastamer: "${existingFb.fbKastamer || '-'}"`
+                        : 'Belum ada feedback (Approve)',
+                      summaryNew: `Produksi: "${fbProd || '-'}" | Kastamer: "${fbKast || '-'}"`,
+                      payload: {
+                        year: activeYear,
+                        month: designMonth,
+                        feedbackItem: newFeedbackItem
+                      }
+                    });
+                    setFeedbackModalProject(null);
+                    return;
+                  }
+
                   const updated = [...feedbackList];
                   const idx = updated.findIndex(
                     (f) =>
@@ -3505,30 +3835,26 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       f.projectName === feedbackModalProject['Nama Project'] &&
                       f.month === designMonth
                   );
-                  const isClean = !modalFbProduksi.trim() && !modalFbKastamer.trim();
                   if (idx !== -1) {
                     updated[idx] = {
                       ...updated[idx],
-                      fbProduksi: modalFbProduksi.trim(),
-                      fbKastamer: modalFbKastamer.trim(),
+                      fbProduksi: fbProd,
+                      fbKastamer: fbKast,
                       isNoRevision: isClean
                     };
                   } else {
-                    updated.push({
-                      month: designMonth,
-                      customer: feedbackModalProject.Customer,
-                      projectName: feedbackModalProject['Nama Project'],
-                      fbProduksi: modalFbProduksi.trim(),
-                      fbKastamer: modalFbKastamer.trim(),
-                      isNoRevision: isClean
-                    });
+                    updated.push(newFeedbackItem);
                   }
                   onUpdateFeedback(updated);
                   setFeedbackModalProject(null);
                 }}
-                className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold rounded-xl text-xs shadow-md"
+                className={`px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
+                  isSupervisor
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                    : 'bg-yellow-500 hover:bg-yellow-400 text-slate-900'
+                }`}
               >
-                Simpan Feedback
+                {isSupervisor ? 'Ajukan Feedback ke Manager' : 'Simpan Feedback'}
               </button>
             </div>
           </div>
@@ -3607,6 +3933,47 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </button>
               <button
                 onClick={() => {
+                  if (isSupervisor && onSubmitApprovalRequest) {
+                    if (dateModalMode === 'onTime') {
+                      onSubmitApprovalRequest({
+                        category: 'on_time_design',
+                        categoryLabel: '2. On-Time Design',
+                        targetLabel: `${designMonth} • ${dateModalProject.Customer} - ${dateModalProject['Nama Project']}`,
+                        summaryOld: `Target: ${dateModalProject['Target Design'] || '-'} | Selesai: ${dateModalProject['Tanggal Penyelesaian'] || dateModalProject['Aktual Engineering'] || '-'}`,
+                        summaryNew: `Target: ${modalTargetDate || '-'} | Selesai: ${modalFinishDate || '-'}`,
+                        payload: {
+                          year: activeYear,
+                          month: designMonth,
+                          projectSpk: dateModalProject.SPK,
+                          projectPatch: {
+                            'Target Design': modalTargetDate,
+                            'Tanggal Penyelesaian': modalFinishDate,
+                            'Aktual Engineering': modalFinishDate
+                          }
+                        }
+                      });
+                    } else {
+                      onSubmitApprovalRequest({
+                        category: 'distribusi_drawing',
+                        categoryLabel: '3. Distribusi Drawing',
+                        targetLabel: `${designMonth} • ${dateModalProject.Customer} - ${dateModalProject['Nama Project']}`,
+                        summaryOld: `Target: ${dateModalProject['Target Design'] || '-'} | 2D: ${dateModalProject['2D'] || '-'}`,
+                        summaryNew: `Target: ${modalTargetDate || '-'} | 2D: ${modal2DDate || '-'}`,
+                        payload: {
+                          year: activeYear,
+                          month: designMonth,
+                          projectSpk: dateModalProject.SPK,
+                          projectPatch: {
+                            'Target Design': modalTargetDate,
+                            '2D': modal2DDate
+                          }
+                        }
+                      });
+                    }
+                    setDateModalProject(null);
+                    return;
+                  }
+
                   if (onUpdateProject) {
                     if (dateModalMode === 'onTime') {
                       onUpdateProject({
@@ -3625,9 +3992,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   }
                   setDateModalProject(null);
                 }}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs shadow-md"
+                className={`px-5 py-2 text-white font-semibold rounded-xl text-xs shadow-md ${
+                  isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                }`}
               >
-                Simpan Perubahan
+                {isSupervisor ? 'Ajukan Perubahan ke Manager' : 'Simpan Perubahan'}
               </button>
             </div>
           </div>
@@ -3704,14 +4073,36 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   onClick={() => {
                     if (!modalExpenseDescInput.trim() || !modalExpenseAmountInput) return;
                     const m = activeTab === 'reviewCost' ? costMonth : designMonth;
-                    const updated = [...reviewCostList];
-                    const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
                     const anggaranVal = modalAnggaranInput !== '' ? Number(modalAnggaranInput) || 0 : undefined;
                     const newExpense = {
                       id: `exp-${Date.now()}`,
                       desc: modalExpenseDescInput.trim(),
                       amount: Number(modalExpenseAmountInput) || 0
                     };
+
+                    if (isSupervisor && onSubmitApprovalRequest) {
+                      const existing = reviewCostList.find((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
+                      onSubmitApprovalRequest({
+                        category: 'cost_efficiency',
+                        categoryLabel: '4. Cost Efficiency / Review Cost',
+                        targetLabel: `${m} • ${costModalProject.Customer} - ${costModalProject['Nama Project']}`,
+                        summaryOld: `Anggaran: Rp ${(existing?.anggaran || 0).toLocaleString('id-ID')} (${existing?.pengeluaran.length || 0} item)`,
+                        summaryNew: `+Pengeluaran "${newExpense.desc}" Rp ${newExpense.amount.toLocaleString('id-ID')}${anggaranVal !== undefined ? ` | Anggaran: Rp ${anggaranVal.toLocaleString('id-ID')}` : ''}`,
+                        payload: {
+                          year: activeYear,
+                          month: m,
+                          costTarget: { month: m, customer: costModalProject.Customer, projectName: costModalProject['Nama Project'] },
+                          updatedAnggaran: anggaranVal,
+                          addedExpense: newExpense
+                        }
+                      });
+                      setModalExpenseDescInput('');
+                      setModalExpenseAmountInput('');
+                      return;
+                    }
+
+                    const updated = [...reviewCostList];
+                    const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
                     if (idx !== -1) {
                       updated[idx] = {
                         ...updated[idx],
@@ -3733,7 +4124,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   }}
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
                 >
-                  + Tambah Rincian Pengeluaran
+                  {isSupervisor ? '+ Ajukan Rincian Pengeluaran' : '+ Tambah Rincian Pengeluaran'}
                 </button>
               </div>
 
@@ -3756,20 +4147,23 @@ export const KPIView: React.FC<KPIViewProps> = ({
                           <span className="font-medium text-slate-800">{x.desc}</span>
                           <div className="flex items-center space-x-2">
                             <span className="font-mono font-semibold text-slate-900">Rp {x.amount.toLocaleString('id-ID')}</span>
-                            <button
-                              onClick={() => {
-                                const updated = reviewCostList.map((c) => {
-                                  if (c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m) {
-                                    return { ...c, pengeluaran: c.pengeluaran.filter((p) => p.id !== x.id) };
-                                  }
-                                  return c;
-                                });
-                                onUpdateReviewCost(updated);
-                              }}
-                              className="text-rose-500 hover:text-rose-700 font-bold"
-                            >
-                              ✕
-                            </button>
+                            {canDelete && (
+                              <button
+                                onClick={() => {
+                                  const updated = reviewCostList.map((c) => {
+                                    if (c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m) {
+                                      return { ...c, pengeluaran: c.pengeluaran.filter((p) => p.id !== x.id) };
+                                    }
+                                    return c;
+                                  });
+                                  onUpdateReviewCost(updated);
+                                }}
+                                className="text-rose-500 hover:text-rose-700 font-bold"
+                                title="Hapus rincian"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -3789,23 +4183,45 @@ export const KPIView: React.FC<KPIViewProps> = ({
               <button
                 onClick={() => {
                   const m = activeTab === 'reviewCost' ? costMonth : designMonth;
-                  const updated = [...reviewCostList];
-                  const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
                   const anggaranVal = Number(modalAnggaranInput) || 0;
                   const hasPendingExpense = modalExpenseDescInput.trim() !== '' && modalExpenseAmountInput !== '';
                   const pendingExp = hasPendingExpense
-                    ? [{
+                    ? {
                         id: `exp-${Date.now()}`,
                         desc: modalExpenseDescInput.trim(),
                         amount: Number(modalExpenseAmountInput) || 0
-                      }]
-                    : [];
+                      }
+                    : undefined;
 
+                  if (isSupervisor && onSubmitApprovalRequest) {
+                    const existing = reviewCostList.find((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
+                    onSubmitApprovalRequest({
+                      category: 'cost_efficiency',
+                      categoryLabel: '4. Cost Efficiency / Review Cost',
+                      targetLabel: `${m} • ${costModalProject.Customer} - ${costModalProject['Nama Project']}`,
+                      summaryOld: `Anggaran: Rp ${(existing?.anggaran || 0).toLocaleString('id-ID')}`,
+                      summaryNew: `Anggaran: Rp ${anggaranVal.toLocaleString('id-ID')}${pendingExp ? ` + "${pendingExp.desc}" (Rp ${pendingExp.amount.toLocaleString('id-ID')})` : ''}`,
+                      payload: {
+                        year: activeYear,
+                        month: m,
+                        costTarget: { month: m, customer: costModalProject.Customer, projectName: costModalProject['Nama Project'] },
+                        updatedAnggaran: anggaranVal,
+                        addedExpense: pendingExp
+                      }
+                    });
+                    setModalExpenseDescInput('');
+                    setModalExpenseAmountInput('');
+                    setCostModalProject(null);
+                    return;
+                  }
+
+                  const updated = [...reviewCostList];
+                  const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
                   if (idx !== -1) {
                     updated[idx] = {
                       ...updated[idx],
                       anggaran: anggaranVal,
-                      pengeluaran: [...updated[idx].pengeluaran, ...pendingExp]
+                      pengeluaran: pendingExp ? [...updated[idx].pengeluaran, pendingExp] : updated[idx].pengeluaran
                     };
                   } else {
                     updated.push({
@@ -3813,7 +4229,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       customer: costModalProject.Customer,
                       projectName: costModalProject['Nama Project'],
                       anggaran: anggaranVal,
-                      pengeluaran: pendingExp
+                      pengeluaran: pendingExp ? [pendingExp] : []
                     });
                   }
                   onUpdateReviewCost(updated);
@@ -3821,9 +4237,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   setModalExpenseAmountInput('');
                   setCostModalProject(null);
                 }}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl text-xs shadow-md"
+                className={`px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
+                  isSupervisor
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-900'
+                }`}
               >
-                Simpan Anggaran
+                {isSupervisor ? 'Ajukan Anggaran ke Manager' : 'Simpan Anggaran'}
               </button>
             </div>
           </div>
@@ -3881,13 +4301,34 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   onClick={() => {
                     if (!modalPartNameInput.trim() || !modalFeedbackErrorInput.trim()) return;
                     const m = activeTab === 'reviewError' ? errorMonth : designMonth;
-                    const updated = [...reviewErrorList];
-                    const idx = updated.findIndex((e) => e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m);
                     const newErr = {
                       id: `err-${Date.now()}`,
                       partName: modalPartNameInput.trim(),
                       feedback: modalFeedbackErrorInput.trim()
                     };
+
+                    if (isSupervisor && onSubmitApprovalRequest) {
+                      const existing = reviewErrorList.find((e) => e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m);
+                      onSubmitApprovalRequest({
+                        category: 'design_error_rate',
+                        categoryLabel: '5. Design Error Rate / Review Error',
+                        targetLabel: `${m} • ${errorModalProject.Customer} - ${errorModalProject['Nama Project']}`,
+                        summaryOld: `${existing?.errors.length || 0} kasus error tercatat`,
+                        summaryNew: `+Error Part "${newErr.partName}": ${newErr.feedback}`,
+                        payload: {
+                          year: activeYear,
+                          month: m,
+                          errorTarget: { month: m, customer: errorModalProject.Customer, projectName: errorModalProject['Nama Project'] },
+                          addedError: newErr
+                        }
+                      });
+                      setModalPartNameInput('');
+                      setModalFeedbackErrorInput('');
+                      return;
+                    }
+
+                    const updated = [...reviewErrorList];
+                    const idx = updated.findIndex((e) => e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m);
                     if (idx !== -1) {
                       updated[idx] = {
                         ...updated[idx],
@@ -3907,7 +4348,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   }}
                   className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
                 >
-                  + Tambah Kasus Error
+                  {isSupervisor ? '+ Ajukan Kasus Error ke Manager' : '+ Tambah Kasus Error'}
                 </button>
               </div>
 
@@ -3931,21 +4372,23 @@ export const KPIView: React.FC<KPIViewProps> = ({
                             <span className="font-bold text-slate-800">{idx + 1}. {err.partName}</span>
                             <p className="text-slate-600 mt-0.5">{err.feedback}</p>
                           </div>
-                          <button
-                            onClick={() => {
-                              const updated = reviewErrorList.map((e) => {
-                                if (e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m) {
-                                  return { ...e, errors: e.errors.filter((x) => x.id !== err.id) };
-                                }
-                                return e;
-                              });
-                              onUpdateReviewError(updated);
-                            }}
-                            className="text-rose-500 hover:text-rose-700 font-bold ml-2"
-                            title="Hapus error"
-                          >
-                            ✕
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => {
+                                const updated = reviewErrorList.map((e) => {
+                                  if (e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m) {
+                                    return { ...e, errors: e.errors.filter((x) => x.id !== err.id) };
+                                  }
+                                  return e;
+                                });
+                                onUpdateReviewError(updated);
+                              }}
+                              className="text-rose-500 hover:text-rose-700 font-bold ml-2"
+                              title="Hapus error"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

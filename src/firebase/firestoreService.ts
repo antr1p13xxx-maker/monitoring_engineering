@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -16,6 +16,7 @@ const REVIEW_COST_COLLECTION = 'review_cost_records';
 const REVIEW_ERROR_COLLECTION = 'review_error_records';
 const STANDART_PART_COLLECTION = 'standart_part_handovers';
 const DESIGN_FEEDBACK_COLLECTION = 'design_feedback_records';
+const KPI_APPROVAL_COLLECTION = 'kpi_approval_requests';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -654,4 +655,93 @@ export async function seedDesignFeedbackIfEmpty(
   } catch (err) {
     console.warn('Could not seed initial Design Feedback to Firestore:', err);
   }
+}
+
+/**
+ * Real-time listener untuk antrean Persetujuan Manager (KPI Approval Requests).
+ */
+export function subscribeToFirestoreApprovals(
+  onUpdate: (items: KPIApprovalRequest[]) => void
+) {
+  const colRef = collection(db, KPI_APPROVAL_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: KPIApprovalRequest[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        let parsedPayload: KPIApprovalRequest['payload'] = {};
+        try {
+          parsedPayload =
+            typeof data.payload === 'string'
+              ? JSON.parse(data.payload)
+              : (data.payload || {});
+        } catch {
+          parsedPayload = {};
+        }
+
+        if (data.category && data.status) {
+          list.push({
+            id: String(data.id || docSnap.id),
+            category: data.category,
+            categoryLabel: String(data.categoryLabel || ''),
+            targetLabel: String(data.targetLabel || ''),
+            summaryOld: String(data.summaryOld || '-'),
+            summaryNew: String(data.summaryNew || '-'),
+            requestedBy: String(data.requestedBy || 'Supervisor'),
+            requestedAt: String(data.requestedAt || ''),
+            status: data.status,
+            reviewedBy: data.reviewedBy ? String(data.reviewedBy) : undefined,
+            reviewedAt: data.reviewedAt ? String(data.reviewedAt) : undefined,
+            reviewNote: data.reviewNote ? String(data.reviewNote) : undefined,
+            payload: parsedPayload,
+          });
+        }
+      });
+      list.sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''));
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore KPI Approvals listener notice:', err.message);
+    }
+  );
+}
+
+/**
+ * Menyimpan / memperbarui KPI Approval Request ke Firestore.
+ */
+export async function saveApprovalToFirestore(
+  req: KPIApprovalRequest
+): Promise<void> {
+  const docId = (req.id || `apr_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, KPI_APPROVAL_COLLECTION, docId);
+  await setDoc(
+    docRef,
+    {
+      id: docId,
+      category: req.category,
+      categoryLabel: req.categoryLabel,
+      targetLabel: req.targetLabel,
+      summaryOld: req.summaryOld,
+      summaryNew: req.summaryNew,
+      requestedBy: req.requestedBy,
+      requestedAt: req.requestedAt,
+      status: req.status,
+      reviewedBy: req.reviewedBy || '',
+      reviewedAt: req.reviewedAt || '',
+      reviewNote: req.reviewNote || '',
+      payload: JSON.stringify(req.payload || {}),
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Menghapus KPI Approval Request dari Firestore.
+ */
+export async function deleteApprovalFromFirestore(requestId: string): Promise<void> {
+  const docId = requestId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, KPI_APPROVAL_COLLECTION, docId);
+  await deleteDoc(docRef);
 }

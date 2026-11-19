@@ -125,6 +125,28 @@
         "updatedAt": { "type": "string", "description": "Timestamp update" }
       },
       "required": ["month", "customer", "projectName"]
+    },
+    "kpi_approval_requests": {
+      "title": "KPI Approval Requests",
+      "description": "Antrean pengajuan input/perubahan data Dashboard KPI CDR dari Supervisor yang memerlukan persetujuan Manager.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik pengajuan" },
+        "category": { "type": "string", "description": "Kategori perubahan KPI" },
+        "categoryLabel": { "type": "string", "description": "Label kategori" },
+        "targetLabel": { "type": "string", "description": "Target project/bulan/indikator" },
+        "summaryOld": { "type": "string", "description": "Ringkasan nilai sebelum perubahan" },
+        "summaryNew": { "type": "string", "description": "Ringkasan nilai yang diajukan" },
+        "requestedBy": { "type": "string", "description": "Role pengaju" },
+        "requestedAt": { "type": "string", "description": "Waktu pengajuan" },
+        "status": { "type": "string", "description": "pending, approved, atau rejected" },
+        "reviewedBy": { "type": "string", "description": "Role pemeriksa (Manager)" },
+        "reviewedAt": { "type": "string", "description": "Waktu persetujuan/penolakan" },
+        "reviewNote": { "type": "string", "description": "Catatan persetujuan/penolakan" },
+        "payload": { "type": "string", "description": "JSON payload detail perubahan" },
+        "updatedAt": { "type": "string", "description": "Timestamp update" }
+      },
+      "required": ["id", "category", "status", "requestedBy"]
     }
   },
   "firestore": {
@@ -151,6 +173,10 @@
     "/design_feedback_records/{recordId}": {
       "schema": "#/entities/design_feedback_records",
       "description": "Dokumen pencatatan feedback tim produksi & kastamer untuk KPI Design Quality."
+    },
+    "/kpi_approval_requests/{requestId}": {
+      "schema": "#/entities/kpi_approval_requests",
+      "description": "Dokumen antrean persetujuan Manager untuk pengajuan input data KPI oleh Supervisor."
     }
   }
 }

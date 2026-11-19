@@ -117,3 +117,41 @@ export interface SerahTerimaStandartPartItem {
   notes?: string;
 }
 
+export type KPIApprovalCategory =
+  | 'kpi_actual'
+  | 'design_quality_feedback'
+  | 'on_time_design'
+  | 'distribusi_drawing'
+  | 'cost_efficiency'
+  | 'design_error_rate';
+
+export interface KPIApprovalRequest {
+  id: string;
+  category: KPIApprovalCategory;
+  categoryLabel: string;
+  targetLabel: string;
+  summaryOld: string;
+  summaryNew: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  payload: {
+    year?: string;
+    kpiId?: number;
+    month?: string;
+    actualValue?: number | null;
+    keterangan?: string;
+    feedbackItem?: DesignFeedbackItem;
+    projectSpk?: string;
+    projectPatch?: Partial<EngineeringProject>;
+    costTarget?: { month: string; customer: string; projectName: string };
+    updatedAnggaran?: number;
+    addedExpense?: { id: string; desc: string; amount: number };
+    errorTarget?: { month: string; customer: string; projectName: string };
+    addedError?: { id: string; partName: string; feedback: string };
+  };
+}
+
