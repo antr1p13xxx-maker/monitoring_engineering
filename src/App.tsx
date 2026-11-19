@@ -20,8 +20,12 @@ import {
   seedKPIsIfEmpty,
   subscribeToFirestoreReviewCost,
   saveReviewCostToFirestore,
+  deleteReviewCostFromFirestore,
+  seedReviewCostIfEmpty,
   subscribeToFirestoreReviewError,
   saveReviewErrorToFirestore,
+  deleteReviewErrorFromFirestore,
+  seedReviewErrorIfEmpty,
   subscribeToFirestoreStandartParts,
   saveStandartPartToFirestore,
   seedStandartPartsIfEmpty,
@@ -90,8 +94,30 @@ export default function App() {
   });
 
   // Review Cost & Error State
-  const [reviewCostList, setReviewCostList] = useState<ReviewCostItem[]>(INITIAL_REVIEW_COST);
-  const [reviewErrorList, setReviewErrorList] = useState<ReviewErrorItem[]>(INITIAL_REVIEW_ERROR);
+  const [reviewCostList, setReviewCostList] = useState<ReviewCostItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_review_cost');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading review cost from localStorage:', e);
+    }
+    return INITIAL_REVIEW_COST;
+  });
+  const [reviewErrorList, setReviewErrorList] = useState<ReviewErrorItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_review_error');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading review error from localStorage:', e);
+    }
+    return INITIAL_REVIEW_ERROR;
+  });
   const [feedbackList, setFeedbackList] = useState<DesignFeedbackItem[]>(() => {
     try {
       const saved = localStorage.getItem('eng_design_feedback');
@@ -227,41 +253,32 @@ export default function App() {
       }
     });
 
-    // 4. Real-time Review Cost Listener
-    const unsubCost = subscribeToFirestoreReviewCost((costMap) => {
-      if (Object.keys(costMap).length > 0) {
-        setReviewCostList((prev) => {
-          return prev.map((item) => {
-            const key = `${item.month}_${item.customer}_${item.projectName}`.replace(/[\/\\#\s]/g, '_');
-            if (costMap[key]) {
-              return {
-                ...item,
-                anggaran: costMap[key].anggaran,
-                pengeluaran: costMap[key].pengeluaran
-              };
-            }
-            return item;
-          });
-        });
-      }
+    // 4. Real-time Review Cost Listener (seluruh project & bulan dinamis)
+    let isCostMounted = true;
+    let unsubCost: (() => void) | undefined;
+    seedReviewCostIfEmpty(INITIAL_REVIEW_COST).finally(() => {
+      if (!isCostMounted) return;
+      unsubCost = subscribeToFirestoreReviewCost((items) => {
+        if (items.length > 0) {
+          setReviewCostList(items);
+        } else if (localStorage.getItem('eng_review_cost_seeded') === 'true') {
+          setReviewCostList([]);
+        }
+      });
     });
 
-    // 5. Real-time Review Error Listener
-    const unsubError = subscribeToFirestoreReviewError((errorMap) => {
-      if (Object.keys(errorMap).length > 0) {
-        setReviewErrorList((prev) => {
-          return prev.map((item) => {
-            const key = `${item.month}_${item.customer}_${item.projectName}`.replace(/[\/\\#\s]/g, '_');
-            if (errorMap[key]) {
-              return {
-                ...item,
-                errors: errorMap[key].errors
-              };
-            }
-            return item;
-          });
-        });
-      }
+    // 5. Real-time Review Error Listener (seluruh project & bulan dinamis)
+    let isErrorMounted = true;
+    let unsubError: (() => void) | undefined;
+    seedReviewErrorIfEmpty(INITIAL_REVIEW_ERROR).finally(() => {
+      if (!isErrorMounted) return;
+      unsubError = subscribeToFirestoreReviewError((items) => {
+        if (items.length > 0) {
+          setReviewErrorList(items);
+        } else if (localStorage.getItem('eng_review_error_seeded') === 'true') {
+          setReviewErrorList([]);
+        }
+      });
     });
 
     // 6. Real-time Serah Terima Standart Part Listener
@@ -287,11 +304,13 @@ export default function App() {
     });
 
     return () => {
+      isCostMounted = false;
+      isErrorMounted = false;
       isFeedbackMounted = false;
       unsubProjects();
       unsubKpis();
-      unsubCost();
-      unsubError();
+      if (unsubCost) unsubCost();
+      if (unsubError) unsubError();
       unsubStandartParts();
       if (unsubFeedback) unsubFeedback();
     };
@@ -323,6 +342,23 @@ export default function App() {
       console.error(e);
     }
   }, [feedbackList]);
+
+  // Persist Review Cost & Review Error to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_review_cost', JSON.stringify(reviewCostList));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [reviewCostList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_review_error', JSON.stringify(reviewErrorList));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [reviewErrorList]);
 
   // Ensure appsScript view is strictly accessible only by Manager
   useEffect(() => {
@@ -517,32 +553,75 @@ export default function App() {
   const handleUpdateReviewCost = (
     updater: ReviewCostItem[] | ((prev: ReviewCostItem[]) => ReviewCostItem[])
   ) => {
-    setReviewCostList((prev) => {
-      const resolved = typeof updater === 'function' ? updater(prev) : updater;
-      resolved.forEach((item) => {
-        const key = `${item.month}_${item.customer}_${item.projectName}`;
-        saveReviewCostToFirestore(key, {
-          anggaran: item.anggaran,
-          pengeluaran: item.pengeluaran
-        }).catch((err) => console.warn('Firestore Review Cost save error:', err));
-      });
-      return resolved;
+    const prevSnapshot = reviewCostList;
+    const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
+    setReviewCostList(resolved);
+
+    try {
+      localStorage.setItem('eng_review_cost', JSON.stringify(resolved));
+      localStorage.setItem('eng_review_cost_seeded', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+
+    resolved.forEach((item) => {
+      saveReviewCostToFirestore(item).catch((err) =>
+        console.warn('Firestore Review Cost save error:', err)
+      );
     });
+
+    prevSnapshot.forEach((oldItem) => {
+      const stillExists = resolved.some(
+        (newItem) =>
+          newItem.month === oldItem.month &&
+          newItem.customer === oldItem.customer &&
+          newItem.projectName === oldItem.projectName
+      );
+      if (!stillExists) {
+        deleteReviewCostFromFirestore(oldItem).catch((err) =>
+          console.warn('Firestore Review Cost delete error:', err)
+        );
+      }
+    });
+
+    showToast('Data Anggaran & Pengeluaran Design berhasil disimpan ke Cloud & Local Storage!', 'success');
   };
 
   const handleUpdateReviewError = (
     updater: ReviewErrorItem[] | ((prev: ReviewErrorItem[]) => ReviewErrorItem[])
   ) => {
-    setReviewErrorList((prev) => {
-      const resolved = typeof updater === 'function' ? updater(prev) : updater;
-      resolved.forEach((item) => {
-        const key = `${item.month}_${item.customer}_${item.projectName}`;
-        saveReviewErrorToFirestore(key, {
-          errors: item.errors
-        }).catch((err) => console.warn('Firestore Review Error save error:', err));
-      });
-      return resolved;
+    const prevSnapshot = reviewErrorList;
+    const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
+    setReviewErrorList(resolved);
+
+    try {
+      localStorage.setItem('eng_review_error', JSON.stringify(resolved));
+      localStorage.setItem('eng_review_error_seeded', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+
+    resolved.forEach((item) => {
+      saveReviewErrorToFirestore(item).catch((err) =>
+        console.warn('Firestore Review Error save error:', err)
+      );
     });
+
+    prevSnapshot.forEach((oldItem) => {
+      const stillExists = resolved.some(
+        (newItem) =>
+          newItem.month === oldItem.month &&
+          newItem.customer === oldItem.customer &&
+          newItem.projectName === oldItem.projectName
+      );
+      if (!stillExists) {
+        deleteReviewErrorFromFirestore(oldItem).catch((err) =>
+          console.warn('Firestore Review Error delete error:', err)
+        );
+      }
+    });
+
+    showToast('Data Design Error Rate berhasil disimpan ke Cloud & Local Storage!', 'success');
   };
 
   const handleUpdateStandartPartList = (

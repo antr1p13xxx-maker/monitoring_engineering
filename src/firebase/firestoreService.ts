@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -176,87 +176,257 @@ export async function seedKPIsIfEmpty(year: string, kpiList: KPIItem[]): Promise
 }
 
 /**
- * Real-time listener untuk Review Cost.
+ * Helper aman membuat docId <= 128 karakter untuk key komposit (bulan, customer, project).
+ */
+function buildCompositeDocId(rawKey: string): string {
+  const sanitized = rawKey.replace(/[\/\\#\s]/g, '_');
+  if (sanitized.length > 0 && sanitized.length <= 120) {
+    return sanitized;
+  }
+  let hash = 0;
+  for (let i = 0; i < rawKey.length; i++) {
+    hash = ((hash << 5) - hash + rawKey.charCodeAt(i)) | 0;
+  }
+  const suffix = Math.abs(hash).toString(36);
+  return `${sanitized.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)}_${suffix}`;
+}
+
+/**
+ * Real-time listener untuk Review Cost (seluruh project & bulan dinamis).
  */
 export function subscribeToFirestoreReviewCost(
-  onUpdate: (data: Record<string, { anggaran: number; pengeluaran: any[] }>) => void
+  onUpdate: (items: ReviewCostItem[]) => void
 ) {
   const colRef = collection(db, REVIEW_COST_COLLECTION);
-  return onSnapshot(colRef, (snapshot) => {
-    const result: Record<string, { anggaran: number; pengeluaran: any[] }> = {};
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const key = docSnap.id;
-      let exp: any[] = [];
-      try {
-        exp = typeof data.pengeluaran === 'string' ? JSON.parse(data.pengeluaran) : (data.pengeluaran || []);
-      } catch {
-        exp = data.pengeluaran || [];
-      }
-      result[key] = {
-        anggaran: Number(data.anggaran || 0),
-        pengeluaran: exp,
-      };
-    });
-    onUpdate(result);
-  });
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: ReviewCostItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        let exp: Array<{ id: string; desc: string; amount: number }> = [];
+        try {
+          exp = typeof data.pengeluaran === 'string' ? JSON.parse(data.pengeluaran) : (data.pengeluaran || []);
+        } catch {
+          exp = data.pengeluaran || [];
+        }
+
+        let month = data.month ? String(data.month) : '';
+        let customer = data.customer ? String(data.customer) : '';
+        let projectName = data.projectName ? String(data.projectName) : '';
+
+        // Fallback parsing bila dokumen lama hanya menyimpan field `key` ("month_customer_projectName")
+        if ((!month || !customer || !projectName) && typeof data.key === 'string') {
+          const parts = data.key.split('_');
+          if (parts.length >= 3) {
+            month = month || parts[0];
+            customer = customer || parts[1];
+            projectName = projectName || parts.slice(2).join('_');
+          }
+        }
+
+        if (month && customer && projectName) {
+          list.push({
+            month,
+            customer,
+            projectName,
+            anggaran: Number(data.anggaran || 0),
+            pengeluaran: Array.isArray(exp) ? exp : [],
+          });
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Review Cost listener notice:', err.message);
+    }
+  );
 }
 
 /**
  * Menyimpan Review Cost ke Firestore.
  */
 export async function saveReviewCostToFirestore(
-  key: string,
-  data: { anggaran: number; pengeluaran: any[] }
+  item: ReviewCostItem
 ): Promise<void> {
-  const docId = key.replace(/[\/\\#\s]/g, '_');
+  const key = `${item.month}_${item.customer}_${item.projectName}`;
+  const docId = buildCompositeDocId(key);
   const docRef = doc(db, REVIEW_COST_COLLECTION, docId);
   await setDoc(docRef, {
     key,
-    anggaran: data.anggaran,
-    pengeluaran: JSON.stringify(data.pengeluaran),
+    month: item.month,
+    customer: item.customer,
+    projectName: item.projectName,
+    anggaran: Number(item.anggaran || 0),
+    pengeluaran: JSON.stringify(item.pengeluaran || []),
     updatedAt: new Date().toISOString(),
   }, { merge: true });
 }
 
 /**
- * Real-time listener untuk Review Error.
+ * Menghapus Review Cost dari Firestore.
+ */
+export async function deleteReviewCostFromFirestore(
+  item: Pick<ReviewCostItem, 'month' | 'customer' | 'projectName'>
+): Promise<void> {
+  const key = `${item.month}_${item.customer}_${item.projectName}`;
+  const docId = buildCompositeDocId(key);
+  const docRef = doc(db, REVIEW_COST_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed initial Review Cost jika koleksi masih kosong dan belum pernah di-seed.
+ */
+export async function seedReviewCostIfEmpty(
+  initialItems: ReviewCostItem[]
+): Promise<void> {
+  try {
+    if (localStorage.getItem('eng_review_cost_seeded') === 'true') {
+      return;
+    }
+    const colRef = collection(db, REVIEW_COST_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    if (snapshot.empty && initialItems.length > 0) {
+      const batch = writeBatch(db);
+      initialItems.forEach((item) => {
+        const key = `${item.month}_${item.customer}_${item.projectName}`;
+        const docId = buildCompositeDocId(key);
+        const docRef = doc(db, REVIEW_COST_COLLECTION, docId);
+        batch.set(docRef, {
+          key,
+          month: item.month,
+          customer: item.customer,
+          projectName: item.projectName,
+          anggaran: Number(item.anggaran || 0),
+          pengeluaran: JSON.stringify(item.pengeluaran || []),
+          updatedAt: new Date().toISOString(),
+        });
+      });
+      await batch.commit();
+      console.info(`Seeded ${initialItems.length} initial Review Cost records to Firestore.`);
+    }
+    localStorage.setItem('eng_review_cost_seeded', 'true');
+  } catch (err) {
+    console.warn('Could not seed initial Review Cost to Firestore:', err);
+  }
+}
+
+/**
+ * Real-time listener untuk Review Error (seluruh project & bulan dinamis).
  */
 export function subscribeToFirestoreReviewError(
-  onUpdate: (data: Record<string, { errors: any[] }>) => void
+  onUpdate: (items: ReviewErrorItem[]) => void
 ) {
   const colRef = collection(db, REVIEW_ERROR_COLLECTION);
-  return onSnapshot(colRef, (snapshot) => {
-    const result: Record<string, { errors: any[] }> = {};
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const key = docSnap.id;
-      let errs: any[] = [];
-      try {
-        errs = typeof data.errors === 'string' ? JSON.parse(data.errors) : (data.errors || []);
-      } catch {
-        errs = data.errors || [];
-      }
-      result[key] = { errors: errs };
-    });
-    onUpdate(result);
-  });
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: ReviewErrorItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        let errs: Array<{ id: string; partName: string; feedback: string }> = [];
+        try {
+          errs = typeof data.errors === 'string' ? JSON.parse(data.errors) : (data.errors || []);
+        } catch {
+          errs = data.errors || [];
+        }
+
+        let month = data.month ? String(data.month) : '';
+        let customer = data.customer ? String(data.customer) : '';
+        let projectName = data.projectName ? String(data.projectName) : '';
+
+        if ((!month || !customer || !projectName) && typeof data.key === 'string') {
+          const parts = data.key.split('_');
+          if (parts.length >= 3) {
+            month = month || parts[0];
+            customer = customer || parts[1];
+            projectName = projectName || parts.slice(2).join('_');
+          }
+        }
+
+        if (month && customer && projectName) {
+          list.push({
+            month,
+            customer,
+            projectName,
+            errors: Array.isArray(errs) ? errs : [],
+          });
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Review Error listener notice:', err.message);
+    }
+  );
 }
 
 /**
  * Menyimpan Review Error ke Firestore.
  */
 export async function saveReviewErrorToFirestore(
-  key: string,
-  data: { errors: any[] }
+  item: ReviewErrorItem
 ): Promise<void> {
-  const docId = key.replace(/[\/\\#\s]/g, '_');
+  const key = `${item.month}_${item.customer}_${item.projectName}`;
+  const docId = buildCompositeDocId(key);
   const docRef = doc(db, REVIEW_ERROR_COLLECTION, docId);
   await setDoc(docRef, {
     key,
-    errors: JSON.stringify(data.errors),
+    month: item.month,
+    customer: item.customer,
+    projectName: item.projectName,
+    errors: JSON.stringify(item.errors || []),
     updatedAt: new Date().toISOString(),
   }, { merge: true });
+}
+
+/**
+ * Menghapus Review Error dari Firestore.
+ */
+export async function deleteReviewErrorFromFirestore(
+  item: Pick<ReviewErrorItem, 'month' | 'customer' | 'projectName'>
+): Promise<void> {
+  const key = `${item.month}_${item.customer}_${item.projectName}`;
+  const docId = buildCompositeDocId(key);
+  const docRef = doc(db, REVIEW_ERROR_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed initial Review Error jika koleksi masih kosong dan belum pernah di-seed.
+ */
+export async function seedReviewErrorIfEmpty(
+  initialItems: ReviewErrorItem[]
+): Promise<void> {
+  try {
+    if (localStorage.getItem('eng_review_error_seeded') === 'true') {
+      return;
+    }
+    const colRef = collection(db, REVIEW_ERROR_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    if (snapshot.empty && initialItems.length > 0) {
+      const batch = writeBatch(db);
+      initialItems.forEach((item) => {
+        const key = `${item.month}_${item.customer}_${item.projectName}`;
+        const docId = buildCompositeDocId(key);
+        const docRef = doc(db, REVIEW_ERROR_COLLECTION, docId);
+        batch.set(docRef, {
+          key,
+          month: item.month,
+          customer: item.customer,
+          projectName: item.projectName,
+          errors: JSON.stringify(item.errors || []),
+          updatedAt: new Date().toISOString(),
+        });
+      });
+      await batch.commit();
+      console.info(`Seeded ${initialItems.length} initial Review Error records to Firestore.`);
+    }
+    localStorage.setItem('eng_review_error_seeded', 'true');
+  } catch (err) {
+    console.warn('Could not seed initial Review Error to Firestore:', err);
+  }
 }
 
 /**

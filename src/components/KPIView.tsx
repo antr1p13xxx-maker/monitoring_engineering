@@ -2819,9 +2819,9 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                         if (newAnggaran !== null) {
                                           const num = Number(newAnggaran) || 0;
                                           const updated = [...reviewCostList];
-                                          let found = updated.find((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth);
-                                          if (found) {
-                                            found.anggaran = num;
+                                          const idx = updated.findIndex((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth);
+                                          if (idx !== -1) {
+                                            updated[idx] = { ...updated[idx], anggaran: num };
                                           } else {
                                             updated.push({ month: costMonth, customer: p.Customer, projectName: p['Nama Project'], anggaran: num, pengeluaran: [] });
                                           }
@@ -3705,22 +3705,28 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     if (!modalExpenseDescInput.trim() || !modalExpenseAmountInput) return;
                     const m = activeTab === 'reviewCost' ? costMonth : designMonth;
                     const updated = [...reviewCostList];
-                    let found = updated.find((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
-                    if (!found) {
-                      found = {
-                        month: m,
-                        customer: costModalProject.Customer,
-                        projectName: costModalProject['Nama Project'],
-                        anggaran: Number(modalAnggaranInput) || 0,
-                        pengeluaran: []
-                      };
-                      updated.push(found);
-                    }
-                    found.pengeluaran.push({
+                    const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
+                    const anggaranVal = modalAnggaranInput !== '' ? Number(modalAnggaranInput) || 0 : undefined;
+                    const newExpense = {
                       id: `exp-${Date.now()}`,
                       desc: modalExpenseDescInput.trim(),
                       amount: Number(modalExpenseAmountInput) || 0
-                    });
+                    };
+                    if (idx !== -1) {
+                      updated[idx] = {
+                        ...updated[idx],
+                        anggaran: anggaranVal !== undefined ? anggaranVal : updated[idx].anggaran,
+                        pengeluaran: [...updated[idx].pengeluaran, newExpense]
+                      };
+                    } else {
+                      updated.push({
+                        month: m,
+                        customer: costModalProject.Customer,
+                        projectName: costModalProject['Nama Project'],
+                        anggaran: anggaranVal ?? 0,
+                        pengeluaran: [newExpense]
+                      });
+                    }
                     onUpdateReviewCost(updated);
                     setModalExpenseDescInput('');
                     setModalExpenseAmountInput('');
@@ -3784,20 +3790,35 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 onClick={() => {
                   const m = activeTab === 'reviewCost' ? costMonth : designMonth;
                   const updated = [...reviewCostList];
-                  let found = updated.find((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
+                  const idx = updated.findIndex((c) => c.customer === costModalProject.Customer && c.projectName === costModalProject['Nama Project'] && c.month === m);
                   const anggaranVal = Number(modalAnggaranInput) || 0;
-                  if (found) {
-                    found.anggaran = anggaranVal;
+                  const hasPendingExpense = modalExpenseDescInput.trim() !== '' && modalExpenseAmountInput !== '';
+                  const pendingExp = hasPendingExpense
+                    ? [{
+                        id: `exp-${Date.now()}`,
+                        desc: modalExpenseDescInput.trim(),
+                        amount: Number(modalExpenseAmountInput) || 0
+                      }]
+                    : [];
+
+                  if (idx !== -1) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      anggaran: anggaranVal,
+                      pengeluaran: [...updated[idx].pengeluaran, ...pendingExp]
+                    };
                   } else {
                     updated.push({
                       month: m,
                       customer: costModalProject.Customer,
                       projectName: costModalProject['Nama Project'],
                       anggaran: anggaranVal,
-                      pengeluaran: []
+                      pengeluaran: pendingExp
                     });
                   }
                   onUpdateReviewCost(updated);
+                  setModalExpenseDescInput('');
+                  setModalExpenseAmountInput('');
                   setCostModalProject(null);
                 }}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl text-xs shadow-md"
@@ -3861,21 +3882,25 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     if (!modalPartNameInput.trim() || !modalFeedbackErrorInput.trim()) return;
                     const m = activeTab === 'reviewError' ? errorMonth : designMonth;
                     const updated = [...reviewErrorList];
-                    let found = updated.find((e) => e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m);
-                    if (!found) {
-                      found = {
-                        month: m,
-                        customer: errorModalProject.Customer,
-                        projectName: errorModalProject['Nama Project'],
-                        errors: []
-                      };
-                      updated.push(found);
-                    }
-                    found.errors.push({
+                    const idx = updated.findIndex((e) => e.customer === errorModalProject.Customer && e.projectName === errorModalProject['Nama Project'] && e.month === m);
+                    const newErr = {
                       id: `err-${Date.now()}`,
                       partName: modalPartNameInput.trim(),
                       feedback: modalFeedbackErrorInput.trim()
-                    });
+                    };
+                    if (idx !== -1) {
+                      updated[idx] = {
+                        ...updated[idx],
+                        errors: [...updated[idx].errors, newErr]
+                      };
+                    } else {
+                      updated.push({
+                        month: m,
+                        customer: errorModalProject.Customer,
+                        projectName: errorModalProject['Nama Project'],
+                        errors: [newErr]
+                      });
+                    }
                     onUpdateReviewError(updated);
                     setModalPartNameInput('');
                     setModalFeedbackErrorInput('');
