@@ -565,6 +565,10 @@ export default function App() {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah nilai capaian KPI.', 'error');
       return;
     }
+    if (userRole === 'Supervisor') {
+      showToast('Perubahan KPI oleh Supervisor harus melalui Persetujuan Manager.', 'error');
+      return;
+    }
     setAllYearsData((prev) => {
       const yearList = prev[year] || getBaseKPITemplate();
       const updatedList = yearList.map((item) => {
@@ -611,6 +615,15 @@ export default function App() {
   const handleUpdateReviewCost = (
     updater: ReviewCostItem[] | ((prev: ReviewCostItem[]) => ReviewCostItem[])
   ) => {
+    if (userRole === 'Viewer' || userRole === 'Supervisor') {
+      showToast(
+        userRole === 'Supervisor'
+          ? 'Perubahan Review Cost oleh Supervisor harus melalui Persetujuan Manager.'
+          : 'Akses Dibatasi: Role Viewer tidak dapat mengubah data Review Cost.',
+        'error'
+      );
+      return;
+    }
     const prevSnapshot = reviewCostList;
     const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
     setReviewCostList(resolved);
@@ -648,6 +661,15 @@ export default function App() {
   const handleUpdateReviewError = (
     updater: ReviewErrorItem[] | ((prev: ReviewErrorItem[]) => ReviewErrorItem[])
   ) => {
+    if (userRole === 'Viewer' || userRole === 'Supervisor') {
+      showToast(
+        userRole === 'Supervisor'
+          ? 'Perubahan Review Error oleh Supervisor harus melalui Persetujuan Manager.'
+          : 'Akses Dibatasi: Role Viewer tidak dapat mengubah data Review Error.',
+        'error'
+      );
+      return;
+    }
     const prevSnapshot = reviewErrorList;
     const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
     setReviewErrorList(resolved);
@@ -697,6 +719,15 @@ export default function App() {
   const handleUpdateFeedback = (
     updater: DesignFeedbackItem[] | ((prev: DesignFeedbackItem[]) => DesignFeedbackItem[])
   ) => {
+    if (userRole === 'Viewer' || userRole === 'Supervisor') {
+      showToast(
+        userRole === 'Supervisor'
+          ? 'Perubahan Design Quality oleh Supervisor harus melalui Persetujuan Manager.'
+          : 'Akses Dibatasi: Role Viewer tidak dapat mengubah data feedback.',
+        'error'
+      );
+      return;
+    }
     const prevSnapshot = feedbackList;
     const resolved = typeof updater === 'function' ? updater(prevSnapshot) : updater;
     setFeedbackList(resolved);
@@ -739,6 +770,10 @@ export default function App() {
   const handleUpdateProject = (updated: EngineeringProject) => {
     if (userRole === 'Viewer') {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah data proyek.', 'error');
+      return;
+    }
+    if (userRole === 'Supervisor') {
+      showToast('Perubahan KPI proyek oleh Supervisor harus melalui Persetujuan Manager.', 'error');
       return;
     }
     setProjects((prev) => prev.map((p) => (p.SPK === updated.SPK ? updated : p)));

@@ -163,6 +163,16 @@ export const KPIView: React.FC<KPIViewProps> = ({
   const [errorModalProject, setErrorModalProject] = useState<EngineeringProject | null>(null);
   const [modalPartNameInput, setModalPartNameInput] = useState<string>('');
   const [modalFeedbackErrorInput, setModalFeedbackErrorInput] = useState<string>('');
+  const [modalSubmitNotice, setModalSubmitNotice] = useState<string | null>(null);
+
+  // Approval Review UI state (avoid window.prompt / window.confirm in sandboxed iframe)
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
+  const [confirmClearApprovals, setConfirmClearApprovals] = useState<boolean>(false);
+
+  useEffect(() => {
+    setModalSubmitNotice(null);
+  }, [costModalProject, errorModalProject]);
 
   // Email Modal state
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
@@ -2004,9 +2014,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                 setEditModalValue(item.months[activeGlobalMonth] !== null ? String(item.months[activeGlobalMonth]) : '');
                                 setEditModalKet(item.keterangan || '');
                               }}
-                              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold transition"
+                              className={`px-2.5 py-1.5 text-white rounded-lg text-[11px] font-semibold transition ${
+                                isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-slate-900 hover:bg-slate-800'
+                              }`}
                             >
-                              Input Nilai
+                              {isSupervisor ? 'Ajukan Edit' : 'Input Nilai'}
                             </button>
                           ) : (
                             <span className="text-[11px] text-slate-400">Read-Only</span>
@@ -2907,34 +2919,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                     </button>
                                     <button
                                       onClick={() => {
-                                        const newAnggaran = prompt('Ubah Anggaran Design (angka saja):', String(anggaran));
-                                        if (newAnggaran !== null) {
-                                          const num = Number(newAnggaran) || 0;
-                                          if (isSupervisor && onSubmitApprovalRequest) {
-                                            onSubmitApprovalRequest({
-                                              category: 'cost_efficiency',
-                                              categoryLabel: '4. Cost Efficiency / Review Cost',
-                                              targetLabel: `${costMonth} • ${p.Customer} - ${p['Nama Project']}`,
-                                              summaryOld: `Anggaran: Rp ${anggaran.toLocaleString('id-ID')}`,
-                                              summaryNew: `Anggaran: Rp ${num.toLocaleString('id-ID')}`,
-                                              payload: {
-                                                year: activeYear,
-                                                month: costMonth,
-                                                costTarget: { month: costMonth, customer: p.Customer, projectName: p['Nama Project'] },
-                                                updatedAnggaran: num
-                                              }
-                                            });
-                                            return;
-                                          }
-                                          const updated = [...reviewCostList];
-                                          const idx = updated.findIndex((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth);
-                                          if (idx !== -1) {
-                                            updated[idx] = { ...updated[idx], anggaran: num };
-                                          } else {
-                                            updated.push({ month: costMonth, customer: p.Customer, projectName: p['Nama Project'], anggaran: num, pengeluaran: [] });
-                                          }
-                                          onUpdateReviewCost(updated);
-                                        }
+                                        setModalSubmitNotice(null);
+                                        setCostModalProject(p);
+                                        setModalAnggaranInput(anggaran ? String(anggaran) : '10000000');
+                                        setModalExpenseDescInput('');
+                                        setModalExpenseAmountInput('');
                                       }}
                                       className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-semibold w-full transition"
                                     >
@@ -3301,16 +3290,33 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 Menunggu: {pendingCount}
               </span>
               {isManager && reviewedApprovals.length > 0 && onClearReviewedApprovals && (
-                <button
-                  onClick={() => {
-                    if (confirm('Bersihkan semua riwayat pengajuan yang sudah diproses?')) {
-                      onClearReviewedApprovals();
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-                >
-                  Bersihkan Riwayat
-                </button>
+                confirmClearApprovals ? (
+                  <div className="flex items-center space-x-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-xl">
+                    <span className="text-[11px] font-semibold text-rose-800">Hapus riwayat?</span>
+                    <button
+                      onClick={() => {
+                        onClearReviewedApprovals();
+                        setConfirmClearApprovals(false);
+                      }}
+                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-bold"
+                    >
+                      Ya
+                    </button>
+                    <button
+                      onClick={() => setConfirmClearApprovals(false)}
+                      className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[11px] font-semibold"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmClearApprovals(true)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                  >
+                    Bersihkan Riwayat
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -3356,29 +3362,61 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-2 flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0">
                       {isManager ? (
-                        <>
-                          <button
-                            onClick={() => onApproveRequest && onApproveRequest(req.id)}
-                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span>Setujui & Terapkan</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              const note = prompt('Alasan penolakan (opsional):', 'Perlu revisi data');
-                              if (note !== null && onRejectRequest) {
-                                onRejectRequest(req.id, note);
-                              }
-                            }}
-                            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
-                          >
-                            <XCircle className="w-4 h-4" />
-                            <span>Tolak</span>
-                          </button>
-                        </>
+                        rejectingRequestId === req.id ? (
+                          <div className="flex flex-wrap items-center gap-1.5 bg-white border border-rose-300 p-2 rounded-xl shadow-sm">
+                            <input
+                              type="text"
+                              value={rejectReasonInput}
+                              onChange={(e) => setRejectReasonInput(e.target.value)}
+                              placeholder="Alasan penolakan (opsional)..."
+                              className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 w-48"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => {
+                                if (onRejectRequest) {
+                                  onRejectRequest(req.id, rejectReasonInput.trim() || 'Perlu revisi data');
+                                }
+                                setRejectingRequestId(null);
+                                setRejectReasonInput('');
+                              }}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
+                            >
+                              Konfirmasi Tolak
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectingRequestId(null);
+                                setRejectReasonInput('');
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => onApproveRequest && onApproveRequest(req.id)}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Setujui & Terapkan</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectingRequestId(req.id);
+                                setRejectReasonInput('');
+                              }}
+                              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span>Tolak</span>
+                            </button>
+                          </>
+                        )
                       ) : (
                         <span className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-xl text-[11px] font-semibold border border-amber-300">
                           Menunggu Tinjauan Manager
@@ -4098,6 +4136,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       });
                       setModalExpenseDescInput('');
                       setModalExpenseAmountInput('');
+                      setModalSubmitNotice(`Pengajuan rincian pengeluaran "${newExpense.desc}" telah dikirim ke antrean Persetujuan Manager.`);
                       return;
                     }
 
@@ -4173,9 +4212,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
             </div>
 
+            {modalSubmitNotice && costModalProject && (
+              <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-semibold">
+                {modalSubmitNotice}
+              </div>
+            )}
+
             <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
               <button
-                onClick={() => setCostModalProject(null)}
+                onClick={() => {
+                  setCostModalProject(null);
+                  setModalSubmitNotice(null);
+                }}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
               >
                 Tutup
@@ -4324,6 +4372,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       });
                       setModalPartNameInput('');
                       setModalFeedbackErrorInput('');
+                      setModalSubmitNotice(`Pengajuan kasus error "${newErr.partName}" telah dikirim ke antrean Persetujuan Manager.`);
                       return;
                     }
 
@@ -4397,9 +4446,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
             </div>
 
+            {modalSubmitNotice && errorModalProject && (
+              <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-semibold">
+                {modalSubmitNotice}
+              </div>
+            )}
+
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
-                onClick={() => setErrorModalProject(null)}
+                onClick={() => {
+                  setErrorModalProject(null);
+                  setModalSubmitNotice(null);
+                }}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs shadow-md"
               >
                 Selesai
