@@ -138,24 +138,31 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 text-white rounded-2xl p-5 shadow-xl border border-indigo-900/60 space-y-4">
+    <div
+      className="text-white rounded-2xl p-5 shadow-xl border border-indigo-400/30 space-y-4 relative overflow-hidden"
+      style={{
+        backgroundColor: '#0d1333',
+        backgroundImage:
+          'radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.22) 0px, transparent 45%), radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.24) 0px, transparent 45%), radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.16) 0px, transparent 50%)',
+      }}
+    >
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-indigo-900/50">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-indigo-400/20">
         <div className="flex items-start space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl text-white shadow-lg shadow-indigo-500/20 shrink-0">
+          <div className="p-2.5 bg-gradient-to-tr from-cyan-500 via-indigo-500 to-fuchsia-500 rounded-xl text-white shadow-lg shadow-indigo-500/30 shrink-0">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm sm:text-base font-extrabold bg-gradient-to-r from-white via-cyan-100 to-indigo-200 bg-clip-text text-transparent tracking-wide">
                 AI Insight & Rekomendasi Strategis Engineering
               </h3>
-              <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1">
-                <Cpu className="w-3 h-3 text-indigo-300" />
+              <span className="bg-cyan-500/20 text-cyan-200 border border-cyan-400/30 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
+                <Cpu className="w-3 h-3 text-cyan-300" />
                 <span>Gemini 4 Flash</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 mt-0.5">
+            <p className="text-[11px] text-indigo-100/80 mt-0.5">
               Analisis cerdas real-time terhadap performa {contextType === 'monitoring' ? 'monitoring drawing' : 'capaian KPI'} pada periode <span className="text-amber-300 font-semibold">{period}</span>.
             </p>
           </div>
@@ -166,7 +173,7 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
           {insight && (
             <button
               onClick={handleCopyText}
-              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition"
+              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/15 text-slate-100 border border-white/15 flex items-center space-x-1.5 transition cursor-pointer"
               title="Salin ringkasan ke clipboard"
             >
               <Copy className="w-3.5 h-3.5" />
@@ -177,7 +184,7 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
           <button
             onClick={fetchAIInsights}
             disabled={loading}
-            className="px-4 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:from-emerald-600 active:to-teal-700 text-white shadow-md shadow-emerald-900/30 flex items-center space-x-1.5 transition disabled:opacity-60 cursor-pointer"
+            className="px-4 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:via-teal-400 hover:to-cyan-400 text-white shadow-md shadow-emerald-900/30 flex items-center space-x-1.5 transition disabled:opacity-60 cursor-pointer"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'Menganalisis...' : insight ? 'Perbarui Analisis' : 'Generate AI Insight'}</span>
@@ -223,19 +230,18 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
       {insight && !loading && (
         <div className="space-y-4">
           {/* Executive Summary Card */}
-          <div className="p-4 bg-slate-900/80 rounded-xl border border-indigo-500/30 shadow-inner">
+          <div className="p-4 bg-slate-950/55 rounded-xl border border-cyan-400/30 shadow-inner">
             <div className="flex items-center space-x-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
                 Ringkasan Eksekutif (Executive Summary)
               </h4>
               {lastGeneratedAt && (
-                <span className="text-[10px] text-slate-400 ml-auto">
+                <span className="text-[10px] text-slate-300 ml-auto font-mono tabular-nums">
                   Diperbarui pukul {lastGeneratedAt} WIB
                 </span>
               )}
             </div>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans">
+            <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-sans">
               {insight.executiveSummary}
             </p>
           </div>
@@ -243,15 +249,15 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
           {/* Grid: Key Findings & Strategic Recommendations */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Key Findings */}
-            <div className="p-4 bg-slate-900/60 rounded-xl border border-indigo-900/40 space-y-2">
-              <div className="flex items-center space-x-2 text-indigo-300 font-bold text-xs pb-1 border-b border-indigo-900/50">
-                <TrendingUp className="w-4 h-4 text-indigo-400" />
+            <div className="p-4 bg-indigo-950/45 rounded-xl border border-indigo-400/25 space-y-2">
+              <div className="flex items-center space-x-2 text-cyan-300 font-bold text-xs pb-1.5 border-b border-indigo-400/20">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
                 <span>Temuan Kunci Berbasis Data (Key Findings)</span>
               </div>
-              <ul className="space-y-2 text-xs text-slate-300">
+              <ul className="space-y-2 text-xs text-slate-200">
                 {insight.keyFindings.map((finding, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
-                    <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
+                    <span className="text-cyan-400 font-bold shrink-0">{idx + 1}.</span>
                     <span className="leading-relaxed">{finding}</span>
                   </li>
                 ))}
@@ -259,12 +265,12 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
             </div>
 
             {/* Strategic Recommendations */}
-            <div className="p-4 bg-slate-900/60 rounded-xl border border-emerald-900/40 space-y-2">
-              <div className="flex items-center space-x-2 text-emerald-300 font-bold text-xs pb-1 border-b border-emerald-900/50">
+            <div className="p-4 bg-emerald-950/40 rounded-xl border border-emerald-400/25 space-y-2">
+              <div className="flex items-center space-x-2 text-emerald-300 font-bold text-xs pb-1.5 border-b border-emerald-400/20">
                 <Lightbulb className="w-4 h-4 text-emerald-400" />
                 <span>Rekomendasi Strategis Manager</span>
               </div>
-              <ul className="space-y-2 text-xs text-slate-300">
+              <ul className="space-y-2 text-xs text-slate-200">
                 {insight.strategicRecommendations.map((rec, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
@@ -278,26 +284,26 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
           {/* Grid: Risk Assessment & Action Plan */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Risk Assessment */}
-            <div className="p-4 bg-slate-900/60 rounded-xl border border-amber-900/40 space-y-2">
-              <div className="flex items-center space-x-2 text-amber-300 font-bold text-xs pb-1 border-b border-amber-900/50">
+            <div className="p-4 bg-amber-950/35 rounded-xl border border-amber-400/25 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-300 font-bold text-xs pb-1.5 border-b border-amber-400/20">
                 <ShieldAlert className="w-4 h-4 text-amber-400" />
                 <span>Evaluasi Risiko & Potensi Hambatan</span>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-slate-200 leading-relaxed">
                 {insight.riskAssessment}
               </p>
             </div>
 
             {/* Action Plan */}
-            <div className="p-4 bg-slate-900/60 rounded-xl border border-purple-900/40 space-y-2">
-              <div className="flex items-center space-x-2 text-purple-300 font-bold text-xs pb-1 border-b border-purple-900/50">
-                <ListChecks className="w-4 h-4 text-purple-400" />
+            <div className="p-4 bg-fuchsia-950/35 rounded-xl border border-fuchsia-400/25 space-y-2">
+              <div className="flex items-center space-x-2 text-fuchsia-300 font-bold text-xs pb-1.5 border-b border-fuchsia-400/20">
+                <ListChecks className="w-4 h-4 text-fuchsia-400" />
                 <span>Action Plan Cepat (Target 7 - 14 Hari)</span>
               </div>
-              <ul className="space-y-1.5 text-xs text-slate-300">
+              <ul className="space-y-1.5 text-xs text-slate-200">
                 {insight.actionPlan.map((act, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 mt-1.5 shrink-0"></span>
                     <span className="leading-relaxed">{act}</span>
                   </li>
                 ))}

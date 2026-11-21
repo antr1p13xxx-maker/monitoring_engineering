@@ -91,25 +91,26 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 z-[140] flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-indigo-200/70">
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-emerald-400" />
         {/* Header */}
-        <div className="bg-slate-900 text-white px-5 sm:px-6 py-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-[#0a0f2c] via-[#172554] to-[#1e1b4b] text-white px-5 sm:px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-md shadow-blue-500/20">
+            <div className="p-2.5 bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 rounded-xl text-white shadow-lg shadow-cyan-500/25">
               <CloudUpload className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-wide">
+              <h3 className="text-sm font-extrabold text-white tracking-wide">
                 Upload File CAD / Dokumen PDF Drawing
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Target SPK: <span className="text-emerald-400 font-mono font-bold">{spk}</span>
+              <p className="text-xs text-cyan-200/80 mt-0.5">
+                Target SPK: <span className="text-emerald-300 font-mono font-bold">{spk}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition"
           >
             <X className="w-5 h-5" />
           </button>

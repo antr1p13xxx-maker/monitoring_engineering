@@ -885,14 +885,14 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* Official Document Letterhead Banner (Exact Match to PDF) */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-300 overflow-hidden">
-        <div className="grid grid-cols-1 md:grid-cols-12 border-b border-slate-300">
+      {/* Official Document Letterhead Banner (Modernized KMIL) */}
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden">
+        <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500" />
+        <div className="grid grid-cols-1 md:grid-cols-12 border-b border-slate-200">
           {/* Left Company Box */}
-          <div className="md:col-span-5 p-4 border-b md:border-b-0 md:border-r border-slate-300 flex items-center space-x-3 bg-slate-50/50">
-            <div className="w-12 h-12 rounded-full border border-red-500 flex items-center justify-center p-1 bg-white shrink-0 shadow-sm">
-              {/* Kurnia Mustika Logo Icon */}
-              <div className="w-9 h-9 rounded-full border-2 border-red-600 flex items-center justify-center font-bold text-red-600 text-xs">
+          <div className="md:col-span-5 p-4 border-b md:border-b-0 md:border-r border-slate-200 flex items-center space-x-3 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/30">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 via-pink-600 to-amber-500 p-0.5 shrink-0 shadow-md shadow-rose-500/20">
+              <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center font-black text-rose-600 text-xs tracking-tight">
                 KMIL
               </div>
             </div>
@@ -900,7 +900,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                 PT. KURNIA MUSTIKA INDAH LESTARI
               </h2>
-              <p className="text-[11px] font-semibold text-slate-700">
+              <p className="text-[11px] font-semibold text-rose-700">
                 Precision Parts Specialist & Engineering Manufacturing
               </p>
               <p className="text-[9.5px] text-slate-500 leading-tight mt-0.5">
@@ -912,25 +912,25 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
             </div>
           </div>
 
-          {/* Middle Document Title (Green Box) */}
-          <div className="md:col-span-4 p-4 border-b md:border-b-0 md:border-r border-slate-300 bg-emerald-100/70 flex flex-col items-center justify-center text-center">
-            <h1 className="text-base sm:text-lg font-black text-emerald-950 uppercase tracking-wide">
+          {/* Middle Document Title (Vibrant Emerald-Cyan Box) */}
+          <div className="md:col-span-4 p-4 border-b md:border-b-0 md:border-r border-slate-200 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-cyan-500/15 flex flex-col items-center justify-center text-center">
+            <h1 className="text-base sm:text-lg font-black bg-gradient-to-r from-emerald-800 via-teal-700 to-cyan-800 bg-clip-text text-transparent uppercase tracking-wide">
               Serah Terima Standart Part
             </h1>
-            <span className="text-[10px] text-emerald-800 font-medium mt-0.5">
+            <span className="text-[10px] text-emerald-800 font-semibold mt-0.5">
               Formulir Kontrol Distribusi Standard Part Engineering ke Produksi
             </span>
           </div>
 
           {/* Right Document Control Meta Box */}
-          <div className="md:col-span-3 p-3 bg-slate-50/80 text-[11px] space-y-1 flex flex-col justify-center">
+          <div className="md:col-span-3 p-3 bg-gradient-to-br from-slate-50 to-indigo-50/40 text-[11px] space-y-1 flex flex-col justify-center">
             <div className="grid grid-cols-2 gap-1 border-b border-slate-200 pb-1">
               <span className="font-bold text-slate-600">No. Dokumen:</span>
-              <span className="font-mono font-bold text-slate-900">KMIL/FM-ENG/01-004</span>
+              <span className="font-mono font-bold text-indigo-700">KMIL/FM-ENG/01-004</span>
             </div>
             <div className="grid grid-cols-2 gap-1 border-b border-slate-200 pb-1">
               <span className="font-bold text-slate-600">Tgl. Berlaku:</span>
-              <span className="text-slate-800">Tuesday, 02 January 2024</span>
+              <span className="text-slate-800 font-medium">Tuesday, 02 January 2024</span>
             </div>
             <div className="grid grid-cols-2 gap-1 border-b border-slate-200 pb-1">
               <span className="font-bold text-slate-600">No. Revisi:</span>
@@ -947,12 +947,12 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         <div className="p-4 bg-white flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             {/* Month Filter */}
-            <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <span className="text-[11px] font-bold text-slate-600 px-2">Bulan:</span>
+            <div className="flex items-center space-x-1.5 bg-indigo-50/70 p-1 rounded-xl border border-indigo-200/70">
+              <span className="text-[11px] font-bold text-indigo-800 px-2">Bulan:</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-white border border-slate-300 text-xs font-bold text-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-white border border-indigo-200 text-xs font-bold text-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="ALL">Semua Bulan (Jan - Des)</option>
                 {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m) => (
@@ -963,13 +963,13 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
             {/* Search Input */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari project, part, staff, customer..."
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 w-64 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="text-xs bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
           </div>
@@ -981,7 +981,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 <button
                   onClick={handleAutoSyncFromMonitoring}
                   title="Ambil data Project Name & Customer dari dashboard monitoring berdasarkan bulan"
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span>Ambil Data Otomatis dari Monitoring</span>
@@ -989,7 +989,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
                 <button
                   onClick={handleOpenAddModal}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Tambah Baris</span>
@@ -999,7 +999,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
             <button
               onClick={handleExportOfficialPDF}
-              className="px-3.5 py-1.5 bg-[#8B2635] hover:bg-[#721f2b] text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-500/20 transition flex items-center space-x-1.5"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Cetak / PDF Resmi</span>
@@ -1007,7 +1007,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
             <button
               onClick={handleExportExcel}
-              className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Excel</span>
@@ -1017,31 +1017,31 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       </div>
 
       {/* Main Table Matching Uploaded Document */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-300 overflow-hidden">
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              {/* Row 1 Header (Brown / Reddish matching document) */}
-              <tr className="bg-[#9A3434] text-white text-[11px] font-bold border-b border-[#7e2929]">
-                <th rowSpan={2} className="p-3 text-center border-r border-[#b34747] w-12">
+              {/* Row 1 Header (Vibrant Crimson-Rose-Indigo gradient) */}
+              <tr className="bg-gradient-to-r from-[#9A3434] via-[#8B2635] to-[#6b2152] text-white text-[11px] font-bold border-b border-rose-900/40">
+                <th rowSpan={2} className="p-3 text-center border-r border-white/15 w-12">
                   No
                 </th>
-                <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[170px]">
+                <th rowSpan={2} className="p-3 border-r border-white/15 min-w-[170px]">
                   Prepare
                 </th>
-                <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[190px]">
+                <th rowSpan={2} className="p-3 border-r border-white/15 min-w-[190px]">
                   Project Name
                 </th>
-                <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[220px]">
+                <th rowSpan={2} className="p-3 border-r border-white/15 min-w-[220px]">
                   Part Name
                 </th>
-                <th rowSpan={2} className="p-3 border-r border-[#b34747] min-w-[180px]">
+                <th rowSpan={2} className="p-3 border-r border-white/15 min-w-[180px]">
                   Customer
                 </th>
-                <th colSpan={3} className="p-2 text-center border-r border-[#b34747] bg-[#892d2d]">
+                <th colSpan={3} className="p-2 text-center border-r border-white/15 bg-black/15">
                   Distribution
                 </th>
-                <th rowSpan={2} className="p-3 text-center border-r border-[#b34747] min-w-[130px]">
+                <th rowSpan={2} className="p-3 text-center border-r border-white/15 min-w-[130px]">
                   Signature
                 </th>
                 <th rowSpan={2} className="p-3 text-center min-w-[140px]">
@@ -1050,14 +1050,14 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               </tr>
 
               {/* Row 2 Subheader under Distribution */}
-              <tr className="bg-[#892d2d] text-white text-[10px] font-semibold border-b border-slate-300">
-                <th className="p-2 text-center border-r border-[#a13b3b] min-w-[100px]">
+              <tr className="bg-[#7b2235] text-white text-[10px] font-semibold border-b border-slate-300">
+                <th className="p-2 text-center border-r border-white/15 min-w-[100px]">
                   Date
                 </th>
-                <th className="p-2 text-center border-r border-[#a13b3b] min-w-[90px]">
+                <th className="p-2 text-center border-r border-white/15 min-w-[90px]">
                   Time
                 </th>
-                <th className="p-2 text-center border-r border-[#a13b3b] min-w-[110px]">
+                <th className="p-2 text-center border-r border-white/15 min-w-[110px]">
                   Division
                 </th>
               </tr>
@@ -1543,9 +1543,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                             type="button"
                             onClick={() => handlePrintSingleBAP(item)}
                             title={`Cetak Berita Acara Penyerahan (BAP) PDF untuk project ${item.projectName || ''}`}
-                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 text-[11px] font-bold shadow-2xs transition group"
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-[11px] font-bold shadow-sm shadow-emerald-500/20 transition"
                           >
-                            <FileText className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white transition-colors" />
+                            <FileText className="w-3.5 h-3.5 text-white" />
                             <span>Cetak BAP</span>
                           </button>
 

@@ -320,8 +320,12 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
     if (chartInstancesRef.current.c2) chartInstancesRef.current.c2.destroy();
     if (chartInstancesRef.current.c3) chartInstancesRef.current.c3.destroy();
 
+    const paletteC1 = ['#2563eb', '#06b6d4', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'];
+    const paletteC2 = ['#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#14b8a6', '#6366f1'];
+
     // Chart 1
     if (chart1Ref.current) {
+      const c1Colors = (c1Labels.length ? c1Labels : ['None']).map((_, idx) => paletteC1[idx % paletteC1.length]);
       chartInstancesRef.current.c1 = new ChartJS(chart1Ref.current, {
         type: 'bar',
         data: {
@@ -329,10 +333,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           datasets: [{
             label: 'Qty Drawing',
             data: c1Values.length ? c1Values : [0],
-            backgroundColor: 'rgba(59, 130, 246, 0.85)',
-            borderColor: '#2563eb',
+            backgroundColor: c1Colors,
+            borderColor: c1Colors,
             borderWidth: 1,
-            borderRadius: 6
+            borderRadius: 8
           }]
         },
         plugins: [chartValueLabelsPlugin],
@@ -348,6 +352,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
     // Chart 2
     if (chart2Ref.current) {
+      const c2Colors = (c2Labels.length ? c2Labels : ['None']).map((_, idx) => paletteC2[idx % paletteC2.length]);
       chartInstancesRef.current.c2 = new ChartJS(chart2Ref.current, {
         type: 'bar',
         data: {
@@ -355,10 +360,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           datasets: [{
             label: 'Jumlah SPK Marketing',
             data: c2Values.length ? c2Values : [0],
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderColor: '#059669',
+            backgroundColor: c2Colors,
+            borderColor: c2Colors,
             borderWidth: 1,
-            borderRadius: 6
+            borderRadius: 8
           }]
         },
         plugins: [chartValueLabelsPlugin],
@@ -379,9 +384,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         data: {
           labels: c3Labels,
           datasets: [
-            { label: 'Customer Unik', data: c3Cust, backgroundColor: 'rgba(139, 92, 246, 0.85)', borderRadius: 4 },
-            { label: 'Permintaan Proyek', data: c3Permintaan, backgroundColor: 'rgba(16, 185, 129, 0.85)', borderRadius: 4 },
-            { label: 'Total Qty Drawing', data: c3Qty, backgroundColor: 'rgba(59, 130, 246, 0.85)', borderRadius: 4 }
+            { label: 'Customer Unik', data: c3Cust, backgroundColor: 'rgba(139, 92, 246, 0.9)', borderRadius: 5 },
+            { label: 'Permintaan Proyek', data: c3Permintaan, backgroundColor: 'rgba(16, 185, 129, 0.9)', borderRadius: 5 },
+            { label: 'Total Qty Drawing', data: c3Qty, backgroundColor: 'rgba(6, 182, 212, 0.9)', borderRadius: 5 }
           ]
         },
         plugins: [chartValueLabelsPlugin],
@@ -458,21 +463,21 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Sub-Navigation Tabs: Monitoring Drawing vs Serah Terima Standart Part */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-sm border border-indigo-100">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveMonitoringTab('drawingProjects')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all duration-200 ${
               activeMonitoringTab === 'drawingProjects'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ? 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-indigo-50/70'
             }`}
           >
             <FolderOpen className="w-4 h-4" />
             <span>Monitoring Drawing & SPK</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-              activeMonitoringTab === 'drawingProjects' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'
+            <span className={`text-[10px] px-2 py-0.5 rounded-lg font-mono tabular-nums ${
+              activeMonitoringTab === 'drawingProjects' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 font-semibold'
             }`}>
               {projects.length} Proyek
             </span>
@@ -481,25 +486,26 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveMonitoringTab('standartPartHandover')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all duration-200 ${
               activeMonitoringTab === 'standartPartHandover'
-                ? 'bg-[#8B2635] text-white shadow-md shadow-rose-900/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ? 'bg-gradient-to-r from-rose-500 via-pink-600 to-amber-500 text-white shadow-lg shadow-rose-500/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-rose-50/70'
             }`}
           >
-            <Layers className={`w-4 h-4 ${activeMonitoringTab === 'standartPartHandover' ? 'text-rose-200' : 'text-[#8B2635]'}`} />
+            <Layers className={`w-4 h-4 ${activeMonitoringTab === 'standartPartHandover' ? 'text-white' : 'text-rose-600'}`} />
             <span>Serah Terima Standart Part</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-              activeMonitoringTab === 'standartPartHandover' ? 'bg-[#701e2a] text-white' : 'bg-rose-100 text-[#8B2635] font-semibold'
+            <span className={`text-[10px] px-2 py-0.5 rounded-lg font-mono ${
+              activeMonitoringTab === 'standartPartHandover' ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-700 font-semibold'
             }`}>
               KMIL/FM-ENG/01-004
             </span>
           </button>
         </div>
 
-        <div className="hidden md:flex items-center space-x-2 text-xs text-slate-500 px-3">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="font-medium text-slate-600">Departemen Engineering Plant CDR & BTG</span>
+        <div className="hidden md:flex items-center space-x-2 text-xs px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-50 via-cyan-50 to-emerald-50 border border-indigo-100">
+          <span className="font-bold bg-gradient-to-r from-indigo-700 via-blue-700 to-emerald-700 bg-clip-text text-transparent">
+            Departemen Engineering Plant CDR & BTG
+          </span>
         </div>
       </div>
 
@@ -516,68 +522,73 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         <>
           {/* 5 Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Project</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</h3>
-            <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-              Tahun {filterYear}
-            </span>
-          </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shadow-inner">
-            <FolderOpen className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">On Progress</p>
-            <h3 className="text-2xl font-bold text-amber-600 mt-1">{stats.onProgress}</h3>
-            <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-              Aktif Desain
-            </span>
-          </div>
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl shadow-inner">
-            <RotateCw className="w-5 h-5 animate-spin-slow" />
+        <div className="bg-white/95 rounded-2xl shadow-sm border border-blue-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600" />
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Project</p>
+              <h3 className="text-2xl font-extrabold text-slate-900 mt-1 tabular-nums">{stats.total}</h3>
+              <p className="text-[11px] text-blue-600 font-semibold mt-1">Tahun {filterYear || 'Semua'}</p>
+            </div>
+            <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20">
+              <FolderOpen className="w-5 h-5" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selesai (Done)</p>
-            <h3 className="text-2xl font-bold text-emerald-600 mt-1">{stats.done}</h3>
-            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-              Tuntas Rilis
-            </span>
-          </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shadow-inner">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overdue</p>
-            <h3 className="text-2xl font-bold text-rose-600 mt-1">{stats.overdue}</h3>
-            <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-              Lewat Target
-            </span>
-          </div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shadow-inner">
-            <AlertTriangle className="w-5 h-5" />
+        <div className="bg-white/95 rounded-2xl shadow-sm border border-amber-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500" />
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">On Progress</p>
+              <h3 className="text-2xl font-extrabold text-amber-600 mt-1 tabular-nums">{stats.onProgress}</h3>
+              <p className="text-[11px] text-amber-700 font-semibold mt-1">Aktif Desain</p>
+            </div>
+            <div className="p-3 bg-gradient-to-br from-amber-400 to-orange-500 text-white rounded-xl shadow-md shadow-amber-500/20">
+              <RotateCw className="w-5 h-5 animate-spin-slow" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between col-span-2 sm:col-span-1">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Revisi / Menunggu</p>
-            <h3 className="text-2xl font-bold text-purple-600 mt-1">{stats.revisi}</h3>
-            <span className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full inline-block mt-1 font-medium">
-              Feedback Loop
-            </span>
+        <div className="bg-white/95 rounded-2xl shadow-sm border border-emerald-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500" />
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Selesai (Done)</p>
+              <h3 className="text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums">{stats.done}</h3>
+              <p className="text-[11px] text-emerald-700 font-semibold mt-1">Tuntas Rilis</p>
+            </div>
+            <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl shadow-md shadow-emerald-500/20">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
           </div>
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-xl shadow-inner">
-            <Clock3 className="w-5 h-5" />
+        </div>
+
+        <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-pink-500 to-fuchsia-600" />
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Overdue</p>
+              <h3 className="text-2xl font-extrabold text-rose-600 mt-1 tabular-nums">{stats.overdue}</h3>
+              <p className="text-[11px] text-rose-700 font-semibold mt-1">Lewat Target</p>
+            </div>
+            <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-xl shadow-md shadow-rose-500/20">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white/95 rounded-2xl shadow-sm border border-violet-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all col-span-2 sm:col-span-1">
+          <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600" />
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Revisi / Menunggu</p>
+              <h3 className="text-2xl font-extrabold text-violet-600 mt-1 tabular-nums">{stats.revisi}</h3>
+              <p className="text-[11px] text-violet-700 font-semibold mt-1">Feedback Loop</p>
+            </div>
+            <div className="p-3 bg-gradient-to-br from-violet-500 to-indigo-600 text-white rounded-xl shadow-md shadow-violet-500/20">
+              <Clock3 className="w-5 h-5" />
+            </div>
           </div>
         </div>
       </div>
@@ -591,16 +602,20 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       />
 
       {/* Analytics & Performance Charts Accordion/Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-5">
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-5 space-y-5">
         <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-              <BarChart2 className="w-5 h-5 text-blue-600" />
-              <span>Analitik & Performa Drawing Engineering</span>
-            </h2>
-            <p className="text-xs text-slate-500">
-              Visualisasi real-time permintaan gambar, beban kerja per customer, dan komparasi kuartal sesuai filter periode aktif
-            </p>
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/20">
+              <BarChart2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">
+                Analitik & Performa Drawing Engineering
+              </h2>
+              <p className="text-xs text-slate-500">
+                Visualisasi real-time permintaan gambar, beban kerja per customer, dan komparasi kuartal sesuai filter periode aktif
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -616,7 +631,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
                   globalChartDim === '2D'
-                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -633,7 +648,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
                   globalChartDim === '3D'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs'
+                    ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -895,14 +910,14 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       )}
 
       {/* Toolbar & Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-4 space-y-3">
         {/* Buttons Row */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {!isReadOnly && (
               <button
                 onClick={onAddClick}
-                className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center space-x-1.5"
+                className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5"
               >
                 <Plus className="w-4 h-4" />
                 <span>Tambah Data Baru</span>
@@ -911,7 +926,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
             <button
               onClick={onSyncCloud}
-              className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center space-x-1.5"
             >
               <RotateCw className="w-4 h-4 text-emerald-400" />
               <span>Sinkronisasi Cloud</span>
@@ -919,7 +934,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
             <button
               onClick={() => onOpenCadViewer('SPK-DEMO', 'Default Machine Assembly', 'Engineering General')}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:via-violet-500 hover:to-purple-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-violet-500/20 transition flex items-center space-x-1.5"
             >
               <Box className="w-4 h-4" />
               <span>3D CAD / .STEP Viewer</span>
@@ -927,7 +942,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
             <button
               onClick={handleExportPDF}
-              className="bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-rose-500/20 transition flex items-center space-x-1.5"
             >
               <FileDown className="w-4 h-4" />
               <span>Cetak Laporan PDF</span>
@@ -935,7 +950,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
             <button
               onClick={handleExportExcel}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Ekspor Excel (.xlsx)</span>
@@ -944,10 +959,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             <button
               type="button"
               onClick={() => setActiveMonitoringTab('standartPartHandover')}
-              className="bg-[#8B2635] hover:bg-[#721f2b] text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5"
+              className="bg-gradient-to-r from-[#8B2635] via-rose-700 to-pink-600 hover:from-[#721f2b] hover:to-pink-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md shadow-rose-900/20 transition flex items-center space-x-1.5"
               title="Buka Form Serah Terima Standart Part (KMIL/FM-ENG/01-004)"
             >
-              <Layers className="w-4 h-4 text-rose-300" />
+              <Layers className="w-4 h-4 text-amber-200" />
               <span>Serah Terima Standart Part</span>
             </button>
           </div>

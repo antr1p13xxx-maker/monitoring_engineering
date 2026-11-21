@@ -1000,7 +1000,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans antialiased flex flex-col selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen app-colorful-canvas text-slate-800 font-sans antialiased flex flex-col selection:bg-indigo-600 selection:text-white">
       {/* Auth Gate Modal */}
       <AuthGateModal
         isOpen={showAuthGate}

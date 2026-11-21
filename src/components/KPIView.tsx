@@ -489,26 +489,28 @@ export const KPIView: React.FC<KPIViewProps> = ({
             type: 'bar',
             label: 'Target KPI',
             data: targetVals,
-            backgroundColor: 'rgba(100, 116, 139, 0.65)',
-            borderRadius: 6,
+            backgroundColor: 'rgba(99, 102, 241, 0.25)',
+            borderColor: 'rgba(99, 102, 241, 0.7)',
+            borderWidth: 1,
+            borderRadius: 8,
             order: 2
           },
           {
             type: 'bar',
             label: 'Aktual Tercapai (Bar)',
             data: actualVals,
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderRadius: 6,
+            backgroundColor: 'rgba(16, 185, 129, 0.88)',
+            borderRadius: 8,
             order: 2
           },
           {
             type: 'line',
             label: 'Tren Aktual (Line)',
             data: actualVals,
-            borderColor: '#2563eb',
-            backgroundColor: '#2563eb',
-            borderWidth: 2.5,
-            tension: 0.3,
+            borderColor: '#06b6d4',
+            backgroundColor: '#06b6d4',
+            borderWidth: 3,
+            tension: 0.35,
             order: 1
           }
         ]
@@ -562,8 +564,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
         datasets: [{
           label: 'Pencapaian Kuartal',
           data: [q1, q2, q3, q4],
-          backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'],
-          borderRadius: 8,
+          backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'],
+          borderRadius: 10,
           isPercentage: true
         } as any]
       },
@@ -1366,169 +1368,194 @@ export const KPIView: React.FC<KPIViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Bar Navigation */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-3">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onBackToMonitoring}
-            className="bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 shadow-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Monitoring Drawing</span>
-          </button>
-          <div>
-            <h2 className="text-base font-bold text-slate-900 leading-tight">KPI Engineering Department CDR</h2>
-            <p className="text-[11px] text-slate-500">Plant CDR & BTG • Target vs Aktual Terukur</p>
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-emerald-500 to-violet-600" />
+        <div className="p-4 flex flex-wrap justify-between items-center gap-3">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onBackToMonitoring}
+              className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
+            >
+              <ArrowLeft className="w-4 h-4 text-cyan-300" />
+              <span>Kembali ke Monitoring Drawing</span>
+            </button>
+            <div>
+              <h2 className="text-base font-extrabold bg-gradient-to-r from-slate-900 via-indigo-900 to-emerald-800 bg-clip-text text-transparent leading-tight">
+                KPI Engineering Department CDR
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">Plant CDR & BTG • Target vs Aktual Terukur</p>
+            </div>
           </div>
-        </div>
 
-        {/* Action Controls & Subtabs */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Year selector */}
-          <select
-            value={activeYear}
-            onChange={(e) => onYearChange(e.target.value)}
-            className="bg-slate-800 border border-slate-700 text-emerald-400 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-          >
-            <option value="2026">Tahun 2026</option>
-            <option value="2027">Tahun 2027</option>
-            <option value="2028">Tahun 2028</option>
-            <option value="2029">Tahun 2029</option>
-            <option value="2030">Tahun 2030</option>
-          </select>
+          {/* Action Controls & Subtabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Year selector */}
+            <select
+              value={activeYear}
+              onChange={(e) => onYearChange(e.target.value)}
+              className="bg-gradient-to-r from-slate-900 to-indigo-950 border border-indigo-400/30 text-cyan-300 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-400 focus:outline-none shadow-sm"
+            >
+              <option value="2026">Tahun 2026</option>
+              <option value="2027">Tahun 2027</option>
+              <option value="2028">Tahun 2028</option>
+              <option value="2029">Tahun 2029</option>
+              <option value="2030">Tahun 2030</option>
+            </select>
 
-          {/* Subtab Buttons */}
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'dashboard' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Dashboard</span>
-          </button>
+            {/* Subtab Buttons */}
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'dashboard'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('trends')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'trends' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Trends</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('trends')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'trends'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-cyan-50 hover:text-cyan-700'
+              }`}
+            >
+              <TrendingUp className={`w-3.5 h-3.5 ${activeTab === 'trends' ? 'text-white' : 'text-cyan-600'}`} />
+              <span>Trends</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('matrix')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'matrix' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <Table className="w-3.5 h-3.5" />
-            <span>Matriks Resmi</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('matrix')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'matrix'
+                  ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-teal-50 hover:text-teal-700'
+              }`}
+            >
+              <Table className={`w-3.5 h-3.5 ${activeTab === 'matrix' ? 'text-white' : 'text-teal-600'}`} />
+              <span>Matriks Resmi</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('monitoring')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'monitoring' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <PenTool className="w-3.5 h-3.5" />
-            <span>Tabel & Input</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('monitoring')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'monitoring'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+              }`}
+            >
+              <PenTool className={`w-3.5 h-3.5 ${activeTab === 'monitoring' ? 'text-white' : 'text-blue-600'}`} />
+              <span>Tabel & Input</span>
+            </button>
 
-          {canAccessFullKpiCdr && (
-            <>
-              <button
-                onClick={() => setActiveTab('designInput')}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-                  activeTab === 'designInput' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Input Rekapitulasi</span>
-              </button>
+            {canAccessFullKpiCdr && (
+              <>
+                <button
+                  onClick={() => setActiveTab('designInput')}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                    activeTab === 'designInput'
+                      ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/25'
+                      : 'bg-slate-100 text-slate-700 hover:bg-violet-50 hover:text-violet-700'
+                  }`}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${activeTab === 'designInput' ? 'text-amber-200' : 'text-violet-600'}`} />
+                  <span>Input Rekapitulasi</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('reviewCost')}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-                  activeTab === 'reviewCost' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Review Cost</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('reviewCost')}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                    activeTab === 'reviewCost'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25'
+                      : 'bg-slate-100 text-slate-700 hover:bg-amber-50 hover:text-amber-700'
+                  }`}
+                >
+                  <DollarSign className={`w-3.5 h-3.5 ${activeTab === 'reviewCost' ? 'text-white' : 'text-amber-600'}`} />
+                  <span>Review Cost</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('reviewError')}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-                  activeTab === 'reviewError' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                <span>Review Error</span>
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={() => setActiveTab('quarterly')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'quarterly' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <BarChart className="w-3.5 h-3.5" />
-            <span>Q1-Q4</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('approvals')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'approvals' ? 'bg-amber-600 text-white shadow-md' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Persetujuan Manager</span>
-            {pendingCount > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                activeTab === 'approvals' ? 'bg-white text-amber-700' : 'bg-rose-600 text-white'
-              }`}>
-                {pendingCount}
-              </span>
+                <button
+                  onClick={() => setActiveTab('reviewError')}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                    activeTab === 'reviewError'
+                      ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/25'
+                      : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+                  }`}
+                >
+                  <AlertCircle className={`w-3.5 h-3.5 ${activeTab === 'reviewError' ? 'text-white' : 'text-rose-600'}`} />
+                  <span>Review Error</span>
+                </button>
+              </>
             )}
-          </button>
 
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === 'audit' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Audit</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('quarterly')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'quarterly'
+                  ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/25'
+                  : 'bg-slate-100 text-slate-700 hover:bg-sky-50 hover:text-sky-700'
+              }`}
+            >
+              <BarChart className={`w-3.5 h-3.5 ${activeTab === 'quarterly' ? 'text-white' : 'text-sky-600'}`} />
+              <span>Q1-Q4</span>
+            </button>
 
-          <button
-            onClick={() => setShowEmailModal(true)}
-            className="px-3 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition shadow flex items-center space-x-1.5"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>Email</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'approvals'
+                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-md shadow-amber-500/25'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Persetujuan Manager</span>
+              {pendingCount > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold tabular-nums ${
+                  activeTab === 'approvals' ? 'bg-white text-amber-700' : 'bg-rose-600 text-white'
+                }`}>
+                  {pendingCount}
+                </span>
+              )}
+            </button>
 
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition shadow flex items-center space-x-1.5"
-          >
-            <FileDown className="w-3.5 h-3.5" />
-            <span>Ekspor PDF/Excel</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                activeTab === 'audit'
+                  ? 'bg-gradient-to-r from-slate-700 to-indigo-800 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Audit</span>
+            </button>
+
+            <button
+              onClick={() => setShowEmailModal(true)}
+              className="px-3 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white transition shadow-md shadow-cyan-500/20 flex items-center space-x-1.5"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email</span>
+            </button>
+
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white transition shadow-md shadow-indigo-500/20 flex items-center space-x-1.5"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Ekspor PDF/Excel</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Role Supervisor & Pending Approval Status Banners */}
       {isSupervisor && (
-        <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
           <div className="flex items-start sm:items-center space-x-2.5 text-xs text-amber-950">
             <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
             <div>
@@ -1539,7 +1566,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
           {pendingCount > 0 && (
             <button
               onClick={() => setActiveTab('approvals')}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
             >
               Lihat {pendingCount} Pengajuan Pending
             </button>
@@ -1548,7 +1575,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
       )}
 
       {isManager && pendingCount > 0 && activeTab !== 'approvals' && (
-        <div className="bg-blue-50 border border-blue-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
           <div className="flex items-center space-x-2.5 text-xs text-blue-950">
             <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
             <span>
@@ -1557,7 +1584,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
           </div>
           <button
             onClick={() => setActiveTab('approvals')}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-[11px] font-bold whitespace-nowrap shadow-sm transition"
           >
             Tinjau & Setujui Sekarang →
           </button>
@@ -1569,55 +1596,59 @@ export const KPIView: React.FC<KPIViewProps> = ({
         <div className="space-y-6">
           {/* Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total KPI Departemen</p>
-                <h3 className="text-2xl font-bold text-slate-800 mt-1">9 KPI Resmi</h3>
-                <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-2">
-                  Aktif Tahun {activeYear}
-                </span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shadow-inner">
-                <Table className="w-6 h-6" />
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bobot Keseluruhan</p>
-                <h3 className="text-2xl font-bold text-slate-800 mt-1">100%</h3>
-                <span className="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-2">
-                  Terdistribusi Sempurna
-                </span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shadow-inner">
-                <ShieldAlert className="w-6 h-6" />
+            <div className="bg-white/95 rounded-2xl shadow-sm border border-blue-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+              <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600" />
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total KPI Departemen</p>
+                  <h3 className="text-2xl font-extrabold text-slate-900 mt-1 tabular-nums">9 KPI Resmi</h3>
+                  <p className="text-xs text-blue-600 font-semibold mt-1.5">Aktif Tahun {activeYear}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <Table className="w-6 h-6" />
+                </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Rata-Rata Pencapaian</p>
-                <h3 className="text-2xl font-bold text-slate-800 mt-1">{kpiStats.averageScore}%</h3>
-                <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-2">
-                  Terbobot Berjalan
-                </span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shadow-inner">
-                <CheckCircle2 className="w-6 h-6" />
+            <div className="bg-white/95 rounded-2xl shadow-sm border border-violet-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+              <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500" />
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bobot Keseluruhan</p>
+                  <h3 className="text-2xl font-extrabold text-indigo-700 mt-1 tabular-nums">100%</h3>
+                  <p className="text-xs text-violet-600 font-semibold mt-1.5">Terdistribusi Sempurna</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status Kesehatan KPI</p>
-                <h3 className="text-xl font-bold text-emerald-600 mt-1">{kpiStats.health}</h3>
-                <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full inline-block mt-2">
-                  Target vs Aktual
-                </span>
+            <div className="bg-white/95 rounded-2xl shadow-sm border border-emerald-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+              <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500" />
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rata-Rata Pencapaian</p>
+                  <h3 className="text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums">{kpiStats.averageScore}%</h3>
+                  <p className="text-xs text-emerald-700 font-semibold mt-1.5">Terbobot Berjalan</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl shadow-inner">
-                <Sparkles className="w-6 h-6" />
+            </div>
+
+            <div className="bg-white/95 rounded-2xl shadow-sm border border-amber-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+              <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500" />
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status Kesehatan KPI</p>
+                  <h3 className="text-xl font-extrabold text-amber-600 mt-1">{kpiStats.health}</h3>
+                  <p className="text-xs text-orange-600 font-semibold mt-1.5">Target vs Aktual</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                  <Sparkles className="w-6 h-6" />
+                </div>
               </div>
             </div>
           </div>

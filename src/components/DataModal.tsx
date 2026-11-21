@@ -74,25 +74,26 @@ export const DataModal: React.FC<DataModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 z-[140] flex items-center justify-center p-3 sm:p-6 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] border border-indigo-200/70">
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500" />
         {/* Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-[#0a0f2c] via-[#172554] to-[#1e1b4b] text-white px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-600 rounded-xl text-white">
+            <div className="p-2.5 bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 rounded-xl text-white shadow-lg shadow-cyan-500/25">
               {initialData ? <PenSquare className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="text-base font-bold">
+              <h3 className="text-base font-extrabold">
                 {initialData ? 'Edit Data Proyek Engineering' : 'Tambah Data Engineering Baru'}
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-cyan-200/80">
                 Lengkapi rincian SPK, target desain, dan spesifikasi gambar manufaktur
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -312,7 +313,7 @@ export const DataModal: React.FC<DataModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center space-x-1.5"
+              className="px-5 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 transition flex items-center space-x-1.5"
             >
               <Save className="w-4 h-4" />
               <span>Simpan Data</span>
