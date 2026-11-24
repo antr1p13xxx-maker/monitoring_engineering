@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MASTER_PIN } from '../data/initialData';
-import { Lock, KeyRound, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { KeyRound, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { MonitoringLogo } from './MonitoringLogo';
 
 interface AuthGateModalProps {
   isOpen: boolean;
@@ -40,8 +41,8 @@ export const AuthGateModal: React.FC<AuthGateModalProps> = ({ isOpen, onAuthenti
       <div className="bg-slate-900/90 border border-indigo-400/25 rounded-3xl shadow-2xl shadow-indigo-950/60 w-full max-w-md p-8 text-white space-y-6 animate-in fade-in zoom-in duration-200 relative overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-emerald-400" />
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3.5 bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 rounded-2xl text-white shadow-xl shadow-blue-500/30 mb-2">
-            <Lock className="w-7 h-7" />
+          <div className="inline-flex p-2 bg-white rounded-2xl shadow-xl shadow-emerald-500/25 ring-2 ring-emerald-400/30 mb-2">
+            <MonitoringLogo className="w-12 h-12" />
           </div>
           <h2 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-indigo-200 bg-clip-text text-transparent">
             Otentikasi Akses WebApp

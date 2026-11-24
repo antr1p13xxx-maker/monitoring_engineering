@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserRole } from '../types/engineering';
 import { MASTER_PIN, ROLE_PINS } from '../data/initialData';
 import { 
-  Compass, 
   BarChart3, 
   Table2, 
   FileCode2, 
@@ -10,11 +9,11 @@ import {
   ShieldCheck, 
   KeyRound, 
   Camera, 
-  CheckCircle2, 
   AlertCircle,
   Flame
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
+import { MonitoringLogo } from './MonitoringLogo';
 
 interface HeaderProps {
   currentView: 'monitoring' | 'kpi' | 'appsScript';
@@ -101,15 +100,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-3">
           <div 
             onClick={() => fileInputRef.current?.click()}
-            className="bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 p-2.5 rounded-xl text-white shadow-lg shadow-cyan-500/20 cursor-pointer relative group transition-transform active:scale-95 flex items-center justify-center shrink-0"
+            className={`${
+              logoUrl
+                ? 'bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 p-1.5'
+                : 'bg-white/95 hover:bg-white p-1 border border-emerald-200/70'
+            } rounded-xl shadow-lg shadow-emerald-500/20 cursor-pointer relative group transition-transform active:scale-95 flex items-center justify-center shrink-0`}
             title="Klik untuk upload logo kustom dashboard"
           >
             {logoUrl ? (
-              <img src={logoUrl} alt="App Logo" className="w-7 h-7 object-cover rounded-lg" />
+              <img src={logoUrl} alt="App Logo" className="w-8 h-8 object-cover rounded-lg" />
             ) : (
-              <Compass className="w-6 h-6" />
+              <MonitoringLogo className="w-9 h-9" />
             )}
-            <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+            <div className="absolute inset-0 bg-black/45 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               <Camera className="w-3.5 h-3.5 text-white" />
             </div>
             <input 

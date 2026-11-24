@@ -1,0 +1,96 @@
+import React, { useId } from 'react';
+
+interface MonitoringLogoProps {
+  className?: string;
+}
+
+export const MonitoringLogo: React.FC<MonitoringLogoProps> = ({ className = 'w-8 h-8' }) => {
+  const rawId = useId();
+  const clipId = `monitoring-logo-clip-${rawId.replace(/:/g, '')}`;
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 512 512"
+      className={className}
+      role="img"
+      aria-label="Logo Monitoring Design & Drawing Engineering"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="256" cy="256" r="144" />
+        </clipPath>
+      </defs>
+      <circle cx="256" cy="256" r="244" fill="#ffffff" />
+      <g>
+        <path
+          d="M 239.06 56.72 L 241.43 24.46 L 270.57 24.46 L 272.94 56.72 L 301.47 61.24 L 313.70 31.29 L 341.40 40.29 L 333.70 71.71 L 359.43 84.82 L 380.31 60.12 L 403.88 77.24 L 386.84 104.74 L 407.26 125.16 L 434.76 108.12 L 451.88 131.69 L 427.18 152.57 L 440.29 178.30 L 471.71 170.60 L 480.71 198.30 L 450.76 210.53 L 455.28 239.06 L 487.54 241.43 L 487.54 270.57 L 455.28 272.94 L 450.76 301.47 L 480.71 313.70 L 471.71 341.40 L 440.29 333.70 L 427.18 359.43 L 451.88 380.31 L 434.76 403.88 L 407.26 386.84 L 386.84 407.26 L 403.88 434.76 L 380.31 451.88 L 359.43 427.18 L 333.70 440.29 L 341.40 471.71 L 313.70 480.71 L 301.47 450.76 L 272.94 455.28 L 270.57 487.54 L 241.43 487.54 L 239.06 455.28 L 210.53 450.76 L 198.30 480.71 L 170.60 471.71 L 178.30 440.29 L 152.57 427.18 L 131.69 451.88 L 108.12 434.76 L 125.16 407.26 L 104.74 386.84 L 77.24 403.88 L 60.12 380.31 L 84.82 359.43 L 71.71 333.70 L 40.29 341.40 L 31.29 313.70 L 61.24 301.47 L 56.72 272.94 L 24.46 270.57 L 24.46 241.43 L 56.72 239.06 L 61.24 210.53 L 31.29 198.30 L 40.29 170.60 L 71.71 178.30 L 84.82 152.57 L 60.12 131.69 L 77.24 108.12 L 104.74 125.16 L 125.16 104.74 L 108.12 77.24 L 131.69 60.12 L 152.57 84.82 L 178.30 71.71 L 170.60 40.29 L 198.30 31.29 L 210.53 61.24 Z"
+          fill="#ffffff"
+          stroke="#16793b"
+          strokeWidth="11"
+          strokeLinejoin="round"
+        />
+        <circle cx="256" cy="256" r="181" fill="#ffffff" stroke="#16793b" strokeWidth="10" />
+        <circle cx="256" cy="256" r="163" fill="#ffffff" stroke="#f01616" strokeWidth="8.5" />
+        <circle cx="256" cy="256" r="146" fill="#ffffff" stroke="#f01616" strokeWidth="8.5" />
+
+        <g clipPath={`url(#${clipId})`}>
+          {/* Left solid red wing */}
+          <polygon points="90,115 212,276 168,415 90,415" fill="#f01616" />
+
+          {/* Right parallel diagonal red stripes */}
+          <polygon
+            points="396,104 420,104 420,152 308,300 284,268"
+            fill="#ffffff"
+            stroke="#f01616"
+            strokeWidth="9"
+            strokeLinejoin="miter"
+          />
+          <polygon
+            points="410,164 434,164 434,218 326,356 302,324"
+            fill="#ffffff"
+            stroke="#f01616"
+            strokeWidth="9"
+            strokeLinejoin="miter"
+          />
+          {/* Bottom-right red fill flush against stripe2 lower edge */}
+          <polygon points="434,218 434,415 326,415 326,356" fill="#f01616" />
+
+          {/* Central A peak white backing */}
+          <polygon points="154,415 256,164 358,415" fill="#ffffff" />
+
+          {/* Outer Red Inverted-V Peak */}
+          <polyline
+            points="154,415 256,164 358,415"
+            fill="none"
+            stroke="#f01616"
+            strokeWidth="9.5"
+            strokeLinejoin="miter"
+          />
+
+          {/* Inner Green A Inverted-V */}
+          <polyline
+            points="184,415 256,216 328,415"
+            fill="none"
+            stroke="#16793b"
+            strokeWidth="9.5"
+            strokeLinejoin="miter"
+          />
+
+          {/* Innermost Green Notch + Double Horizontal A Crossbars */}
+          <line x1="238" y1="330" x2="274" y2="330" stroke="#16793b" strokeWidth="8" />
+          <line x1="233" y1="348" x2="279" y2="348" stroke="#16793b" strokeWidth="8" />
+          <polyline
+            points="212,415 256,274 300,415"
+            fill="none"
+            stroke="#16793b"
+            strokeWidth="9"
+            strokeLinejoin="miter"
+          />
+        </g>
+
+        <circle cx="256" cy="256" r="146" fill="none" stroke="#f01616" strokeWidth="8.5" />
+      </g>
+    </svg>
+  );
+};
