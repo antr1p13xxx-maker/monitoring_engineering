@@ -14,7 +14,8 @@ import {
   MoreVertical,
   X,
   Check,
-  QrCode
+  QrCode,
+  Palette
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
@@ -28,6 +29,7 @@ interface HeaderProps {
   onLogoChange: (url: string) => void;
   onOpenFirebaseModal?: () => void;
   onOpenVercelModal?: () => void;
+  onOpenThemeModal?: () => void;
   externalRolePickerOpen?: boolean;
   onCloseExternalRolePicker?: () => void;
 }
@@ -49,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoChange,
   onOpenFirebaseModal,
   onOpenVercelModal,
+  onOpenThemeModal,
   externalRolePickerOpen = false,
   onCloseExternalRolePicker
 }) => {
@@ -135,8 +138,8 @@ export const Header: React.FC<HeaderProps> = ({
       : 'Viewer';
 
   return (
-    <header className="bg-gradient-to-r from-[#0a0f2c] via-[#16204a] to-[#1a1446] text-white shadow-lg shadow-indigo-950/20 sticky top-0 z-50 border-b border-indigo-400/20">
-      <div className="h-0.5 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 via-fuchsia-500 to-emerald-400" />
+    <header className="theme-header-bg text-white shadow-lg shadow-slate-950/20 sticky top-0 z-50 border-b border-white/15">
+      <div className="h-0.5 w-full theme-accent-line" />
       <div className="max-w-[99%] mx-auto px-3 sm:px-4 py-1.5 sm:py-2.5 flex justify-between items-center gap-2 sm:gap-3">
         {/* Brand & Logo */}
         <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
@@ -185,10 +188,22 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex md:hidden items-center gap-1.5 shrink-0">
           <PWAInstallButton compactMobile />
 
+          {onOpenThemeModal && (
+            <button
+              type="button"
+              onClick={onOpenThemeModal}
+              aria-label="Pengaturan Tema Warna"
+              title="Pengaturan Tema Warna"
+              className="min-w-[38px] min-h-[38px] rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center active:scale-95 transition"
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowMobileRoleSheet(true)}
-            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-indigo-950/90 border border-cyan-400/35 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition"
+            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-950/70 border border-white/25 text-white text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="max-w-[70px] truncate">{shortRoleLabel}</span>
@@ -250,12 +265,12 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop View Switchers & Role Controls (md+) */}
         <div className="hidden md:flex flex-wrap items-center gap-2">
           {/* View Buttons */}
-          <div className="flex items-center bg-slate-950/50 p-1 rounded-xl border border-indigo-400/20 shadow-inner backdrop-blur-sm">
+          <div className="flex items-center bg-slate-950/50 p-1 rounded-xl border border-white/15 shadow-inner backdrop-blur-sm">
             <button
               onClick={() => onViewChange('monitoring')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 currentView === 'monitoring'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-blue-500/30'
+                  ? 'theme-tab-active'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -266,7 +281,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => onViewChange('barcodes')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 currentView === 'barcodes'
-                  ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30'
+                  ? 'theme-tab-active'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -277,7 +292,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => onViewChange('kpi')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 currentView === 'kpi'
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30'
+                  ? 'theme-tab-active'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -292,7 +307,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => onViewChange('appsScript')}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   currentView === 'appsScript'
-                    ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-md shadow-violet-500/30'
+                    ? 'theme-tab-active'
                     : 'text-slate-300 hover:text-white hover:bg-white/10'
                 }`}
               >
@@ -304,6 +319,19 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </div>
+
+          {/* Theme Color Customization Button */}
+          {onOpenThemeModal && (
+            <button
+              type="button"
+              onClick={onOpenThemeModal}
+              title="Ubah Warna Tema Utama Aplikasi"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Tema</span>
+            </button>
+          )}
 
           {/* PWA Install App Button (PC & Mobile) */}
           <PWAInstallButton />

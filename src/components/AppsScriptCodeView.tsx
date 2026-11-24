@@ -60,13 +60,13 @@ export const AppsScriptCodeView: React.FC = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-6 rounded-2xl shadow-md border border-indigo-800/40 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="theme-header-bg text-white p-4 sm:p-6 rounded-2xl shadow-md border border-white/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
               Google Apps Script Ready
             </span>
-            <span className="text-xs text-indigo-300 font-medium">Versi Standalone WebApp</span>
+            <span className="text-xs text-slate-300 font-medium">Versi Standalone WebApp</span>
           </div>
           <h2 className="text-lg sm:text-xl font-extrabold text-white mt-1.5">
             Source Code Code.gs & Index.html
@@ -79,7 +79,7 @@ export const AppsScriptCodeView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             onClick={handleDownloadAll}
-            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition"
+            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 theme-btn-primary rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition"
           >
             <FolderArchive className="w-4 h-4 shrink-0" />
             <span>Download Semua File</span>

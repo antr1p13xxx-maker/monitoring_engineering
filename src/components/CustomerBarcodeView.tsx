@@ -591,7 +591,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
             <button
               type="button"
               onClick={() => setIsScannerOpen(true)}
-              className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-2 transition whitespace-nowrap"
+              className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl theme-btn-primary text-xs font-semibold flex items-center justify-center gap-2 transition whitespace-nowrap"
             >
               <ScanLine className="w-4 h-4 shrink-0" />
               <span>Scan Barcode Kamera</span>

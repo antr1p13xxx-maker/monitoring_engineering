@@ -47,15 +47,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav
       aria-label="Navigasi Utama Mobile"
-      className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b1230]/95 backdrop-blur-xl border-t border-indigo-400/25 shadow-[0_-8px_24px_rgba(10,15,44,0.35)] pb-safe"
+      className="md:hidden fixed bottom-0 inset-x-0 z-50 theme-header-bg backdrop-blur-xl border-t border-white/15 shadow-[0_-8px_24px_rgba(10,15,44,0.35)] pb-safe"
     >
       <div className="grid grid-cols-5 gap-1 px-1 pt-1.5">
         <button
           type="button"
           onClick={onSelectMonitoring}
-          className={`min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+          className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isDrawingActive
-              ? 'bg-gradient-to-b from-cyan-500/25 to-blue-600/30 text-cyan-300 border border-cyan-400/35 shadow-sm'
+              ? 'theme-mobile-nav-active shadow-sm'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -66,9 +66,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button
           type="button"
           onClick={onSelectStandartPart}
-          className={`min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+          className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isStandartPartActive
-              ? 'bg-gradient-to-b from-indigo-500/30 to-violet-600/30 text-indigo-200 border border-indigo-400/35 shadow-sm'
+              ? 'theme-mobile-nav-active shadow-sm'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -79,9 +79,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button
           type="button"
           onClick={onSelectBarcodes}
-          className={`min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+          className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isBarcodeActive
-              ? 'bg-gradient-to-b from-violet-500/30 to-indigo-600/30 text-violet-200 border border-violet-400/40 shadow-sm'
+              ? 'theme-mobile-nav-active shadow-sm'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -92,9 +92,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button
           type="button"
           onClick={onSelectKPI}
-          className={`relative min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+          className={`relative min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isKpiActive
-              ? 'bg-gradient-to-b from-emerald-500/25 to-teal-600/30 text-emerald-300 border border-emerald-400/35 shadow-sm'
+              ? 'theme-mobile-nav-active shadow-sm'
               : 'text-slate-300 hover:text-white'
           }`}
         >
@@ -111,9 +111,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             type="button"
             onClick={onSelectAppsScript}
-            className={`min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+            className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
               isGasActive
-                ? 'bg-gradient-to-b from-fuchsia-500/25 to-violet-600/30 text-fuchsia-200 border border-fuchsia-400/35 shadow-sm'
+                ? 'theme-mobile-nav-active shadow-sm'
                 : 'text-slate-300 hover:text-white'
             }`}
           >
@@ -124,7 +124,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <button
             type="button"
             onClick={onOpenRolePicker}
-            className="min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-cyan-200 hover:text-white transition-all active:scale-95"
+            className="min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-200 hover:text-white transition-all active:scale-95"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="truncate max-w-full px-0.5">{shortRole}</span>

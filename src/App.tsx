@@ -12,6 +12,14 @@ import { VercelModal } from './components/VercelModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { CustomerBarcodeView } from './components/CustomerBarcodeView';
+import { ThemeSettingsModal } from './components/ThemeSettingsModal';
+import {
+  ThemeConfig,
+  DEFAULT_THEME_CONFIG,
+  loadSavedTheme,
+  saveThemeConfig,
+  applyThemeToDocument
+} from './utils/themeSettings';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -69,6 +77,8 @@ export default function App() {
   const [showAuthGate, setShowAuthGate] = useState<boolean>(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState<boolean>(false);
   const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>(() => loadSavedTheme());
 
   // App Navigation & Role State (Default role is Viewer: Read-only)
   const [currentView, setCurrentView] = useState<'monitoring' | 'barcodes' | 'kpi' | 'appsScript'>(() => {
@@ -269,6 +279,12 @@ export default function App() {
       setToast(null);
     }, 3200);
   };
+
+  // Apply & persist custom primary theme colors across reloads
+  useEffect(() => {
+    applyThemeToDocument(themeConfig);
+    saveThemeConfig(themeConfig);
+  }, [themeConfig]);
 
   // Real-time Google Firebase Firestore Integration
   useEffect(() => {
@@ -1041,6 +1057,7 @@ export default function App() {
         onLogoChange={setLogoUrl}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenVercelModal={() => setIsVercelModalOpen(true)}
+        onOpenThemeModal={() => setIsThemeModalOpen(true)}
         externalRolePickerOpen={mobileRolePickerOpen}
         onCloseExternalRolePicker={() => setMobileRolePickerOpen(false)}
       />
@@ -1146,6 +1163,21 @@ export default function App() {
       <VercelModal
         isOpen={isVercelModalOpen}
         onClose={() => setIsVercelModalOpen(false)}
+      />
+
+      {/* Custom Primary Theme Color Settings Modal */}
+      <ThemeSettingsModal
+        isOpen={isThemeModalOpen}
+        onClose={() => {
+          setIsThemeModalOpen(false);
+          showToast('Tema warna utama aplikasi berhasil disimpan!', 'success');
+        }}
+        theme={themeConfig}
+        onChangeTheme={setThemeConfig}
+        onResetTheme={() => {
+          setThemeConfig(DEFAULT_THEME_CONFIG);
+          showToast('Tema warna dikembalikan ke pengaturan default.', 'info');
+        }}
       />
 
       {/* Project Data Modal (Add / Edit) */}

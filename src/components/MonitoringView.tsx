@@ -492,7 +492,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             onClick={() => setActiveMonitoringTab('drawingProjects')}
             className={`min-h-[42px] px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2 transition-all duration-200 ${
               activeMonitoringTab === 'drawingProjects'
-                ? 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
+                ? 'theme-tab-active'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-indigo-50/70'
             }`}
           >
@@ -670,7 +670,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 }}
                 className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
                   globalChartDim === '3D'
-                    ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-xs'
+                    ? 'theme-tab-active'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -938,7 +938,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             {!isReadOnly && (
               <button
                 onClick={onAddClick}
-                className="min-h-[42px] bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center space-x-1.5"
+                className="min-h-[42px] theme-btn-primary font-bold text-xs px-3 sm:px-4 py-2 rounded-xl transition flex items-center justify-center space-x-1.5"
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span className="truncate">Tambah Data</span>

@@ -139,22 +139,17 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
 
   return (
     <div
-      className="text-white rounded-2xl p-4 sm:p-5 shadow-xl border border-indigo-400/30 space-y-4 relative overflow-hidden"
-      style={{
-        backgroundColor: '#0d1333',
-        backgroundImage:
-          'radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.22) 0px, transparent 45%), radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.24) 0px, transparent 45%), radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.16) 0px, transparent 50%)',
-      }}
+      className="theme-header-bg text-white rounded-2xl p-4 sm:p-5 shadow-xl border border-white/15 space-y-4 relative overflow-hidden"
     >
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-indigo-400/20">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-white/15">
         <div className="flex items-start space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-cyan-500 via-indigo-500 to-fuchsia-500 rounded-xl text-white shadow-lg shadow-indigo-500/30 shrink-0">
+          <div className="p-2.5 theme-btn-primary rounded-xl shadow-lg shrink-0">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm sm:text-base font-extrabold bg-gradient-to-r from-white via-cyan-100 to-indigo-200 bg-clip-text text-transparent tracking-wide">
+              <h3 className="text-sm sm:text-base font-extrabold text-white tracking-wide">
                 AI Insight & Rekomendasi Strategis Engineering
               </h3>
               <span className="bg-cyan-500/20 text-cyan-200 border border-cyan-400/30 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">

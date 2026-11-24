@@ -1579,21 +1579,21 @@ export const KPIView: React.FC<KPIViewProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Top Bar Navigation */}
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-emerald-500 to-violet-600" />
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="h-1 w-full theme-accent-line" />
         <div className="p-3 sm:p-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center space-x-2.5 min-w-0">
               <button
                 onClick={onBackToMonitoring}
-                className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm shrink-0"
+                className="theme-header-bg text-white px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm shrink-0 hover:brightness-110"
               >
-                <ArrowLeft className="w-4 h-4 text-cyan-300" />
+                <ArrowLeft className="w-4 h-4 text-white" />
                 <span className="hidden sm:inline">Kembali ke Monitoring Drawing</span>
                 <span className="sm:hidden">Kembali</span>
               </button>
               <div className="min-w-0">
-                <h2 className="text-sm sm:text-base font-extrabold bg-gradient-to-r from-slate-900 via-indigo-900 to-emerald-800 bg-clip-text text-transparent leading-tight truncate">
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight truncate">
                   KPI Engineering Department CDR
                 </h2>
                 <p className="text-[11px] text-slate-500 font-medium truncate">Plant CDR & BTG • Target vs Aktual Terukur</p>
@@ -1604,13 +1604,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
             <select
               value={activeYear}
               onChange={(e) => onYearChange(e.target.value)}
-              className="bg-gradient-to-r from-slate-900 to-indigo-950 border border-indigo-400/30 text-cyan-300 text-base sm:text-xs font-bold rounded-xl px-3 py-2 min-h-[40px] focus:ring-2 focus:ring-cyan-400 focus:outline-none shadow-sm shrink-0"
+              className="theme-header-bg border border-white/20 text-white text-base sm:text-xs font-bold rounded-xl px-3 py-2 min-h-[40px] focus:ring-2 focus:ring-cyan-400 focus:outline-none shadow-sm shrink-0"
             >
-              <option value="2026">Tahun 2026</option>
-              <option value="2027">Tahun 2027</option>
-              <option value="2028">Tahun 2028</option>
-              <option value="2029">Tahun 2029</option>
-              <option value="2030">Tahun 2030</option>
+              <option value="2026" className="bg-slate-900 text-white">Tahun 2026</option>
+              <option value="2027" className="bg-slate-900 text-white">Tahun 2027</option>
+              <option value="2028" className="bg-slate-900 text-white">Tahun 2028</option>
+              <option value="2029" className="bg-slate-900 text-white">Tahun 2029</option>
+              <option value="2030" className="bg-slate-900 text-white">Tahun 2030</option>
             </select>
           </div>
 
@@ -1758,7 +1758,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setShowExportModal(true)}
-              className="whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white transition shadow-md shadow-indigo-500/20 flex items-center space-x-1.5"
+              className="whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3.5 py-2 text-xs font-bold rounded-xl theme-btn-primary transition flex items-center space-x-1.5"
             >
               <FileDown className="w-3.5 h-3.5" />
               <span>Ekspor PDF/Excel</span>
