@@ -24,7 +24,9 @@ import {
   Sparkles,
   ShieldCheck,
   AlertCircle,
-  FileText
+  FileText,
+  LayoutGrid,
+  Table2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -49,6 +51,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingItem, setEditingItem] = useState<SerahTerimaStandartPartItem | null>(null);
+  const [mobileDisplayMode, setMobileDisplayMode] = useState<'cards' | 'table'>('cards');
 
   // Form State in Modal
   const [formData, setFormData] = useState<{
@@ -944,15 +947,15 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         </div>
 
         {/* Action and Filter Control Bar */}
-        <div className="p-4 bg-white flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="p-3 sm:p-4 bg-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {/* Month Filter */}
-            <div className="flex items-center space-x-1.5 bg-indigo-50/70 p-1 rounded-xl border border-indigo-200/70">
-              <span className="text-[11px] font-bold text-indigo-800 px-2">Bulan:</span>
+            <div className="flex items-center justify-between sm:justify-start space-x-1.5 bg-indigo-50/70 p-1.5 rounded-xl border border-indigo-200/70 w-full sm:w-auto">
+              <span className="text-[11px] font-bold text-indigo-800 px-2 shrink-0">Bulan:</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-white border border-indigo-200 text-xs font-bold text-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 sm:flex-none bg-white border border-indigo-200 text-base sm:text-xs font-bold text-slate-800 rounded-lg px-2.5 py-2 sm:py-1.5 min-h-[40px] sm:min-h-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="ALL">Semua Bulan (Jan - Des)</option>
                 {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m) => (
@@ -962,36 +965,36 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
             </div>
 
             {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-2.5" />
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400 absolute left-3 sm:left-2.5 top-3 sm:top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari project, part, staff, customer..."
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 w-64 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl pl-9 sm:pl-8 pr-3 py-2 sm:py-1.5 w-full min-h-[42px] sm:min-h-0 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
             {!isReadOnly && (
               <>
                 <button
                   onClick={handleAutoSyncFromMonitoring}
                   title="Ambil data Project Name & Customer dari dashboard monitoring berdasarkan bulan"
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5"
+                  className="col-span-2 sm:col-span-1 px-3.5 py-2.5 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center justify-center space-x-1.5"
                 >
-                  <RotateCw className="w-3.5 h-3.5" />
+                  <RotateCw className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                   <span>Ambil Data Otomatis dari Monitoring</span>
                 </button>
 
                 <button
                   onClick={handleOpenAddModal}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
+                  className="px-3.5 py-2.5 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center justify-center space-x-1.5"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                   <span>Tambah Baris</span>
                 </button>
               </>
@@ -999,25 +1002,492 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
             <button
               onClick={handleExportOfficialPDF}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-500/20 transition flex items-center space-x-1.5"
+              className="px-3.5 py-2.5 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-500/20 transition flex items-center justify-center space-x-1.5"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Cetak / PDF Resmi</span>
             </button>
 
             <button
               onClick={handleExportExcel}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
+              className="px-3.5 py-2.5 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center justify-center space-x-1.5"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>Excel</span>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Mobile View Mode Switcher */}
+      <div className="md:hidden flex items-center justify-between bg-white/95 px-3 py-2 rounded-2xl border border-rose-200/80 shadow-xs">
+        <div className="text-xs font-bold text-slate-700">
+          Daftar Serah Terima <span className="text-rose-700 font-extrabold">({filteredList.length})</span>
+        </div>
+        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMobileDisplayMode('cards')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition min-h-[36px] ${
+              mobileDisplayMode === 'cards'
+                ? 'bg-white text-rose-700 shadow-xs'
+                : 'text-slate-600'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Kartu</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileDisplayMode('table')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition min-h-[36px] ${
+              mobileDisplayMode === 'table'
+                ? 'bg-white text-rose-700 shadow-xs'
+                : 'text-slate-600'
+            }`}
+          >
+            <Table2 className="w-3.5 h-3.5" />
+            <span>Tabel</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Card List (< md, when mobileDisplayMode === 'cards') */}
+      {mobileDisplayMode === 'cards' && (
+        <div className="md:hidden space-y-3">
+          {filteredList.length === 0 ? (
+            <div className="bg-white/95 rounded-2xl p-8 text-center border border-rose-200/80 shadow-sm space-y-3">
+              <Layers className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-xs text-slate-500 font-medium">
+                Belum ada data Serah Terima Standart Part pada bulan ini.
+              </p>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleAutoSyncFromMonitoring}
+                  className="px-4 py-2.5 min-h-[44px] bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 transition inline-flex items-center space-x-2"
+                >
+                  <RotateCw className="w-4 h-4" />
+                  <span>Tarik Data dari Monitoring</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredList.map((item, idx) => (
+              <div
+                key={item.id}
+                className="bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden"
+              >
+                <div className="h-1 w-full bg-gradient-to-r from-[#9A3434] via-rose-500 to-amber-500" />
+                <div className="p-3.5 space-y-3">
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                        <span className="px-2 py-0.5 rounded-md bg-rose-900 text-white font-mono text-[10px] font-bold">
+                          #{idx + 1}
+                        </span>
+                        {item.spk && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-mono text-[10px] font-bold">
+                            {item.spk}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                          {item.month}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-extrabold text-slate-900 leading-snug">
+                        {item.projectName}
+                      </h4>
+                      <p className="text-xs text-slate-600 font-semibold mt-0.5 flex items-center space-x-1">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{item.customer}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Prepare Staff */}
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wide">
+                        Prepare Staff
+                      </span>
+                      {!isReadOnly && quickStaffInput?.rowId !== item.id && (
+                        <button
+                          type="button"
+                          onClick={() => setQuickStaffInput({ rowId: item.id, name: '' })}
+                          className="text-xs text-blue-700 font-bold flex items-center space-x-1 px-2 py-1 rounded-lg bg-white border border-blue-200 min-h-[32px]"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Staff</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.prepareStaff.length === 0 ? (
+                        <span className="text-xs text-slate-400 italic">Belum ada staff</span>
+                      ) : (
+                        item.prepareStaff.map((staff) => (
+                          <span
+                            key={staff}
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-blue-800 text-xs font-semibold"
+                          >
+                            <span>{staff}</span>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveStaff(item.id, staff)}
+                                className="text-slate-400 hover:text-rose-600 p-0.5"
+                                title={`Hapus ${staff}`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    {!isReadOnly && quickStaffInput?.rowId === item.id && (
+                      <div className="flex items-center space-x-1.5 pt-1">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Nama staff..."
+                          value={quickStaffInput.name}
+                          onChange={(e) => setQuickStaffInput({ rowId: item.id, name: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddStaff(item.id, quickStaffInput.name);
+                            if (e.key === 'Escape') setQuickStaffInput(null);
+                          }}
+                          className="flex-1 px-3 py-2 text-base border border-blue-400 rounded-xl focus:outline-none bg-white min-h-[42px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddStaff(item.id, quickStaffInput.name)}
+                          className="p-2.5 min-w-[42px] min-h-[42px] bg-blue-600 text-white rounded-xl flex items-center justify-center"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuickStaffInput(null)}
+                          className="p-2.5 min-w-[42px] min-h-[42px] bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Part Name & Qty */}
+                  <div className="bg-emerald-50/40 border border-emerald-200/70 rounded-xl p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
+                        Part Name & Qty ({item.partNames?.length || 0})
+                      </span>
+                      {!isReadOnly && quickPartInput?.rowId !== item.id && (
+                        <button
+                          type="button"
+                          onClick={() => setQuickPartInput({ rowId: item.id, name: '', qty: '1' })}
+                          className="text-xs text-emerald-700 font-bold flex items-center space-x-1 px-2 py-1 rounded-lg bg-white border border-emerald-200 min-h-[32px]"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Tambah Part</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {item.partNames && item.partNames.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {item.partNames.map((part, pIdx) => {
+                          const parsed = parsePartWithQty(part);
+                          const isEditingThisQty =
+                            editingPartQty?.rowId === item.id && editingPartQty?.partIdx === pIdx;
+                          return (
+                            <li
+                              key={pIdx}
+                              className="flex items-center justify-between gap-2 text-xs bg-white p-2 rounded-xl border border-emerald-100 text-slate-800"
+                            >
+                              <span className="font-semibold flex-1 min-w-0 break-words">
+                                {pIdx + 1}. {parsed.name}
+                              </span>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                {isEditingThisQty && !isReadOnly ? (
+                                  <div className="flex items-center space-x-1">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      autoFocus
+                                      value={editingPartQty.qty}
+                                      onChange={(e) =>
+                                        setEditingPartQty({
+                                          rowId: item.id,
+                                          partIdx: pIdx,
+                                          qty: e.target.value
+                                        })
+                                      }
+                                      className="w-16 px-2 py-1 text-base font-bold text-center border border-emerald-400 rounded-lg bg-white"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleUpdatePartQty(item.id, pIdx, editingPartQty.qty)
+                                      }
+                                      className="p-2 bg-emerald-600 text-white rounded-lg min-w-[36px] min-h-[36px] flex items-center justify-center"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isReadOnly}
+                                    onClick={() =>
+                                      !isReadOnly &&
+                                      setEditingPartQty({
+                                        rowId: item.id,
+                                        partIdx: pIdx,
+                                        qty: parsed.qty
+                                      })
+                                    }
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs min-h-[32px]"
+                                  >
+                                    Qty: {parsed.qty}
+                                  </button>
+                                )}
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePart(item.id, pIdx)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 min-w-[32px] min-h-[32px] flex items-center justify-center"
+                                    title="Hapus part"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Belum ada item part tercatat.</p>
+                    )}
+
+                    {!isReadOnly && quickPartInput?.rowId === item.id && (
+                      <div className="space-y-2 pt-1 bg-white p-2.5 rounded-xl border border-emerald-200">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Nama part (cth: Bolt M8)..."
+                          value={quickPartInput.name}
+                          onChange={(e) =>
+                            setQuickPartInput({ ...quickPartInput, name: e.target.value })
+                          }
+                          className="w-full px-3 py-2 text-base border border-emerald-300 rounded-xl focus:outline-none bg-slate-50 min-h-[42px]"
+                        />
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center border border-emerald-300 rounded-xl bg-white overflow-hidden flex-1">
+                            <span className="px-2.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border-r border-emerald-200">
+                              Qty
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={quickPartInput.qty}
+                              onChange={(e) =>
+                                setQuickPartInput({ ...quickPartInput, qty: e.target.value })
+                              }
+                              className="w-full px-2 py-2 text-base text-center font-bold focus:outline-none min-h-[42px]"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleAddPart(item.id, quickPartInput.name, quickPartInput.qty)
+                            }
+                            className="px-4 py-2 min-h-[42px] bg-emerald-600 text-white rounded-xl font-bold text-xs flex items-center space-x-1"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Simpan</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQuickPartInput(null)}
+                            className="p-2.5 min-w-[42px] min-h-[42px] bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Distribution Info Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        value={item.distributionDate || ''}
+                        onChange={(e) => handleInlineFieldChange(item.id, 'distributionDate', e.target.value)}
+                        disabled={isReadOnly}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-base sm:text-xs font-mono text-slate-800"
+                      />
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Time
+                      </label>
+                      {!isReadOnly ? (
+                        <input
+                          type="text"
+                          value={item.distributionTime || ''}
+                          onChange={(e) => handleInlineFieldChange(item.id, 'distributionTime', e.target.value)}
+                          placeholder="09:00 WIB"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-base sm:text-xs font-mono text-slate-800"
+                        />
+                      ) : (
+                        <p className="font-mono font-semibold text-slate-800 py-1.5">{item.distributionTime || '-'}</p>
+                      )}
+                    </div>
+                    <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Division Penerima
+                      </label>
+                      {!isReadOnly ? (
+                        <select
+                          value={item.division || 'Assembly Jig'}
+                          onChange={(e) => handleInlineFieldChange(item.id, 'division', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-base sm:text-xs font-semibold text-slate-800"
+                        >
+                          <option value="Assembly Jig">Assembly Jig</option>
+                          <option value="Machining & Tooling">Machining & Tooling</option>
+                          <option value="Purchasing">Purchasing</option>
+                          <option value="QC & Testing">QC & Testing</option>
+                          <option value="Workshop Produksi">Workshop Produksi</option>
+                          <option value="Gudang Material">Gudang Material</option>
+                        </select>
+                      ) : (
+                        <span className="font-semibold text-slate-800">{item.division}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Signature / Penerima */}
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        Signature / Penerima
+                      </span>
+                      {!isReadOnly && quickReceiverInput?.rowId !== item.id && (
+                        <button
+                          type="button"
+                          onClick={() => setQuickReceiverInput({ rowId: item.id, name: '' })}
+                          className="text-xs text-blue-600 font-bold flex items-center space-x-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Penerima</span>
+                        </button>
+                      )}
+                    </div>
+                    {item.signature ? (
+                      <div className="flex items-center space-x-1.5">
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={item.signature}
+                          onChange={(e) => handleInlineFieldChange(item.id, 'signature', e.target.value)}
+                          className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-base sm:text-xs font-semibold text-slate-800"
+                        />
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleInlineFieldChange(item.id, 'signature', '')}
+                            className="p-2 text-slate-400 hover:text-rose-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Belum ada tanda tangan penerima</p>
+                    )}
+
+                    {!isReadOnly && quickReceiverInput?.rowId === item.id && (
+                      <div className="flex items-center space-x-1.5">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Nama penerima..."
+                          value={quickReceiverInput.name}
+                          onChange={(e) => setQuickReceiverInput({ rowId: item.id, name: e.target.value })}
+                          className="flex-1 px-3 py-2 text-base border border-blue-400 rounded-xl bg-white min-h-[42px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            item.signature
+                              ? handleAppendReceiver(item.id, quickReceiverInput.name)
+                              : handleSetReceiver(item.id, quickReceiverInput.name)
+                          }
+                          className="p-2.5 min-w-[42px] min-h-[42px] bg-blue-600 text-white rounded-xl flex items-center justify-center"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuickReceiverInput(null)}
+                          className="p-2.5 min-w-[42px] min-h-[42px] bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Footer Action Dock */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handlePrintSingleBAP(item)}
+                      className="flex-1 min-h-[44px] px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-sm flex items-center justify-center space-x-1.5"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Cetak BAP</span>
+                    </button>
+                    {!isReadOnly && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(item)}
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold flex items-center justify-center space-x-1"
+                        >
+                          <PenSquare className="w-4 h-4" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item.id, item.projectName)}
+                          className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Main Table Matching Uploaded Document */}
-      <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden">
+      <div className={`bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden ${mobileDisplayMode === 'table' ? 'block' : 'hidden md:block'}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
@@ -1582,19 +2052,19 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
       {/* Modal Add / Edit Serah Terima Standart Part */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[150] flex items-center justify-center p-3 sm:p-5 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-slate-200 max-h-[92vh]">
+        <div className="fixed inset-0 bg-slate-950/80 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-5 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-slate-200 max-h-[92dvh] sm:max-h-[92vh] pb-safe">
             {/* Modal Header */}
-            <div className="bg-[#8B2635] text-white px-6 py-4 flex items-center justify-between">
+            <div className="bg-[#8B2635] text-white px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-white/20 rounded-xl text-white">
                   <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold">
+                  <h3 className="text-sm sm:text-base font-bold">
                     {editingItem ? 'Edit Form Serah Terima Standart Part' : 'Tambah Form Serah Terima Standart Part'}
                   </h3>
-                  <p className="text-xs text-rose-100">
+                  <p className="text-[11px] sm:text-xs text-rose-100">
                     No. Dokumen: KMIL/FM-ENG/01-004
                   </p>
                 </div>
@@ -1602,21 +2072,21 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-rose-100 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-rose-100 hover:text-white p-2 rounded-xl hover:bg-white/10 min-w-[40px] min-h-[40px] flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveModal} className="p-6 overflow-y-auto space-y-4 text-xs">
+            <form onSubmit={handleSaveModal} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Bulan</label>
                   <select
                     value={formData.month}
                     onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs font-semibold"
                   >
                     {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m) => (
                       <option key={m} value={m}>{m}</option>
@@ -1638,7 +2108,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         }));
                       }
                     }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs text-blue-700 font-semibold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs text-blue-700 font-semibold"
                   >
                     <option value="">-- Pilih Proyek Terdaftar --</option>
                     {projects.map((p) => (
@@ -1657,7 +2127,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     value={formData.projectName}
                     onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
                     placeholder="Nama project..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs font-semibold"
                   />
                 </div>
 
@@ -1669,7 +2139,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     value={formData.customer}
                     onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
                     placeholder="Nama customer..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs font-semibold"
                   />
                 </div>
               </div>
@@ -1700,7 +2170,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         setFormData({ ...formData, prepareStaff: newStaff });
                       }}
                       placeholder={`Nama Staff ${sIdx + 1}...`}
-                      className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-xs"
+                      className="flex-1 bg-white border border-slate-300 rounded-xl p-2 sm:p-1.5 text-base sm:text-xs"
                     />
                     {formData.prepareStaff.length > 1 && (
                       <button
@@ -1709,9 +2179,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                           const newStaff = formData.prepareStaff.filter((_, idx) => idx !== sIdx);
                           setFormData({ ...formData, prepareStaff: newStaff });
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600"
+                        className="p-2 text-slate-400 hover:text-rose-600"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                       </button>
                     )}
                   </div>
@@ -1732,9 +2202,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         partNames: [...formData.partNames, { name: '', qty: '1' }]
                       })
                     }
-                    className="text-[11px] text-emerald-600 font-bold flex items-center space-x-1"
+                    className="text-xs sm:text-[11px] text-emerald-600 font-bold flex items-center space-x-1"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                     <span>Tambah Part</span>
                   </button>
                 </div>
@@ -1744,7 +2214,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                   </p>
                 ) : (
                   formData.partNames.map((part, pIdx) => (
-                    <div key={pIdx} className="flex items-center space-x-2">
+                    <div key={pIdx} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400 w-5 text-center shrink-0">
                         {pIdx + 1}.
                       </span>
@@ -1756,11 +2226,11 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                           newParts[pIdx] = { ...newParts[pIdx], name: e.target.value };
                           setFormData({ ...formData, partNames: newParts });
                         }}
-                        placeholder={`Nama Part ${pIdx + 1} (cth: Linear Bearing, Bolt M8, Cylinder)...`}
-                        className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-xs"
+                        placeholder={`Nama Part ${pIdx + 1}...`}
+                        className="flex-1 min-w-[140px] bg-white border border-slate-300 rounded-xl p-2 sm:p-1.5 text-base sm:text-xs"
                       />
-                      <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shrink-0">
-                        <span className="px-2 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 border-r border-slate-300">
+                      <div className="flex items-center border border-slate-300 rounded-xl bg-white overflow-hidden shrink-0">
+                        <span className="px-2 py-2 sm:py-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 border-r border-slate-300">
                           Qty
                         </span>
                         <input
@@ -1773,7 +2243,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                             setFormData({ ...formData, partNames: newParts });
                           }}
                           placeholder="1"
-                          className="w-16 p-1.5 text-xs text-center font-semibold focus:outline-none bg-white"
+                          className="w-16 p-2 sm:p-1.5 text-base sm:text-xs text-center font-semibold focus:outline-none bg-white"
                         />
                       </div>
                       <button
@@ -1782,10 +2252,10 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                           const newParts = formData.partNames.filter((_, idx) => idx !== pIdx);
                           setFormData({ ...formData, partNames: newParts });
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600 shrink-0"
+                        className="p-2 text-slate-400 hover:text-rose-600 shrink-0"
                         title="Hapus Part"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                       </button>
                     </div>
                   ))
@@ -1800,7 +2270,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     type="date"
                     value={formData.distributionDate}
                     onChange={(e) => setFormData({ ...formData, distributionDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs"
                   />
                 </div>
 
@@ -1811,7 +2281,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     value={formData.distributionTime}
                     onChange={(e) => setFormData({ ...formData, distributionTime: e.target.value })}
                     placeholder="09:30 WIB"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs"
                   />
                 </div>
 
@@ -1820,7 +2290,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                   <select
                     value={formData.division}
                     onChange={(e) => setFormData({ ...formData, division: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs font-semibold"
                   >
                     <option value="Assembly Jig">Assembly Jig</option>
                     <option value="Machining & Tooling">Machining & Tooling</option>
@@ -1837,7 +2307,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                   <label className="block text-slate-700 font-bold">Signature / Nama PIC Penerima (Diterima)</label>
                   <span className="text-[10px] text-slate-500">Format: [Nama] (Diterima)</span>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <input
                     type="text"
                     value={formData.signature}
@@ -1849,7 +2319,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       }
                     }}
                     placeholder="Nama penerima standard part (cth: Fadil, Budi)..."
-                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-xl p-2.5 sm:p-2 text-base sm:text-xs font-semibold"
                   />
                   <button
                     type="button"
@@ -1859,12 +2329,12 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       const formatted = val.includes('(Diterima)') ? val : `${val} (Diterima)`;
                       setFormData({ ...formData, signature: formatted });
                     }}
-                    className="px-2.5 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 shrink-0 border border-blue-200"
+                    className="px-3 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 shrink-0 border border-blue-200"
                   >
                     + Format (Diterima)
                   </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   <span className="text-[10px] text-slate-400">Pilih cepat penerima:</span>
                   {['Fadil', 'Hendra', 'Rian', 'Andry', 'Budi'].map((staff) => (
                     <button
@@ -1877,7 +2347,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                           signature: prev.signature ? `${prev.signature}, ${formatted}` : formatted
                         }));
                       }}
-                      className="px-1.5 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded text-[10px] text-slate-600 font-medium transition"
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-lg text-xs sm:text-[10px] text-slate-600 font-medium transition"
                     >
                       + {staff}
                     </button>
@@ -1886,30 +2356,30 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
               </div>
 
               {/* Modal Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-slate-200">
                 {editingItem ? (
                   <button
                     type="button"
                     onClick={() => handlePrintSingleBAP(editingItem)}
-                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+                    className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3.5 py-2.5 sm:py-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-xs"
                     title="Cetak Berita Acara Penyerahan (BAP)"
                   >
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                     <span>Cetak BAP</span>
                   </button>
-                ) : <div />}
+                ) : <div className="hidden sm:block" />}
 
-                <div className="flex space-x-2">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                    className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-[#8B2635] hover:bg-[#701e2a] text-white rounded-xl text-xs font-bold shadow-md transition"
+                    className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2.5 sm:py-2 bg-[#8B2635] hover:bg-[#701e2a] text-white rounded-xl text-xs font-bold shadow-md transition"
                   >
                     {editingItem ? 'Simpan Perubahan' : 'Simpan Data'}
                   </button>

@@ -25,7 +25,12 @@ import {
   Calendar,
   ShieldAlert,
   FileText,
-  Layers
+  Layers,
+  LayoutGrid,
+  Table2,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -51,6 +56,8 @@ interface MonitoringViewProps {
   standartPartList: SerahTerimaStandartPartItem[];
   onUpdateStandartPartList: (items: SerahTerimaStandartPartItem[] | ((prev: SerahTerimaStandartPartItem[]) => SerahTerimaStandartPartItem[])) => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
+  activeMonitoringTab?: 'drawingProjects' | 'standartPartHandover';
+  onChangeMonitoringTab?: (tab: 'drawingProjects' | 'standartPartHandover') => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -66,10 +73,22 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   onSyncCloud,
   standartPartList,
   onUpdateStandartPartList,
-  showToast
+  showToast,
+  activeMonitoringTab: controlledSubTab,
+  onChangeMonitoringTab
 }) => {
   // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
-  const [activeMonitoringTab, setActiveMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
+  const [internalMonitoringTab, setInternalMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
+  const activeMonitoringTab = controlledSubTab ?? internalMonitoringTab;
+  const setActiveMonitoringTab = (tab: 'drawingProjects' | 'standartPartHandover') => {
+    setInternalMonitoringTab(tab);
+    if (onChangeMonitoringTab) onChangeMonitoringTab(tab);
+  };
+
+  // Mobile display & filter states
+  const [mobileDisplayMode, setMobileDisplayMode] = useState<'cards' | 'table'>('cards');
+  const [expandedChecklistSpk, setExpandedChecklistSpk] = useState<string | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false);
 
   // Filters state
   const [filterMonth, setFilterMonth] = useState<string>('ALL');
@@ -461,40 +480,40 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Sub-Navigation Tabs: Monitoring Drawing vs Serah Terima Standart Part */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-sm border border-indigo-100">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 bg-white/95 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl shadow-sm border border-indigo-100">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveMonitoringTab('drawingProjects')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all duration-200 ${
+            className={`min-h-[42px] px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2 transition-all duration-200 ${
               activeMonitoringTab === 'drawingProjects'
                 ? 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-indigo-50/70'
             }`}
           >
-            <FolderOpen className="w-4 h-4" />
-            <span>Monitoring Drawing & SPK</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-lg font-mono tabular-nums ${
+            <FolderOpen className="w-4 h-4 shrink-0" />
+            <span className="truncate">Monitoring SPK</span>
+            <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-lg font-mono tabular-nums shrink-0 ${
               activeMonitoringTab === 'drawingProjects' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 font-semibold'
             }`}>
-              {projects.length} Proyek
+              {projects.length}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveMonitoringTab('standartPartHandover')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all duration-200 ${
+            className={`min-h-[42px] px-2.5 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2 transition-all duration-200 ${
               activeMonitoringTab === 'standartPartHandover'
                 ? 'bg-gradient-to-r from-rose-500 via-pink-600 to-amber-500 text-white shadow-lg shadow-rose-500/25'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-rose-50/70'
             }`}
           >
-            <Layers className={`w-4 h-4 ${activeMonitoringTab === 'standartPartHandover' ? 'text-white' : 'text-rose-600'}`} />
-            <span>Serah Terima Standart Part</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-lg font-mono ${
+            <Layers className={`w-4 h-4 shrink-0 ${activeMonitoringTab === 'standartPartHandover' ? 'text-white' : 'text-rose-600'}`} />
+            <span className="truncate">Standart Part</span>
+            <span className={`hidden sm:inline text-[10px] px-2 py-0.5 rounded-lg font-mono ${
               activeMonitoringTab === 'standartPartHandover' ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-700 font-semibold'
             }`}>
               KMIL/FM-ENG/01-004
@@ -602,23 +621,23 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       />
 
       {/* Analytics & Performance Charts Accordion/Section */}
-      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-5 space-y-5">
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-3.5 sm:p-5 space-y-4 sm:space-y-5">
         <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-3">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/20">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/20 shrink-0">
               <BarChart2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-slate-900">
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
                 Analitik & Performa Drawing Engineering
               </h2>
-              <p className="text-xs text-slate-500">
-                Visualisasi real-time permintaan gambar, beban kerja per customer, dan komparasi kuartal sesuai filter periode aktif
+              <p className="text-[11px] sm:text-xs text-slate-500">
+                Visualisasi real-time permintaan gambar, beban kerja per customer & kuartal
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* 2D / 3D Global Mode Switcher */}
             <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
               <button
@@ -629,7 +648,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   setChart2Dim('2D');
                   setChart3Dim('2D');
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
                   globalChartDim === '2D'
                     ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -646,7 +665,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   setChart2Dim('3D');
                   setChart3Dim('3D');
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
                   globalChartDim === '3D'
                     ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -659,74 +678,73 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
             <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-            <span className="text-xs font-semibold text-slate-600">Filter Periode:</span>
-            {/* Filter Bulan / Kuartal */}
-            <select
-              value={filterMonth}
-              onChange={(e) => {
-                setFilterMonth(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700"
-            >
-              <option value="ALL">Semua Bulan / Kuartal</option>
-              <optgroup label="Kuartal">
-                <option value="Q1">Kuartal 1 (Jan - Mar)</option>
-                <option value="Q2">Kuartal 2 (Apr - Jun)</option>
-                <option value="Q3">Kuartal 3 (Jul - Sep)</option>
-                <option value="Q4">Kuartal 4 (Okt - Des)</option>
-              </optgroup>
-              <optgroup label="Bulan">
-                <option value="Januari">Januari</option>
-                <option value="Februari">Februari</option>
-                <option value="Maret">Maret</option>
-                <option value="April">April</option>
-                <option value="Mei">Mei</option>
-                <option value="Juni">Juni</option>
-                <option value="Juli">Juli</option>
-                <option value="Agustus">Agustus</option>
-                <option value="September">September</option>
-                <option value="Oktober">Oktober</option>
-                <option value="November">November</option>
-                <option value="Desember">Desember</option>
-              </optgroup>
-            </select>
+            <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={filterMonth}
+                onChange={(e) => {
+                  setFilterMonth(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-700 w-full sm:w-auto"
+              >
+                <option value="ALL">Semua Bulan</option>
+                <optgroup label="Kuartal">
+                  <option value="Q1">Q1 (Jan - Mar)</option>
+                  <option value="Q2">Q2 (Apr - Jun)</option>
+                  <option value="Q3">Q3 (Jul - Sep)</option>
+                  <option value="Q4">Q4 (Okt - Des)</option>
+                </optgroup>
+                <optgroup label="Bulan">
+                  <option value="Januari">Januari</option>
+                  <option value="Februari">Februari</option>
+                  <option value="Maret">Maret</option>
+                  <option value="April">April</option>
+                  <option value="Mei">Mei</option>
+                  <option value="Juni">Juni</option>
+                  <option value="Juli">Juli</option>
+                  <option value="Agustus">Agustus</option>
+                  <option value="September">September</option>
+                  <option value="Oktober">Oktober</option>
+                  <option value="November">November</option>
+                  <option value="Desember">Desember</option>
+                </optgroup>
+              </select>
 
-            {/* Filter Tahun */}
-            <select
-              value={filterYear}
-              onChange={(e) => {
-                setFilterYear(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-blue-600"
-            >
-              <option value="">Semua Tahun (2026-2030)</option>
-              <option value="2026">Tahun 2026</option>
-              <option value="2027">Tahun 2027</option>
-              <option value="2028">Tahun 2028</option>
-              <option value="2029">Tahun 2029</option>
-              <option value="2030">Tahun 2030</option>
-            </select>
+              <select
+                value={filterYear}
+                onChange={(e) => {
+                  setFilterYear(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-blue-600 w-full sm:w-auto"
+              >
+                <option value="">Semua Tahun</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2028">2028</option>
+                <option value="2029">2029</option>
+                <option value="2030">2030</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* 3 Modern Charts Stacked Vertically */}
-        <div className="flex flex-col space-y-6">
+        <div className="flex flex-col space-y-4 sm:space-y-6">
           {/* Chart 1: Customer vs Qty Drawing */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
+          <div className="bg-slate-50/80 p-3.5 sm:p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
                   <span>1. Grafik Customer vs Qty Drawing</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Total akumulasi lembar drawing per customer • Periode: <span className="font-semibold text-blue-600">{filterMonth === 'ALL' ? 'Semua Bulan' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
+                  Total akumulasi lembar drawing per customer • <span className="font-semibold text-blue-600">{filterMonth === 'ALL' ? 'Semua Bulan' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-[10px] bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-200">
+                <span className="hidden sm:inline-block text-[10px] bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-200">
                   {filterMonth === 'ALL' ? 'Semua Periode' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
 
@@ -735,7 +753,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart1Dim('2D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition ${
                       chart1Dim === '2D' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -744,7 +762,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart1Dim('3D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
                       chart1Dim === '3D' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -755,7 +773,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               </div>
             </div>
 
-            <div className={chart1Dim === '2D' ? 'h-72 w-full' : 'hidden'}>
+            <div className={chart1Dim === '2D' ? 'h-56 sm:h-72 w-full' : 'hidden'}>
               <canvas ref={chart1Ref} />
             </div>
             {chart1Dim === '3D' && (
@@ -772,19 +790,19 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
 
           {/* Chart 2: Permintaan Drawing (Customer vs SPK) */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
+          <div className="bg-slate-50/80 p-3.5 sm:p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
                   <span>2. Grafik Permintaan Drawing (Customer vs SPK)</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Jumlah nomor SPK project aktif per customer • Periode: <span className="font-semibold text-emerald-600">{filterMonth === 'ALL' ? 'Semua Bulan' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
+                  Jumlah nomor SPK aktif per customer • <span className="font-semibold text-emerald-600">{filterMonth === 'ALL' ? 'Semua Bulan' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">
+                <span className="hidden sm:inline-block text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">
                   {filterMonth === 'ALL' ? 'Semua Periode' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
 
@@ -793,7 +811,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart2Dim('2D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition ${
                       chart2Dim === '2D' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -802,7 +820,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart2Dim('3D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
                       chart2Dim === '3D' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -813,7 +831,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               </div>
             </div>
 
-            <div className={chart2Dim === '2D' ? 'h-72 w-full' : 'hidden'}>
+            <div className={chart2Dim === '2D' ? 'h-56 sm:h-72 w-full' : 'hidden'}>
               <canvas ref={chart2Ref} />
             </div>
             {chart2Dim === '3D' && (
@@ -830,19 +848,19 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
 
           {/* Chart 3: Rekap Engineering Bulanan & Kuartal */}
-          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
+          <div className="bg-slate-50/80 p-3.5 sm:p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-200">
             <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0"></span>
                   <span>3. Grafik Rekap Engineering Bulanan & Kuartal</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Perbandingan tren kuantitas drawing dan project per bulan • Menampilkan: <span className="font-semibold text-purple-600">{filterMonth === 'ALL' ? 'Semua Bulan (Januari - Desember)' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
+                  Tren kuantitas drawing & project per bulan • <span className="font-semibold text-purple-600">{filterMonth === 'ALL' ? 'Jan - Des' : filterMonth} {filterYear ? `(${filterYear})` : ''}</span>
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-[10px] bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full border border-purple-200">
+                <span className="hidden sm:inline-block text-[10px] bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-full border border-purple-200">
                   {filterMonth === 'ALL' ? 'Jan - Des' : filterMonth} {filterYear ? `(${filterYear})` : ''}
                 </span>
 
@@ -851,7 +869,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart3Dim('2D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition ${
                       chart3Dim === '2D' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -860,7 +878,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setChart3Dim('3D')}
-                    className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition flex items-center space-x-1 ${
                       chart3Dim === '3D' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -871,7 +889,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               </div>
             </div>
 
-            <div className={chart3Dim === '2D' ? 'h-80 w-full' : 'hidden'}>
+            <div className={chart3Dim === '2D' ? 'h-60 sm:h-80 w-full' : 'hidden'}>
               <canvas ref={chart3Ref} />
             </div>
             {chart3Dim === '3D' && (
@@ -910,66 +928,95 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       )}
 
       {/* Toolbar & Filters */}
-      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-4 space-y-3">
+      <div className="bg-white/95 rounded-2xl shadow-sm border border-indigo-100 p-3 sm:p-4 space-y-3">
         {/* Buttons Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
             {!isReadOnly && (
               <button
                 onClick={onAddClick}
-                className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition flex items-center space-x-1.5"
+                className="min-h-[42px] bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center space-x-1.5"
               >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Data Baru</span>
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="truncate">Tambah Data</span>
               </button>
             )}
 
             <button
               onClick={onSyncCloud}
-              className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center space-x-1.5"
+              className="min-h-[42px] bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md transition flex items-center justify-center space-x-1.5"
             >
-              <RotateCw className="w-4 h-4 text-emerald-400" />
-              <span>Sinkronisasi Cloud</span>
+              <RotateCw className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="truncate">Sinkron Cloud</span>
             </button>
 
             <button
               onClick={() => onOpenCadViewer('SPK-DEMO', 'Default Machine Assembly', 'Engineering General')}
-              className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:via-violet-500 hover:to-purple-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-violet-500/20 transition flex items-center space-x-1.5"
+              className="min-h-[42px] bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:via-violet-500 hover:to-purple-500 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-violet-500/20 transition flex items-center justify-center space-x-1.5"
             >
-              <Box className="w-4 h-4" />
-              <span>3D CAD / .STEP Viewer</span>
+              <Box className="w-4 h-4 shrink-0" />
+              <span className="truncate">3D CAD Viewer</span>
             </button>
 
             <button
               onClick={handleExportPDF}
-              className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-rose-500/20 transition flex items-center space-x-1.5"
+              className="min-h-[42px] bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-rose-500/20 transition flex items-center justify-center space-x-1.5"
             >
-              <FileDown className="w-4 h-4" />
-              <span>Cetak Laporan PDF</span>
+              <FileDown className="w-4 h-4 shrink-0" />
+              <span className="truncate">Cetak PDF</span>
             </button>
 
             <button
               onClick={handleExportExcel}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5"
+              className="min-h-[42px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-emerald-500/20 transition flex items-center justify-center space-x-1.5"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Ekspor Excel (.xlsx)</span>
+              <FileSpreadsheet className="w-4 h-4 shrink-0" />
+              <span className="truncate">Ekspor Excel</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveMonitoringTab('standartPartHandover')}
-              className="bg-gradient-to-r from-[#8B2635] via-rose-700 to-pink-600 hover:from-[#721f2b] hover:to-pink-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md shadow-rose-900/20 transition flex items-center space-x-1.5"
+              className="min-h-[42px] bg-gradient-to-r from-[#8B2635] via-rose-700 to-pink-600 hover:from-[#721f2b] hover:to-pink-500 text-white font-bold text-xs px-3 sm:px-3.5 py-2 rounded-xl shadow-md shadow-rose-900/20 transition flex items-center justify-center space-x-1.5"
               title="Buka Form Serah Terima Standart Part (KMIL/FM-ENG/01-004)"
             >
-              <Layers className="w-4 h-4 text-amber-200" />
-              <span>Serah Terima Standart Part</span>
+              <Layers className="w-4 h-4 text-amber-200 shrink-0" />
+              <span className="truncate">Standart Part</span>
             </button>
           </div>
         </div>
 
-        {/* Search & Filter Inputs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-slate-100">
+        {/* Mobile Quick Search & Filter/Mode Toggle */}
+        <div className="flex sm:hidden items-center gap-2 pt-2 border-t border-slate-100">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={filterProject}
+              onChange={(e) => {
+                setFilterProject(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari project..."
+              className="text-base bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters((v) => !v)}
+            className={`min-h-[42px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition ${
+              showMobileFilters || filterSpk || filterCustomer || filterStatus || filterMonth !== 'ALL'
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                : 'bg-slate-50 border-slate-300 text-slate-700'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span>Filter</span>
+          </button>
+        </div>
+
+        {/* Search & Filter Inputs (Always visible sm+, toggleable on mobile) */}
+        <div className={`${showMobileFilters ? 'grid' : 'hidden sm:grid'} grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-slate-100`}>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-1">Cari SPK</label>
             <div className="relative">
@@ -982,7 +1029,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   setCurrentPage(1);
                 }}
                 placeholder="Cth: SPK-2026..."
-                className="text-xs bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
           </div>
@@ -997,7 +1044,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Nama customer..."
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
 
@@ -1011,7 +1058,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Nama project..."
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
 
@@ -1023,7 +1070,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 setFilterYear(e.target.value);
                 setCurrentPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-blue-600"
+              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-blue-600"
             >
               <option value="">Semua Tahun (2026-2030)</option>
               <option value="2026">Tahun 2026</option>
@@ -1042,7 +1089,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 setFilterStatus(e.target.value);
                 setCurrentPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">Semua Status</option>
               <option value="Selesai">Selesai</option>
@@ -1059,7 +1106,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 setFilterMonth(e.target.value);
                 setCurrentPage(1);
               }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               <option value="ALL">Semua Bulan</option>
               <optgroup label="Kuartal">
@@ -1087,8 +1134,301 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         </div>
       </div>
 
-      {/* Main Table with Frozen Sticky Columns */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+      {/* Mobile View Switcher (Kartu Mobile vs Tabel Lengkap) */}
+      <div className="flex md:hidden items-center justify-between gap-2 bg-white/95 rounded-2xl px-3.5 py-2.5 border border-indigo-100 shadow-xs">
+        <div className="text-xs font-bold text-slate-700">
+          Daftar Proyek <span className="text-blue-600 tabular-nums">({filteredProjects.length})</span>
+        </div>
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMobileDisplayMode('cards')}
+            className={`min-h-[34px] px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+              mobileDisplayMode === 'cards' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Kartu</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileDisplayMode('table')}
+            className={`min-h-[34px] px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+              mobileDisplayMode === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600'
+            }`}
+          >
+            <Table2 className="w-3.5 h-3.5" />
+            <span>Tabel</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Cards List (< md when mobileDisplayMode === 'cards') */}
+      {mobileDisplayMode === 'cards' && (
+        <div className="md:hidden space-y-3">
+          {paginatedData.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center text-slate-400 italic border border-slate-200 text-xs">
+              Tidak ada proyek yang sesuai dengan kriteria filter.
+            </div>
+          ) : (
+            paginatedData.map((item, idx) => {
+              const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+              const isOverdue = item['Target Design'] && item.Status !== 'Selesai' && new Date(item['Target Design']) < new Date();
+              const isLate = item['Aktual Engineering'] && item['Target Design'] && new Date(item['Aktual Engineering']) > new Date(item['Target Design']);
+              const completedChecklists = CHECKLIST_KEYS.filter((ck) => Boolean(item[ck])).length;
+              const checklistPercent = Math.round((completedChecklists / CHECKLIST_KEYS.length) * 100);
+              const isChecklistOpen = expandedChecklistSpk === item.SPK;
+              const driveUrl = item['File CAD Drive'];
+              const isPdfDoc =
+                typeof driveUrl === 'string' &&
+                (driveUrl.toLowerCase().includes('.pdf') ||
+                  driveUrl.startsWith('data:application/pdf') ||
+                  driveUrl.includes('/pdf_'));
+
+              return (
+                <div
+                  key={item.SPK}
+                  className={`rounded-2xl shadow-sm border overflow-hidden transition-all ${
+                    isOverdue || isLate
+                      ? 'bg-rose-50/60 border-rose-200'
+                      : 'bg-white border-indigo-100'
+                  }`}
+                >
+                  <div className="p-3.5 space-y-3">
+                    {/* Card Header Badges */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold tabular-nums">
+                          #{globalIdx}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[11px] font-bold">
+                          {item.SPK}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-semibold">
+                          {item.Bulan}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {(isOverdue || isLate) && (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold">
+                            {isOverdue ? 'Overdue' : 'Late'}
+                          </span>
+                        )}
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            item.Status === 'Selesai'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : item.Status === 'In Progress'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {item.Status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Project Title & Client */}
+                    <div>
+                      <h4 className="text-sm font-extrabold text-slate-900 leading-snug">
+                        {item['Nama Project']}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-600">
+                        <span className="font-semibold text-slate-700">{item.Customer}</span>
+                        <span>• PIC: <strong className="text-slate-800">{item.PIC}</strong></span>
+                        <span>• Qty: <strong className="text-blue-700 tabular-nums">{item['Qty Drawing']}</strong></span>
+                      </div>
+                      {item['Nomor PO'] && (
+                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">PO: {item['Nomor PO']}</p>
+                      )}
+                    </div>
+
+                    {/* Key Dates Strip */}
+                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px]">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Target Design</span>
+                        <span className="font-mono font-bold text-slate-800 tabular-nums">
+                          {item['Target Design'] || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Delivery Time</span>
+                        <span className="font-mono font-bold text-slate-800 tabular-nums">
+                          {item['Delivery Time'] || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Aktual Eng.</span>
+                        <span className="font-mono font-semibold text-indigo-700 tabular-nums">
+                          {item['Aktual Engineering'] || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">Penyelesaian</span>
+                        <span className="font-mono font-semibold text-slate-700 tabular-nums">
+                          {item['Tanggal Penyelesaian'] || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {item.keterangan && (
+                      <p className="text-[11px] text-slate-600 bg-amber-50/70 border border-amber-100 rounded-xl px-3 py-2">
+                        {item.keterangan}
+                      </p>
+                    )}
+
+                    {/* Expandable 14 Checklist Accordion */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedChecklistSpk(isChecklistOpen ? null : item.SPK)}
+                        className="w-full min-h-[44px] px-3 py-2 bg-slate-50 hover:bg-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-800 transition"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>Checklist Progress ({completedChecklists}/{CHECKLIST_KEYS.length})</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] font-mono text-blue-700 tabular-nums">{checklistPercent}%</span>
+                          {isChecklistOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                        </div>
+                      </button>
+                      <div className="h-1 w-full bg-slate-200">
+                        <div
+                          className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all"
+                          style={{ width: `${checklistPercent}%` }}
+                        />
+                      </div>
+
+                      {isChecklistOpen && (
+                        <div className="p-2.5 bg-white divide-y divide-slate-100 space-y-1">
+                          {CHECKLIST_KEYS.map((ck) => {
+                            const val = item[ck] || '';
+                            const isChecked = val !== '';
+                            return (
+                              <div key={ck} className="pt-2 first:pt-0 flex items-center justify-between gap-2 min-h-[44px]">
+                                <label className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    disabled={isReadOnly}
+                                    onChange={(e) => onChecklistToggle(item.SPK, ck, e.target.checked)}
+                                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 shrink-0"
+                                  />
+                                  <span className={`text-xs truncate ${isChecked ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                                    {ck}
+                                  </span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={val}
+                                  disabled={isReadOnly}
+                                  onChange={(e) => onChecklistDateChange(item.SPK, ck, e.target.value)}
+                                  className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 w-32 text-center font-mono disabled:opacity-60"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Touch Action Dock */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpenCadViewer(item.SPK, item['Nama Project'], item.Customer)}
+                        className="flex-1 min-h-[42px] px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center justify-center gap-1.5"
+                      >
+                        <Box className="w-4 h-4" />
+                        <span>3D CAD</span>
+                      </button>
+
+                      {driveUrl && (
+                        <a
+                          href={driveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 ${
+                            isPdfDoc
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {isPdfDoc ? <FileText className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                          <span>{isPdfDoc ? 'PDF' : 'Drive'}</span>
+                        </a>
+                      )}
+
+                      {!isReadOnly && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onUploadClick(item.SPK)}
+                            className="min-h-[42px] px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold flex items-center justify-center gap-1"
+                            title="Upload File"
+                          >
+                            <CloudUpload className="w-4 h-4" />
+                            <span>Upload</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onEditClick(item)}
+                            className="min-h-[42px] px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1 shadow-xs"
+                            title="Edit Data"
+                          >
+                            <PenSquare className="w-4 h-4" />
+                            <span>Edit</span>
+                          </button>
+
+                          {userRole === 'Manager' && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteClick(item.SPK)}
+                              className="min-h-[42px] min-w-[42px] p-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-xs"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Mobile Pagination */}
+          <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
+            <div className="text-xs text-slate-500 text-center">
+              Menampilkan <strong className="text-slate-800">{filteredProjects.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1}</strong> - <strong className="text-slate-800">{Math.min(currentPage * rowsPerPage, filteredProjects.length)}</strong> dari <strong className="text-slate-800">{filteredProjects.length}</strong> proyek
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                Sebelumnya
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || filteredProjects.length === 0}
+                className="min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 disabled:opacity-40 transition"
+              >
+                Berikutnya ({currentPage}/{totalPages})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Table with Frozen Sticky Columns (desktop always, mobile only when toggled to 'table') */}
+      <div className={`${mobileDisplayMode === 'table' ? 'flex' : 'hidden md:flex'} bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex-col`}>
         <div className="overflow-x-auto max-h-[640px] relative scrollbar-thin">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead>

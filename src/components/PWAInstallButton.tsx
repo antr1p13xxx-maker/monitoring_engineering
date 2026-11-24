@@ -13,7 +13,11 @@ import {
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
-export const PWAInstallButton: React.FC = () => {
+interface PWAInstallButtonProps {
+  compactMobile?: boolean;
+}
+
+export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compactMobile = false }) => {
   const { isInstallable, isInstalled, isIOS, isAndroid, isInIframe, install } = usePWAInstall();
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -54,19 +58,22 @@ export const PWAInstallButton: React.FC = () => {
             ? 'Install aplikasi ke PC / HP Anda'
             : 'Panduan install aplikasi di PC & HP (Android / iOS)'
         }
-        className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white shadow-md shadow-emerald-500/25 cursor-pointer whitespace-nowrap active:scale-95"
+        className={`${
+          compactMobile ? 'px-2.5 py-2 min-h-[38px]' : 'px-3 py-1.5'
+        } rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white shadow-md shadow-emerald-500/25 cursor-pointer whitespace-nowrap active:scale-95`}
       >
-        <Download className="w-3.5 h-3.5" />
-        <span>Install App</span>
+        <Download className="w-3.5 h-3.5 shrink-0" />
+        <span className={compactMobile ? 'hidden sm:inline' : ''}>Install App</span>
+        {compactMobile && <span className="sm:hidden text-[11px]">Install</span>}
       </button>
 
       {showGuideModal && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[150] flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-indigo-200/80 text-slate-800">
-            <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-teal-500 to-emerald-500" />
-            <div className="bg-gradient-to-r from-[#0a0f2c] via-[#172554] to-[#1e1b4b] px-5 py-4 text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-950/80 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-indigo-200/80 text-slate-800 max-h-[90dvh] flex flex-col">
+            <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-teal-500 to-emerald-500 shrink-0" />
+            <div className="bg-gradient-to-r from-[#0a0f2c] via-[#172554] to-[#1e1b4b] px-4 sm:px-5 py-3.5 sm:py-4 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-500 text-white shadow-lg shadow-cyan-500/25">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-500 text-white shadow-lg shadow-cyan-500/25">
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
@@ -81,13 +88,13 @@ export const PWAInstallButton: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition"
+                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition min-w-[40px] min-h-[40px] flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               {isInIframe && (
                 <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 text-xs text-amber-950 space-y-2">
                   <p className="font-bold">

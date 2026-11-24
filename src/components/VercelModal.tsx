@@ -57,8 +57,8 @@ export const VercelModal: React.FC<VercelModalProps> = ({ isOpen, onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-2xl text-white overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-2xl text-white overflow-hidden flex flex-col max-h-[92dvh] pb-safe">
         {/* Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">

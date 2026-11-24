@@ -32,7 +32,11 @@ import {
   Clock,
   Check,
   XCircle,
-  ShieldCheck
+  ShieldCheck,
+  LayoutGrid,
+  Table2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import {
@@ -190,6 +194,10 @@ export const KPIView: React.FC<KPIViewProps> = ({
   const qChartInstanceRef = useRef<ChartJS | null>(null);
 
   const [kpiPerfDim, setKpiPerfDim] = useState<'2D' | '3D'>('2D');
+  const [matrixMobileMode, setMatrixMobileMode] = useState<'cards' | 'table'>('cards');
+  const [expandedMatrixKpi, setExpandedMatrixKpi] = useState<number | null>(1);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
+  const [emailSentMessage, setEmailSentMessage] = useState<string | null>(null);
 
   const getProjectsForMonthYear = (monthFullName: string, year: string) => {
     return projects.filter((p) => {
@@ -1216,7 +1224,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
     if (!activeTrendKpi) return null;
 
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+      <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4 sm:space-y-6">
         {/* Header Controls */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -1233,14 +1241,14 @@ export const KPIView: React.FC<KPIViewProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {/* Filter Periode */}
-            <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-semibold text-slate-500">Periode:</span>
+            <div className="flex items-center justify-between sm:justify-start space-x-1.5">
+              <span className="text-xs font-semibold text-slate-500 shrink-0">Periode:</span>
               <select
                 value={kpiPeriodFilter}
                 onChange={(e) => setKpiPeriodFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded-xl px-2.5 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="flex-1 sm:flex-none bg-slate-50 border border-slate-300 text-slate-800 text-base sm:text-xs font-semibold rounded-xl px-2.5 py-2 min-h-[40px] sm:min-h-0 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 <option value="ALL">Semua Bulan (Jan - Des)</option>
                 <option value="Q1">Kuartal 1 (Jan - Mar)</option>
@@ -1253,12 +1261,12 @@ export const KPIView: React.FC<KPIViewProps> = ({
             </div>
 
             {/* KPI Item Selector */}
-            <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-semibold text-slate-500">Pilih KPI:</span>
+            <div className="flex items-center justify-between sm:justify-start space-x-1.5">
+              <span className="text-xs font-semibold text-slate-500 shrink-0">KPI:</span>
               <select
                 value={trendKpiId}
                 onChange={(e) => setTrendKpiId(Number(e.target.value))}
-                className="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="flex-1 sm:flex-none max-w-full sm:max-w-xs bg-slate-50 border border-slate-300 text-slate-800 text-base sm:text-xs font-semibold rounded-xl px-3 py-2 min-h-[40px] sm:min-h-0 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 {syncedKpiList.map((k) => (
                   <option key={k.id} value={k.id}>
@@ -1402,13 +1410,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
         </div>
 
         {/* Recharts Visualization Container */}
-        <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200">
-          <div className="flex justify-between items-center mb-3 px-2">
+        <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3 px-1 sm:px-2">
             <span className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
-              <Activity className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Grafik Fluktuasi Bulanan: {activeTrendKpi.objective} ({activeYear})</span>
+              <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="truncate">Grafik Fluktuasi Bulanan: {activeTrendKpi.objective} ({activeYear})</span>
             </span>
-            <div className="flex items-center space-x-4 text-[11px] font-semibold text-slate-600">
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-600">
               <span className="flex items-center space-x-1.5">
                 <span className="w-3 h-3 bg-emerald-500 rounded-full inline-block"></span>
                 <span>Aktual Bulanan</span>
@@ -1420,7 +1428,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
             </div>
           </div>
 
-          <div className="w-full h-80">
+          <div className="w-full h-60 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               {trendChartType === 'area' ? (
                 <AreaChart data={trendData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
@@ -1569,34 +1577,34 @@ export const KPIView: React.FC<KPIViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Top Bar Navigation */}
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
         <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-emerald-500 to-violet-600" />
-        <div className="p-4 flex flex-wrap justify-between items-center gap-3">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={onBackToMonitoring}
-              className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
-            >
-              <ArrowLeft className="w-4 h-4 text-cyan-300" />
-              <span>Kembali ke Monitoring Drawing</span>
-            </button>
-            <div>
-              <h2 className="text-base font-extrabold bg-gradient-to-r from-slate-900 via-indigo-900 to-emerald-800 bg-clip-text text-transparent leading-tight">
-                KPI Engineering Department CDR
-              </h2>
-              <p className="text-[11px] text-slate-500 font-medium">Plant CDR & BTG • Target vs Aktual Terukur</p>
+        <div className="p-3 sm:p-4 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <button
+                onClick={onBackToMonitoring}
+                className="bg-gradient-to-r from-slate-800 to-indigo-900 hover:from-slate-700 hover:to-indigo-800 text-white px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 text-cyan-300" />
+                <span className="hidden sm:inline">Kembali ke Monitoring Drawing</span>
+                <span className="sm:hidden">Kembali</span>
+              </button>
+              <div className="min-w-0">
+                <h2 className="text-sm sm:text-base font-extrabold bg-gradient-to-r from-slate-900 via-indigo-900 to-emerald-800 bg-clip-text text-transparent leading-tight truncate">
+                  KPI Engineering Department CDR
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium truncate">Plant CDR & BTG • Target vs Aktual Terukur</p>
+              </div>
             </div>
-          </div>
 
-          {/* Action Controls & Subtabs */}
-          <div className="flex flex-wrap items-center gap-2">
             {/* Year selector */}
             <select
               value={activeYear}
               onChange={(e) => onYearChange(e.target.value)}
-              className="bg-gradient-to-r from-slate-900 to-indigo-950 border border-indigo-400/30 text-cyan-300 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-400 focus:outline-none shadow-sm"
+              className="bg-gradient-to-r from-slate-900 to-indigo-950 border border-indigo-400/30 text-cyan-300 text-base sm:text-xs font-bold rounded-xl px-3 py-2 min-h-[40px] focus:ring-2 focus:ring-cyan-400 focus:outline-none shadow-sm shrink-0"
             >
               <option value="2026">Tahun 2026</option>
               <option value="2027">Tahun 2027</option>
@@ -1604,11 +1612,14 @@ export const KPIView: React.FC<KPIViewProps> = ({
               <option value="2029">Tahun 2029</option>
               <option value="2030">Tahun 2030</option>
             </select>
+          </div>
 
+          {/* Action Controls & Horizontally Scrollable Subtabs on Mobile */}
+          <div className="flex overflow-x-auto no-scrollbar lg:flex-wrap items-center gap-1.5 sm:gap-2 pb-1 pt-2 border-t border-slate-100">
             {/* Subtab Buttons */}
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'dashboard'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25'
                   : 'bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
@@ -1620,7 +1631,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('trends')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'trends'
                   ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25'
                   : 'bg-slate-100 text-slate-700 hover:bg-cyan-50 hover:text-cyan-700'
@@ -1632,7 +1643,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('matrix')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'matrix'
                   ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/25'
                   : 'bg-slate-100 text-slate-700 hover:bg-teal-50 hover:text-teal-700'
@@ -1644,7 +1655,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('monitoring')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'monitoring'
                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
                   : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
@@ -1658,7 +1669,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               <>
                 <button
                   onClick={() => setActiveTab('designInput')}
-                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                  className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                     activeTab === 'designInput'
                       ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/25'
                       : 'bg-slate-100 text-slate-700 hover:bg-violet-50 hover:text-violet-700'
@@ -1670,7 +1681,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
                 <button
                   onClick={() => setActiveTab('reviewCost')}
-                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                  className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                     activeTab === 'reviewCost'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25'
                       : 'bg-slate-100 text-slate-700 hover:bg-amber-50 hover:text-amber-700'
@@ -1682,7 +1693,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
                 <button
                   onClick={() => setActiveTab('reviewError')}
-                  className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+                  className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                     activeTab === 'reviewError'
                       ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/25'
                       : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
@@ -1696,7 +1707,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('quarterly')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'quarterly'
                   ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/25'
                   : 'bg-slate-100 text-slate-700 hover:bg-sky-50 hover:text-sky-700'
@@ -1708,7 +1719,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('approvals')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'approvals'
                   ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-md shadow-amber-500/25'
                   : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
@@ -1727,7 +1738,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setActiveTab('audit')}
-              className={`px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
+              className={`whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 ${
                 activeTab === 'audit'
                   ? 'bg-gradient-to-r from-slate-700 to-indigo-800 text-white shadow-md'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -1739,7 +1750,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setShowEmailModal(true)}
-              className="px-3 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white transition shadow-md shadow-cyan-500/20 flex items-center space-x-1.5"
+              className="whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white transition shadow-md shadow-cyan-500/20 flex items-center space-x-1.5"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>Email</span>
@@ -1747,7 +1758,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white transition shadow-md shadow-indigo-500/20 flex items-center space-x-1.5"
+              className="whitespace-nowrap shrink-0 min-h-[40px] sm:min-h-0 px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white transition shadow-md shadow-indigo-500/20 flex items-center space-x-1.5"
             >
               <FileDown className="w-3.5 h-3.5" />
               <span>Ekspor PDF/Excel</span>
@@ -1755,6 +1766,21 @@ export const KPIView: React.FC<KPIViewProps> = ({
           </div>
         </div>
       </div>
+
+      {emailSentMessage && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-2 text-xs text-emerald-900 shadow-sm">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{emailSentMessage}</span>
+          </div>
+          <button
+            onClick={() => setEmailSentMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold px-2 py-1 rounded-lg"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Role Supervisor & Pending Approval Status Banners */}
       {isSupervisor && (
@@ -1865,27 +1891,27 @@ export const KPIView: React.FC<KPIViewProps> = ({
           />
 
           {/* Performance Chart & Dept Info */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 flex flex-col">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 flex flex-col">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
                 <div>
-                  <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-800 flex flex-wrap items-center gap-2">
                     <span>Perbandingan Target vs Aktual KPI {activeYear}</span>
                     <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       {kpiPeriodFilter === 'ALL' ? 'Semua Bulan (Jan - Des)' : kpiPeriodFilter}
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Grafik komparasi modern Target vs Aktual (Bar & Line Combo dengan label nilai)
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Grafik komparasi modern Target vs Aktual (Bar & Line Combo)
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-xs font-semibold text-slate-500">Filter Periode:</span>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center space-x-1.5 flex-1 sm:flex-none">
+                    <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Filter Periode:</span>
                     <select
                       value={kpiPeriodFilter}
                       onChange={(e) => setKpiPeriodFilter(e.target.value)}
-                      className="bg-slate-50 border border-slate-300 text-slate-800 font-semibold text-xs rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full sm:w-auto bg-slate-50 border border-slate-300 text-slate-800 font-semibold text-base sm:text-xs rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     >
                       <option value="ALL">Semua Bulan (Jan - Des)</option>
                       <optgroup label="Kuartal">
@@ -1908,12 +1934,12 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     </select>
                   </div>
 
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-xs font-semibold text-slate-500">Pilih KPI:</span>
+                  <div className="flex items-center space-x-1.5 flex-1 sm:flex-none">
+                    <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Pilih KPI:</span>
                     <select
                       value={selectedChartKpi}
                       onChange={(e) => setSelectedChartKpi(e.target.value)}
-                      className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full sm:w-auto max-w-full sm:max-w-[180px] bg-slate-50 border border-slate-300 text-slate-700 text-base sm:text-xs rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     >
                       <option value="all">Rata-Rata Seluruh KPI</option>
                       {syncedKpiList.map((item) => (
@@ -1924,7 +1950,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     </select>
                   </div>
 
-                  {/* 2D / 3D pill toggle */}
+                  {/* 2D / 3D toggle */}
                   <div className="flex items-center space-x-0.5 bg-slate-200/80 p-0.5 rounded-lg border border-slate-300">
                     <button
                       type="button"
@@ -1949,7 +1975,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 </div>
               </div>
 
-              <div className={kpiPerfDim === '2D' ? 'relative flex-grow w-full h-80' : 'hidden'}>
+              <div className={kpiPerfDim === '2D' ? 'relative flex-grow w-full h-60 sm:h-80' : 'hidden'}>
                 <canvas ref={perfChartRef} />
               </div>
               {kpiPerfDim === '3D' && (
@@ -2028,11 +2054,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 2: MATRIKS RESMI */}
       {activeTab === 'matrix' && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-bold text-slate-800">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">
                   KPI - ENGINEERING DEPARTMENT (Matriks Resmi {activeYear})
                 </h3>
                 <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
@@ -2041,28 +2067,164 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Tampilan rekapitulasi target dan pencapaian aktual bulanan lengkap sesuai dokumen resmi industri • Nilai Aktual (A) KPI 1–5 terisi otomatis dari hasil % Input Rekapitulasi
+                Rekapitulasi target dan pencapaian aktual bulanan resmi • KPI 1–5 terisi otomatis dari Input Rekapitulasi
               </p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full md:w-auto">
               <button
                 onClick={handleExportMatrixPDF}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-sm flex items-center space-x-1.5 transition"
+                className="px-3.5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-sm flex items-center justify-center space-x-1.5 transition"
               >
-                <FileDown className="w-4 h-4" />
-                <span>Cetak PDF Matriks Resmi</span>
+                <FileDown className="w-4 h-4 shrink-0" />
+                <span>Cetak PDF Resmi</span>
               </button>
               <button
                 onClick={handleExportMatrixExcel}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center space-x-1.5 transition"
+                className="px-3.5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center space-x-1.5 transition"
               >
-                <FileSpreadsheet className="w-4 h-4" />
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
                 <span>Excel Matriks</span>
               </button>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-300 shadow-inner">
+          {/* Mobile Mode Switcher for Matrix */}
+          <div className="md:hidden flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[11px] font-bold text-slate-600">Bulan:</span>
+              <select
+                value={activeGlobalMonth}
+                onChange={(e) => setActiveGlobalMonth(e.target.value)}
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-base sm:text-xs font-bold text-emerald-800"
+              >
+                {MONTH_NAMES.map((m) => (
+                  <option key={m} value={m}>{MONTH_FULL_NAMES[m]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center space-x-1 bg-slate-200/70 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setMatrixMobileMode('cards')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-bold flex items-center space-x-1 ${
+                  matrixMobileMode === 'cards' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Kartu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatrixMobileMode('table')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-bold flex items-center space-x-1 ${
+                  matrixMobileMode === 'table' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600'
+                }`}
+              >
+                <Table2 className="w-3.5 h-3.5" />
+                <span>Matriks</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Matrix Summary Cards */}
+          {matrixMobileMode === 'cards' && (
+            <div className="md:hidden space-y-2.5">
+              {syncedKpiList.map((item) => {
+                const currentVal = item.months[activeGlobalMonth];
+                const evalRes = evaluateKPI(item, currentVal);
+                const isExpanded = expandedMatrixKpi === item.id;
+                const unitLabel = item.id === 7 ? 'Angka' : item.unit;
+                return (
+                  <div key={item.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                    <div
+                      onClick={() => setExpandedMatrixKpi(isExpanded ? null : item.id)}
+                      className="p-3 flex items-start justify-between gap-2 cursor-pointer active:bg-slate-50"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-700 text-white font-mono text-[10px] font-bold">
+                            KPI #{item.no}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold">
+                            Bobot {item.bobot * 100}%
+                          </span>
+                          {item.id >= 1 && item.id <= 5 && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                              Auto-Sync
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-900">{item.objective}</h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-2">{item.kpi}</p>
+                      </div>
+                      <div className="text-right shrink-0 flex flex-col items-end space-y-1">
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {activeGlobalMonth} {activeYear}
+                        </span>
+                        <span className="text-sm font-black font-mono text-slate-900">
+                          {currentVal !== null && currentVal !== undefined
+                            ? item.unit === '%' ? `${currentVal}%` : currentVal
+                            : '-'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${evalRes.color}`}>
+                          {evalRes.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                      <span>
+                        Target: <strong className="text-emerald-700">{item.target}</strong> ({unitLabel})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMatrixKpi(isExpanded ? null : item.id)}
+                        className="font-bold text-indigo-700 flex items-center space-x-1"
+                      >
+                        <span>{isExpanded ? 'Tutup 12 Bulan' : 'Lihat Jan–Des'}</span>
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="p-3 bg-slate-50/70 border-t border-slate-200 space-y-2.5">
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {MONTH_NAMES.map((m) => {
+                            const val = item.months[m];
+                            const hasVal = val !== null && val !== undefined;
+                            const mEval = evaluateKPI(item, val);
+                            const disp = hasVal ? (item.unit === '%' ? `${val}%` : val) : '-';
+                            return (
+                              <div
+                                key={m}
+                                className={`p-2 rounded-lg border text-center ${
+                                  !hasVal
+                                    ? 'bg-white border-slate-200 text-slate-400'
+                                    : mEval.achieved
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                                }`}
+                              >
+                                <span className="block text-[10px] font-bold text-slate-500">{m}</span>
+                                <span className="block font-mono font-extrabold text-xs mt-0.5">{disp}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {item.keterangan && (
+                          <p className="text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200">
+                            <strong className="text-slate-700">Keterangan:</strong> {item.keterangan}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className={`overflow-x-auto rounded-xl border border-slate-300 shadow-inner ${matrixMobileMode === 'table' ? 'block' : 'hidden md:block'}`}>
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
                 <tr className="bg-emerald-700 text-white text-center font-bold">
@@ -2155,19 +2317,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 3: TABEL & INPUT */}
       {activeTab === 'monitoring' && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800">Tabel Monitoring KPI & Pengukuran Aktual</h3>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800">Tabel Monitoring KPI & Pengukuran Aktual</h3>
               <p className="text-xs text-slate-500">Kelola dan perbarui nilai aktual bulanan beserta keterangan</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-slate-500">Bulan Aktif:</span>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
+              <div className="flex items-center justify-between sm:justify-start space-x-2">
+                <span className="text-xs font-semibold text-slate-500 shrink-0">Bulan Aktif:</span>
                 <select
                   value={activeGlobalMonth}
                   onChange={(e) => setActiveGlobalMonth(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
+                  className="flex-1 sm:flex-none bg-slate-50 border border-slate-300 text-slate-700 text-base sm:text-xs rounded-xl px-3 py-2 min-h-[42px] sm:min-h-0 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
                 >
                   {MONTH_NAMES.map((m) => (
                     <option key={m} value={m}>{MONTH_FULL_NAMES[m]}</option>
@@ -2180,12 +2342,94 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 value={searchKpi}
                 onChange={(e) => setSearchKpi(e.target.value)}
                 placeholder="Cari KPI..."
-                className="px-3.5 py-2 bg-slate-50 border border-slate-300 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none w-48"
+                className="px-3.5 py-2 bg-slate-50 border border-slate-300 text-base sm:text-xs rounded-xl min-h-[42px] sm:min-h-0 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full sm:w-48"
               />
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          {/* Mobile KPI Cards (< md) */}
+          <div className="md:hidden space-y-2.5">
+            {syncedKpiList
+              .filter((item) => !searchKpi || item.objective.toLowerCase().includes(searchKpi.toLowerCase()))
+              .map((item) => {
+                const val = item.months[activeGlobalMonth];
+                const isAuto = autoSyncedCells.has(`${item.id}_${activeGlobalMonth}`);
+                const status = evaluateKPI(item, val);
+                const unitStr = item.id === 7 ? 'Angka' : item.unit;
+
+                return (
+                  <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono text-[10px] font-bold">
+                            #{item.no}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-[10px] font-semibold">
+                            Bobot {item.bobot * 100}%
+                          </span>
+                          {isAuto && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                              Auto Rekapitulasi
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-900">{item.objective}</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{item.kpi}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${status.color}`}>
+                        {status.label}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Target ({unitStr})</span>
+                        <span className="font-bold text-slate-800">{item.target}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">
+                          Aktual ({MONTH_FULL_NAMES[activeGlobalMonth]})
+                        </span>
+                        <span className="font-extrabold font-mono text-emerald-700">
+                          {val !== null && val !== undefined ? `${val} ${unitStr}` : 'Belum diisi'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {item.keterangan && (
+                      <p className="text-[11px] text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100">
+                        <strong className="text-slate-700">Ket:</strong> {item.keterangan}
+                      </p>
+                    )}
+
+                    {!isReadOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditModalItem(item);
+                          setEditModalMonth(activeGlobalMonth);
+                          setEditModalValue(item.months[activeGlobalMonth] !== null ? String(item.months[activeGlobalMonth]) : '');
+                          setEditModalKet(item.keterangan || '');
+                        }}
+                        className={`w-full min-h-[44px] text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                          isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-slate-900 hover:bg-slate-800'
+                        }`}
+                      >
+                        <PenTool className="w-3.5 h-3.5" />
+                        <span>{isSupervisor ? 'Ajukan Edit Nilai' : 'Input Nilai Aktual'}</span>
+                      </button>
+                    ) : (
+                      <div className="text-center text-[11px] text-slate-400 font-semibold py-1">
+                        Mode Read-Only
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-900 text-white uppercase text-[11px] tracking-wider">
@@ -2269,22 +2513,22 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 4: INPUT TABEL REKAPITULASI (MANAGER & SUPERVISOR) */}
       {activeTab === 'designInput' && canAccessFullKpiCdr && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4 sm:space-y-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <PenTool className="w-5 h-5 text-emerald-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
+                <PenTool className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>Input Tabel Rekapitulasi Kategori KPI Design</span>
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Kelola parameter KPI Design lengkap dengan perhitungan formula otomatis sesuai standar CDR
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
               <select
                 value={designCategory}
                 onChange={(e) => setDesignCategory(e.target.value as any)}
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full sm:w-auto text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 min-h-[42px] sm:min-h-0 font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 <option value="designQuality">1. Design Quality (≥ 90%)</option>
                 <option value="onTimeDesign">2. On-Time Design (≥ 95%)</option>
@@ -2293,28 +2537,30 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 <option value="designErrorRate">5. Design Error Rate (≤ 2%)</option>
               </select>
 
-              <select
-                value={designMonth}
-                onChange={(e) => setDesignMonth(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                {MONTH_NAMES.map((m) => (
-                  <option key={m} value={MONTH_FULL_NAMES[m]}>{MONTH_FULL_NAMES[m]}</option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 sm:flex items-center gap-2">
+                <select
+                  value={designMonth}
+                  onChange={(e) => setDesignMonth(e.target.value)}
+                  className="w-full sm:w-auto text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 min-h-[42px] sm:min-h-0 font-semibold text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  {MONTH_NAMES.map((m) => (
+                    <option key={m} value={MONTH_FULL_NAMES[m]}>{MONTH_FULL_NAMES[m]}</option>
+                  ))}
+                </select>
 
-              <button
-                onClick={handleExportDesignRecapPDF}
-                className="bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow transition flex items-center space-x-1.5"
-              >
-                <FileDown className="w-4 h-4" />
-                <span>Cetak PDF Rekap</span>
-              </button>
+                <button
+                  onClick={handleExportDesignRecapPDF}
+                  className="w-full sm:w-auto min-h-[42px] sm:min-h-0 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow transition flex items-center justify-center space-x-1.5"
+                >
+                  <FileDown className="w-4 h-4 shrink-0" />
+                  <span>Cetak PDF Rekap</span>
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Interactive Recap Table Rendering based on selected Category */}
-          <div className="overflow-x-auto rounded-xl border-2 border-black bg-white shadow-sm">
+          <div className="rounded-xl border-2 border-black bg-white shadow-sm overflow-hidden">
             {/* KATEGORI 1: DESIGN QUALITY */}
             {designCategory === 'designQuality' && (
               <div>
@@ -2323,6 +2569,73 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   Design Quality
                 </div>
 
+                {/* Mobile Cards: Design Quality */}
+                <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+                  {recapProjects.length === 0 ? (
+                    <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                      Tidak ada data proyek di dashboard monitoring pada bulan {designMonth}.
+                    </div>
+                  ) : (
+                    recapProjects.map((p, i) => {
+                      const fb = feedbackList.find((f) => f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === designMonth);
+                      const hasFeedback = fb && ((fb.fbProduksi && fb.fbProduksi.trim() !== '') || (fb.fbKastamer && fb.fbKastamer.trim() !== ''));
+                      return (
+                        <div key={p.SPK || i} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400">#{i + 1} • {p.Customer}</span>
+                              <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              !hasFeedback ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {!hasFeedback ? 'Approve ✓' : 'Revisi'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            <div>
+                              <span className="font-bold text-slate-500">Feedback Produksi: </span>
+                              <span className="text-slate-800">{fb?.fbProduksi?.trim() || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-500">Feedback Kastamer: </span>
+                              <span className="text-slate-800">{fb?.fbKastamer?.trim() || '-'}</span>
+                            </div>
+                          </div>
+                          {!isReadOnly && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setFeedbackModalProject(p);
+                                  setModalFbProduksi(fb?.fbProduksi || '');
+                                  setModalFbKastamer(fb?.fbKastamer || '');
+                                }}
+                                className="flex-1 min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                              >
+                                Edit Feedback
+                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => {
+                                    const updated = feedbackList.filter(
+                                      (f) => !(f.customer === p.Customer && f.projectName === p['Nama Project'] && f.month === designMonth)
+                                    );
+                                    onUpdateFeedback(updated);
+                                  }}
+                                  className="min-h-[42px] px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs bg-white">
                   <thead>
                     <tr className="bg-white text-black text-center font-bold">
@@ -2415,6 +2728,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Footer Formula Design Quality */}
                 <div className="border-t-2 border-black bg-white p-3 space-y-3 text-xs text-black">
@@ -2452,6 +2766,81 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   On-Time Design
                 </div>
 
+                {/* Mobile Cards: On-Time Design */}
+                <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+                  {recapProjects.length === 0 ? (
+                    <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                      Tidak ada data proyek di dashboard monitoring pada bulan {designMonth}.
+                    </div>
+                  ) : (
+                    recapProjects.map((p, i) => {
+                      const targetStr = p['Target Design'] || '';
+                      const finishStr = p['Tanggal Penyelesaian'] || p['Aktual Engineering'] || '';
+                      const isOnTime = Boolean(
+                        (finishStr && targetStr && new Date(finishStr) <= new Date(targetStr)) ||
+                        (!finishStr && targetStr && p.Status === 'Selesai')
+                      );
+                      const isDelay = Boolean(
+                        (finishStr && targetStr && new Date(finishStr) > new Date(targetStr)) ||
+                        (!finishStr && targetStr && p.Status !== 'Selesai' && new Date(targetStr) < new Date())
+                      );
+                      return (
+                        <div key={p.SPK || i} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400">#{i + 1} • {p.Customer}</span>
+                              <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              isOnTime ? 'bg-emerald-100 text-emerald-700' : isDelay ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {isOnTime ? '✓ On Time' : isDelay ? 'Delay' : 'Proses'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-200 font-mono">
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Target Design</span>
+                              <strong className="text-slate-800">{targetStr || '-'}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Tgl Penyelesaian</span>
+                              <strong className="text-slate-800">{finishStr || '-'}</strong>
+                            </div>
+                          </div>
+                          {!isReadOnly && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setDateModalProject(p);
+                                  setDateModalMode('onTime');
+                                  setModalTargetDate(targetStr);
+                                  setModalFinishDate(finishStr);
+                                }}
+                                className="flex-1 min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                              >
+                                Edit Tanggal
+                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => {
+                                    if (onUpdateProject) {
+                                      onUpdateProject({ ...p, 'Tanggal Penyelesaian': '', 'Aktual Engineering': '' });
+                                    }
+                                  }}
+                                  className="min-h-[42px] px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs bg-white">
                   <thead>
                     <tr className="bg-white text-black text-center font-bold">
@@ -2546,6 +2935,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Footer Formula On-Time Design */}
                 <div className="border-t-2 border-black bg-white p-3 space-y-3 text-xs text-black">
@@ -2583,6 +2973,78 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   Distribusi Drawing
                 </div>
 
+                {/* Mobile Cards: Distribusi Drawing */}
+                <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+                  {recapProjects.length === 0 ? (
+                    <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                      Tidak ada data proyek di dashboard monitoring pada bulan {designMonth}.
+                    </div>
+                  ) : (
+                    recapProjects.map((p, i) => {
+                      const targetStr = p['Target Design'] || '';
+                      const date2DStr = p['2D'] || '';
+                      const isOnTime = Boolean(date2DStr && targetStr && new Date(date2DStr) <= new Date(targetStr));
+                      const isDelay = Boolean(
+                        (date2DStr && targetStr && new Date(date2DStr) > new Date(targetStr)) ||
+                        (!date2DStr && targetStr && new Date(targetStr) < new Date())
+                      );
+                      return (
+                        <div key={p.SPK || i} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400">#{i + 1} • {p.Customer}</span>
+                              <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              isOnTime ? 'bg-emerald-100 text-emerald-700' : isDelay ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {isOnTime ? '✓ On Time' : isDelay ? 'Delay' : 'Proses'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-200 font-mono">
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Target Design</span>
+                              <strong className="text-slate-800">{targetStr || '-'}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Tgl Selesai 2D</span>
+                              <strong className="text-slate-800">{date2DStr || '-'}</strong>
+                            </div>
+                          </div>
+                          {!isReadOnly && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setDateModalProject(p);
+                                  setDateModalMode('distribusi');
+                                  setModalTargetDate(targetStr);
+                                  setModal2DDate(date2DStr);
+                                }}
+                                className="flex-1 min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                              >
+                                Edit Tanggal 2D
+                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => {
+                                    if (onUpdateProject) {
+                                      onUpdateProject({ ...p, '2D': '' });
+                                    }
+                                  }}
+                                  className="min-h-[42px] px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                                >
+                                  Hapus
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs bg-white">
                   <thead>
                     <tr className="bg-white text-black text-center font-bold">
@@ -2674,6 +3136,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Footer Formula Distribusi Drawing */}
                 <div className="border-t-2 border-black bg-white p-3 space-y-3 text-xs text-black">
@@ -2711,7 +3174,91 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   Design Cost Efficiency (Efisiensi Biaya Design)
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Mobile Cards: Cost Efficiency */}
+                <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+                  {recapProjects.length === 0 ? (
+                    <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                      Tidak ada data proyek di dashboard monitoring pada bulan {designMonth}.
+                    </div>
+                  ) : (
+                    recapProjects.map((p, i) => {
+                      const item = reviewCostList.find((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth);
+                      const anggaran = item?.anggaran || 0;
+                      const totalExp = item ? item.pengeluaran.reduce((sum, e) => sum + e.amount, 0) : 0;
+                      const effPercent = anggaran > 0 ? ((totalExp / anggaran) * 100).toFixed(1) : '-';
+                      const delKey = `cost_recap_${p.SPK || i}`;
+                      return (
+                        <div key={p.SPK || i} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400">#{i + 1} • {p.Customer}</span>
+                              <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-mono text-[11px] font-bold shrink-0">
+                              {effPercent !== '-' ? `${effPercent}%` : '-'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-amber-50/40 p-2 rounded-lg border border-amber-200/70 font-mono">
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Anggaran</span>
+                              <strong className="text-slate-900">{anggaran > 0 ? `Rp ${anggaran.toLocaleString('id-ID')}` : '-'}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Pengeluaran</span>
+                              <strong className="text-slate-900">{totalExp > 0 ? `Rp ${totalExp.toLocaleString('id-ID')}` : '-'}</strong>
+                            </div>
+                          </div>
+                          {!isReadOnly && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setCostModalProject(p);
+                                  setModalAnggaranInput(anggaran ? String(anggaran) : '10000000');
+                                  setModalExpenseDescInput('');
+                                  setModalExpenseAmountInput('');
+                                }}
+                                className="flex-1 min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                              >
+                                Kelola Biaya & Anggaran
+                              </button>
+                              {canDelete && (
+                                confirmDeleteKey === delKey ? (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        const updated = reviewCostList.filter((c) => !(c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth));
+                                        onUpdateReviewCost(updated);
+                                        setConfirmDeleteKey(null);
+                                      }}
+                                      className="min-h-[42px] px-3 bg-rose-600 text-white rounded-xl text-xs font-bold"
+                                    >
+                                      Ya
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteKey(null)}
+                                      className="min-h-[42px] px-3 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDeleteKey(delKey)}
+                                    className="min-h-[42px] px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                                  >
+                                    Hapus
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs bg-white">
                     <thead>
                       <tr className="bg-white text-black text-center font-bold">
@@ -2772,17 +3319,33 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                       Edit
                                     </button>
                                     {canDelete && (
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Hapus data anggaran/pengeluaran untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                            const updated = reviewCostList.filter((c) => !(c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth));
-                                            onUpdateReviewCost(updated);
-                                          }
-                                        }}
-                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
-                                      >
-                                        Hapus
-                                      </button>
+                                      confirmDeleteKey === `cost_table_${p.SPK || i}` ? (
+                                        <div className="flex items-center space-x-1">
+                                          <button
+                                            onClick={() => {
+                                              const updated = reviewCostList.filter((c) => !(c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === designMonth));
+                                              onUpdateReviewCost(updated);
+                                              setConfirmDeleteKey(null);
+                                            }}
+                                            className="px-2 py-1 bg-rose-600 text-white rounded text-[10px] font-bold"
+                                          >
+                                            Ya
+                                          </button>
+                                          <button
+                                            onClick={() => setConfirmDeleteKey(null)}
+                                            className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-semibold"
+                                          >
+                                            Batal
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setConfirmDeleteKey(`cost_table_${p.SPK || i}`)}
+                                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
+                                        >
+                                          Hapus
+                                        </button>
+                                      )
                                     )}
                                   </div>
                                 )}
@@ -2838,7 +3401,92 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   Drawing/Design Error Rate (Tingkat Kesalahan Design)
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Mobile Cards: Design Error Rate */}
+                <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+                  {recapProjects.length === 0 ? (
+                    <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                      Tidak ada data proyek di dashboard monitoring pada bulan {designMonth}.
+                    </div>
+                  ) : (
+                    recapProjects.map((p, i) => {
+                      const item = reviewErrorList.find((e) => e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth);
+                      const totalDrawing = Number(p['Qty Drawing'] || 0);
+                      const errorCount = item ? item.errors.length : 0;
+                      const errRate = totalDrawing > 0 ? ((errorCount / totalDrawing) * 100).toFixed(1) : '0.0';
+                      const delKey = `err_recap_${p.SPK || i}`;
+                      return (
+                        <div key={p.SPK || i} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shadow-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400">#{i + 1} • {p.Customer}</span>
+                              <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-mono text-[11px] font-bold shrink-0">
+                              {errRate}%
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-rose-50/40 p-2 rounded-lg border border-rose-200/70 font-mono">
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Total Drawing</span>
+                              <strong className="text-slate-900">{totalDrawing}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-sans text-slate-500">Revisi / Error</span>
+                              <strong className={errorCount > 0 ? 'text-rose-600' : 'text-slate-700'}>
+                                {errorCount > 0 ? `${errorCount} revisi` : '0'}
+                              </strong>
+                            </div>
+                          </div>
+                          {!isReadOnly && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setErrorModalProject(p);
+                                  setModalPartNameInput('');
+                                  setModalFeedbackErrorInput('');
+                                }}
+                                className="flex-1 min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                              >
+                                Kelola Error Drawing
+                              </button>
+                              {canDelete && (
+                                confirmDeleteKey === delKey ? (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth));
+                                        onUpdateReviewError(updated);
+                                        setConfirmDeleteKey(null);
+                                      }}
+                                      className="min-h-[42px] px-3 bg-rose-600 text-white rounded-xl text-xs font-bold"
+                                    >
+                                      Ya
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteKey(null)}
+                                      className="min-h-[42px] px-3 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDeleteKey(delKey)}
+                                    className="min-h-[42px] px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                                  >
+                                    Hapus
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs bg-white">
                     <thead>
                       <tr className="bg-white text-black text-center font-bold">
@@ -2902,17 +3550,33 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                       Edit
                                     </button>
                                     {canDelete && (
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Hapus data error/revisi untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                            const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth));
-                                            onUpdateReviewError(updated);
-                                          }
-                                        }}
-                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
-                                      >
-                                        Hapus
-                                      </button>
+                                      confirmDeleteKey === `err_table_${p.SPK || i}` ? (
+                                        <div className="flex items-center space-x-1">
+                                          <button
+                                            onClick={() => {
+                                              const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === designMonth));
+                                              onUpdateReviewError(updated);
+                                              setConfirmDeleteKey(null);
+                                            }}
+                                            className="px-2 py-1 bg-rose-600 text-white rounded text-[10px] font-bold"
+                                          >
+                                            Ya
+                                          </button>
+                                          <button
+                                            onClick={() => setConfirmDeleteKey(null)}
+                                            className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-semibold"
+                                          >
+                                            Batal
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setConfirmDeleteKey(`err_table_${p.SPK || i}`)}
+                                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-semibold shadow-sm transition"
+                                        >
+                                          Hapus
+                                        </button>
+                                      )
                                     )}
                                   </div>
                                 )}
@@ -2970,23 +3634,23 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 5: REVIEW COST (MANAGER & SUPERVISOR) */}
       {activeTab === 'reviewCost' && canAccessFullKpiCdr && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <DollarSign className="w-5 h-5 text-amber-500" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
+                <DollarSign className="w-5 h-5 text-amber-500 shrink-0" />
                 <span>Dashboard Review Cost Engineering</span>
               </h3>
               <p className="text-xs text-slate-500">
                 Kelola anggaran vs rincian pengeluaran per project (Sumber data Efisiensi Biaya Desain)
               </p>
             </div>
-            <div className="flex items-center space-x-2">
-              <label className="text-xs font-semibold text-slate-600">Pilih Bulan:</label>
+            <div className="flex items-center justify-between sm:justify-start space-x-2 w-full md:w-auto">
+              <label className="text-xs font-semibold text-slate-600 shrink-0">Pilih Bulan:</label>
               <select
                 value={costMonth}
                 onChange={(e) => setCostMonth(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-amber-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="flex-1 sm:flex-none text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 min-h-[42px] sm:min-h-0 font-semibold text-amber-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
               >
                 {MONTH_NAMES.map((m) => (
                   <option key={m} value={MONTH_FULL_NAMES[m]}>{MONTH_FULL_NAMES[m]}</option>
@@ -3001,7 +3665,107 @@ export const KPIView: React.FC<KPIViewProps> = ({
               Dashboard Review Cost Engineering
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile Cards for Review Cost */}
+            <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+              {costProjects.length === 0 ? (
+                <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                  Tidak ada data proyek di bulan {costMonth}.
+                </div>
+              ) : (
+                costProjects.map((p, pIdx) => {
+                  const entry = reviewCostList.find((c) => c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth);
+                  const anggaran = entry?.anggaran || 0;
+                  const pengeluaran = entry?.pengeluaran || [];
+                  const totalExp = pengeluaran.reduce((s, x) => s + x.amount, 0);
+                  return (
+                    <div key={p.SPK || pIdx} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5 shadow-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-slate-400">#{pIdx + 1} • {p.Customer}</span>
+                          <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-lg bg-yellow-100 border border-yellow-300 font-mono text-[11px] font-bold text-slate-900 shrink-0">
+                          Rp {totalExp.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs bg-amber-50/50 px-2.5 py-2 rounded-lg border border-amber-200/70">
+                        <span className="text-slate-600 font-semibold">Anggaran Design</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          Rp {anggaran > 0 ? anggaran.toLocaleString('id-ID') : '0'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                          Rincian Pengeluaran ({pengeluaran.length})
+                        </span>
+                        {pengeluaran.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic">Belum ada rincian pengeluaran</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {pengeluaran.map((exp) => (
+                              <div key={exp.id} className="flex items-center justify-between text-[11px] bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                <span className="font-medium text-slate-800 truncate pr-2">{exp.desc}</span>
+                                <div className="flex items-center space-x-2 shrink-0">
+                                  <span className="font-mono font-bold text-slate-900">Rp {exp.amount.toLocaleString('id-ID')}</span>
+                                  {!isReadOnly && canDelete && (
+                                    <button
+                                      onClick={() => {
+                                        const updated = reviewCostList.map((c) => {
+                                          if (c.customer === p.Customer && c.projectName === p['Nama Project'] && c.month === costMonth) {
+                                            return { ...c, pengeluaran: c.pengeluaran.filter((x) => x.id !== exp.id) };
+                                          }
+                                          return c;
+                                        });
+                                        onUpdateReviewCost(updated);
+                                      }}
+                                      className="text-rose-500 hover:text-rose-700 font-bold px-1"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {!isReadOnly && (
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            onClick={() => {
+                              setCostModalProject(p);
+                              setModalAnggaranInput(anggaran ? String(anggaran) : '10000000');
+                              setModalExpenseDescInput('');
+                              setModalExpenseAmountInput('');
+                            }}
+                            className="min-h-[42px] bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold"
+                          >
+                            + Tambah Biaya
+                          </button>
+                          <button
+                            onClick={() => {
+                              setModalSubmitNotice(null);
+                              setCostModalProject(p);
+                              setModalAnggaranInput(anggaran ? String(anggaran) : '10000000');
+                              setModalExpenseDescInput('');
+                              setModalExpenseAmountInput('');
+                            }}
+                            className="min-h-[42px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+                          >
+                            Edit Anggaran
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs bg-white">
                 <thead>
                   <tr className="bg-[#dcfce7] text-black text-center font-bold border-b border-black">
@@ -3194,23 +3958,23 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 6: REVIEW ERROR (MANAGER & SUPERVISOR) */}
       {activeTab === 'reviewError' && canAccessFullKpiCdr && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <AlertCircle className="w-5 h-5 text-rose-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
                 <span>Dashboard Review Drawing & Design Error</span>
               </h3>
               <p className="text-xs text-slate-500">
                 Pencatatan rincian kesalahan drawing yang ditemukan saat trial atau produksi manufaktur
               </p>
             </div>
-            <div className="flex items-center space-x-2">
-              <label className="text-xs font-semibold text-slate-600">Pilih Bulan:</label>
+            <div className="flex items-center justify-between sm:justify-start space-x-2 w-full md:w-auto">
+              <label className="text-xs font-semibold text-slate-600 shrink-0">Pilih Bulan:</label>
               <select
                 value={errorMonth}
                 onChange={(e) => setErrorMonth(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-rose-700 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                className="flex-1 sm:flex-none text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 min-h-[42px] sm:min-h-0 font-semibold text-rose-700 focus:ring-2 focus:ring-rose-500 focus:outline-none"
               >
                 {MONTH_NAMES.map((m) => (
                   <option key={m} value={MONTH_FULL_NAMES[m]}>{MONTH_FULL_NAMES[m]}</option>
@@ -3225,7 +3989,140 @@ export const KPIView: React.FC<KPIViewProps> = ({
               Review Drawing/Design Error
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile Cards for Review Error */}
+            <div className="md:hidden p-2.5 space-y-2.5 bg-slate-50">
+              {errorProjects.length === 0 ? (
+                <div className="p-4 text-center italic text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                  Tidak ada data proyek di bulan {errorMonth}.
+                </div>
+              ) : (
+                <>
+                  {errorProjects.map((p, pIdx) => {
+                    const entry = reviewErrorList.find((e) => e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth);
+                    const errors = entry?.errors || [];
+                    const delKey = `rerr_mob_${p.SPK || pIdx}`;
+                    return (
+                      <div key={p.SPK || pIdx} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5 shadow-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold text-slate-400">#{pIdx + 1} • {p.Customer}</span>
+                            <h4 className="text-xs font-extrabold text-slate-900">{p['Nama Project']}</h4>
+                          </div>
+                          <div className="flex items-center space-x-1.5 shrink-0">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-bold text-slate-700">
+                              Qty: {p['Qty Drawing'] || 0}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                              errors.length > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {errors.length} Err
+                            </span>
+                          </div>
+                        </div>
+
+                        {errors.length === 0 ? (
+                          <p className="text-[11px] text-emerald-700 font-semibold italic bg-emerald-50/60 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                            ✓ Zero Error (Tidak Ada Revisi)
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {errors.map((err, errIdx) => (
+                              <div key={err.id || errIdx} className="p-2 bg-rose-50/40 rounded-lg border border-rose-200/80 flex items-start justify-between gap-2 text-[11px]">
+                                <div>
+                                  <span className="font-bold text-slate-800">{errIdx + 1}. {err.partName}</span>
+                                  <p className="text-slate-600 mt-0.5">{err.feedback}</p>
+                                </div>
+                                {!isReadOnly && canDelete && (
+                                  <button
+                                    onClick={() => {
+                                      const updated = reviewErrorList.map((e) => {
+                                        if (e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth) {
+                                          return { ...e, errors: e.errors.filter((x) => x.id !== err.id) };
+                                        }
+                                        return e;
+                                      });
+                                      onUpdateReviewError(updated);
+                                    }}
+                                    className="text-rose-600 font-bold px-1.5 py-0.5"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {!isReadOnly && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={() => {
+                                setErrorModalProject(p);
+                                setModalPartNameInput('');
+                                setModalFeedbackErrorInput('');
+                              }}
+                              className="flex-1 min-h-[42px] bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold"
+                            >
+                              + Tambah Error
+                            </button>
+                            {canDelete && errors.length > 0 && (
+                              confirmDeleteKey === delKey ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth));
+                                      onUpdateReviewError(updated);
+                                      setConfirmDeleteKey(null);
+                                    }}
+                                    className="min-h-[42px] px-3 bg-rose-600 text-white rounded-xl text-xs font-bold"
+                                  >
+                                    Ya
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteKey(null)}
+                                    className="min-h-[42px] px-3 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmDeleteKey(delKey)}
+                                  className="min-h-[42px] px-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold"
+                                >
+                                  Hapus Semua
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Mobile Summary Bar */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="bg-red-600 text-white p-2.5 rounded-xl text-center">
+                      <span className="block text-[10px] font-semibold opacity-90">Total Qty Drawing</span>
+                      <span className="font-mono font-extrabold text-sm">
+                        {errorProjects.reduce((s, p) => s + Number(p['Qty Drawing'] || 0), 0)}
+                      </span>
+                    </div>
+                    <div className="bg-red-600 text-white p-2.5 rounded-xl text-center">
+                      <span className="block text-[10px] font-semibold opacity-90">Total Revisi Bulan Ini</span>
+                      <span className="font-mono font-extrabold text-sm">
+                        {errorProjects.reduce((s, p) => {
+                          const entry = reviewErrorList.find((e) => e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth);
+                          return s + (entry ? entry.errors.length : 0);
+                        }, 0)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs bg-white">
                 <thead>
                   {/* Tier 1 Header */}
@@ -3375,17 +4272,33 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                       + Tambah Error
                                     </button>
                                     {canDelete && (
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Hapus semua kasus drawing error untuk ${p.Customer} - ${p['Nama Project']}?`)) {
-                                            const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth));
-                                            onUpdateReviewError(updated);
-                                          }
-                                        }}
-                                        className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-semibold w-full transition"
-                                      >
-                                        Hapus Semua
-                                      </button>
+                                      confirmDeleteKey === `rerr_tbl_${p.SPK || pIdx}` ? (
+                                        <div className="flex items-center justify-center space-x-1">
+                                          <button
+                                            onClick={() => {
+                                              const updated = reviewErrorList.filter((e) => !(e.customer === p.Customer && e.projectName === p['Nama Project'] && e.month === errorMonth));
+                                              onUpdateReviewError(updated);
+                                              setConfirmDeleteKey(null);
+                                            }}
+                                            className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-bold"
+                                          >
+                                            Ya
+                                          </button>
+                                          <button
+                                            onClick={() => setConfirmDeleteKey(null)}
+                                            className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-semibold"
+                                          >
+                                            Batal
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setConfirmDeleteKey(`rerr_tbl_${p.SPK || pIdx}`)}
+                                          className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-semibold w-full transition"
+                                        >
+                                          Hapus Semua
+                                        </button>
+                                      )
                                     )}
                                   </div>
                                 )}
@@ -3444,60 +4357,60 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 7: ANALISIS Q1 - Q4 */}
       {activeTab === 'quarterly' && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4 sm:space-y-6">
           <div>
-            <h3 className="text-base font-bold text-slate-800">Analisis Kuartalan (Q1 – Q4) KPI {activeYear}</h3>
+            <h3 className="text-sm sm:text-base font-bold text-slate-800">Analisis Kuartalan (Q1 – Q4) KPI {activeYear}</h3>
             <p className="text-xs text-slate-500">Evaluasi pencapaian performa departemen engineering per kuartal</p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col">
-              <h4 className="text-xs font-bold text-slate-700 mb-4 flex items-center space-x-1.5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="bg-slate-50 p-3.5 sm:p-5 rounded-2xl border border-slate-200 flex flex-col">
+              <h4 className="text-xs font-bold text-slate-700 mb-3 sm:mb-4 flex items-center space-x-1.5">
                 <BarChart3 className="w-4 h-4 text-emerald-600" />
                 <span>Grafik Komparasi Kuartalan Q1 - Q4</span>
               </h4>
-              <div className="relative flex-grow w-full h-72">
+              <div className="relative flex-grow w-full h-56 sm:h-72">
                 <canvas ref={quarterlyChartRef} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 flex flex-col justify-between">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="bg-emerald-50/60 p-3.5 sm:p-5 rounded-2xl border border-emerald-200 flex flex-col justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Kuartal 1 (Jan - Mar)</span>
-                  <h4 className="text-3xl font-extrabold text-slate-900 mt-2">94%</h4>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Kuartal 1 (Jan - Mar)</span>
+                  <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 sm:mt-2">94%</h4>
                 </div>
-                <span className="text-xs text-emerald-700 font-semibold bg-emerald-100 px-2.5 py-1 rounded-full w-max mt-4">
+                <span className="text-[11px] sm:text-xs text-emerald-700 font-semibold bg-emerald-100 px-2.5 py-1 rounded-full w-max mt-3 sm:mt-4">
                   Selesai Evaluasi
                 </span>
               </div>
 
-              <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-200 flex flex-col justify-between">
+              <div className="bg-blue-50/60 p-3.5 sm:p-5 rounded-2xl border border-blue-200 flex flex-col justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Kuartal 2 (Apr - Jun)</span>
-                  <h4 className="text-3xl font-extrabold text-slate-900 mt-2">95%</h4>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-blue-800 uppercase tracking-wider">Kuartal 2 (Apr - Jun)</span>
+                  <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 sm:mt-2">95%</h4>
                 </div>
-                <span className="text-xs text-blue-700 font-semibold bg-blue-100 px-2.5 py-1 rounded-full w-max mt-4">
+                <span className="text-[11px] sm:text-xs text-blue-700 font-semibold bg-blue-100 px-2.5 py-1 rounded-full w-max mt-3 sm:mt-4">
                   Selesai Evaluasi
                 </span>
               </div>
 
-              <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 flex flex-col justify-between">
+              <div className="bg-amber-50/60 p-3.5 sm:p-5 rounded-2xl border border-amber-200 flex flex-col justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Kuartal 3 (Jul - Sep)</span>
-                  <h4 className="text-3xl font-extrabold text-slate-900 mt-2">93%</h4>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 uppercase tracking-wider">Kuartal 3 (Jul - Sep)</span>
+                  <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 sm:mt-2">93%</h4>
                 </div>
-                <span className="text-xs text-amber-700 font-semibold bg-amber-100 px-2.5 py-1 rounded-full w-max mt-4">
+                <span className="text-[11px] sm:text-xs text-amber-700 font-semibold bg-amber-100 px-2.5 py-1 rounded-full w-max mt-3 sm:mt-4">
                   Selesai Evaluasi
                 </span>
               </div>
 
-              <div className="bg-purple-50/60 p-5 rounded-2xl border border-purple-200 flex flex-col justify-between">
+              <div className="bg-purple-50/60 p-3.5 sm:p-5 rounded-2xl border border-purple-200 flex flex-col justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">Kuartal 4 (Okt - Des)</span>
-                  <h4 className="text-3xl font-extrabold text-slate-900 mt-2">96%</h4>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-purple-800 uppercase tracking-wider">Kuartal 4 (Okt - Des)</span>
+                  <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 sm:mt-2">96%</h4>
                 </div>
-                <span className="text-xs text-purple-700 font-semibold bg-purple-100 px-2.5 py-1 rounded-full w-max mt-4">
+                <span className="text-[11px] sm:text-xs text-purple-700 font-semibold bg-purple-100 px-2.5 py-1 rounded-full w-max mt-3 sm:mt-4">
                   Sedang Berjalan
                 </span>
               </div>
@@ -3508,18 +4421,18 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 8: PERSETUJUAN MANAGER (ANTREAN PENGAJUAN SUPERVISOR) */}
       {activeTab === 'approvals' && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-slate-100">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 sm:pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
                 <span>Antrean Persetujuan Manager (KPI Engineering CDR)</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Seluruh pengajuan input/perubahan data oleh Supervisor wajib disetujui oleh Manager sebelum masuk ke data resmi KPI.
               </p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <span className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold">
                 Menunggu: {pendingCount}
               </span>
@@ -3532,13 +4445,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
                         onClearReviewedApprovals();
                         setConfirmClearApprovals(false);
                       }}
-                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[11px] font-bold"
+                      className="min-h-[36px] sm:min-h-0 px-2.5 py-1 sm:py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-bold"
                     >
                       Ya
                     </button>
                     <button
                       onClick={() => setConfirmClearApprovals(false)}
-                      className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[11px] font-semibold"
+                      className="min-h-[36px] sm:min-h-0 px-2.5 py-1 sm:py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[11px] font-semibold"
                     >
                       Batal
                     </button>
@@ -3546,7 +4459,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 ) : (
                   <button
                     onClick={() => setConfirmClearApprovals(true)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                    className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
                   >
                     Bersihkan Riwayat
                   </button>
@@ -3569,10 +4482,10 @@ export const KPIView: React.FC<KPIViewProps> = ({
                 {pendingApprovals.map((req) => (
                   <div
                     key={req.id}
-                    className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+                    className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/40 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4"
                   >
                     <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 text-[10px] font-bold">
                           {req.categoryLabel}
                         </span>
@@ -3582,11 +4495,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
                         </span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-1">
-                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                        <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                           <span className="text-[10px] font-semibold text-slate-400 block">Data Resmi Saat Ini:</span>
                           <span className="text-slate-700 font-medium">{req.summaryOld}</span>
                         </div>
-                        <div className="p-2 bg-emerald-50/60 rounded-lg border border-emerald-200">
+                        <div className="p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200">
                           <span className="text-[10px] font-semibold text-emerald-700 block">Usulan Data Baru (Supervisor):</span>
                           <span className="text-emerald-950 font-bold">{req.summaryNew}</span>
                         </div>
@@ -3596,45 +4509,47 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0 w-full lg:w-auto">
                       {isManager ? (
                         rejectingRequestId === req.id ? (
-                          <div className="flex flex-wrap items-center gap-1.5 bg-white border border-rose-300 p-2 rounded-xl shadow-sm">
+                          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 bg-white border border-rose-300 p-2.5 rounded-xl shadow-sm w-full lg:w-auto">
                             <input
                               type="text"
                               value={rejectReasonInput}
                               onChange={(e) => setRejectReasonInput(e.target.value)}
                               placeholder="Alasan penolakan (opsional)..."
-                              className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 w-48"
+                              className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-base sm:text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 w-full sm:w-48"
                               autoFocus
                             />
-                            <button
-                              onClick={() => {
-                                if (onRejectRequest) {
-                                  onRejectRequest(req.id, rejectReasonInput.trim() || 'Perlu revisi data');
-                                }
-                                setRejectingRequestId(null);
-                                setRejectReasonInput('');
-                              }}
-                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
-                            >
-                              Konfirmasi Tolak
-                            </button>
-                            <button
-                              onClick={() => {
-                                setRejectingRequestId(null);
-                                setRejectReasonInput('');
-                              }}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
-                            >
-                              Batal
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (onRejectRequest) {
+                                    onRejectRequest(req.id, rejectReasonInput.trim() || 'Perlu revisi data');
+                                  }
+                                  setRejectingRequestId(null);
+                                  setRejectReasonInput('');
+                                }}
+                                className="flex-1 sm:flex-none min-h-[42px] sm:min-h-0 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
+                              >
+                                Konfirmasi Tolak
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setRejectingRequestId(null);
+                                  setRejectReasonInput('');
+                                }}
+                                className="min-h-[42px] sm:min-h-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                              >
+                                Batal
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <>
                             <button
                               onClick={() => onApproveRequest && onApproveRequest(req.id)}
-                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                              className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center space-x-1.5"
                             >
                               <Check className="w-4 h-4" />
                               <span>Setujui & Terapkan</span>
@@ -3644,7 +4559,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                 setRejectingRequestId(req.id);
                                 setRejectReasonInput('');
                               }}
-                              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+                              className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center space-x-1.5"
                             >
                               <XCircle className="w-4 h-4" />
                               <span>Tolak</span>
@@ -3652,7 +4567,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                           </>
                         )
                       ) : (
-                        <span className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-xl text-[11px] font-semibold border border-amber-300">
+                        <span className="px-3 py-2 bg-amber-100 text-amber-800 rounded-xl text-[11px] font-semibold border border-amber-300 text-center">
                           Menunggu Tinjauan Manager
                         </span>
                       )}
@@ -3669,7 +4584,43 @@ export const KPIView: React.FC<KPIViewProps> = ({
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Riwayat Persetujuan ({reviewedApprovals.length})
               </h4>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+
+              {/* Mobile History Cards */}
+              <div className="md:hidden space-y-2.5">
+                {reviewedApprovals.map((req) => (
+                  <div key={req.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-xs text-slate-800 block">{req.categoryLabel}</span>
+                        <span className="text-[11px] text-slate-500">{req.targetLabel}</span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                          req.status === 'approved'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {req.status === 'approved' ? 'Disetujui' : 'Ditolak'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 bg-white p-2 rounded-lg border border-slate-200">
+                      {req.summaryNew}
+                    </p>
+                    <div className="flex flex-wrap justify-between gap-1 text-[11px] text-slate-500 pt-0.5">
+                      <span>Pengaju: <strong className="text-slate-700">{req.requestedBy}</strong></span>
+                      <span>{req.requestedAt}</span>
+                    </div>
+                    {req.reviewNote && (
+                      <p className="text-[11px] text-slate-600 italic">
+                        Catatan: {req.reviewNote} {req.reviewedAt ? `• ${req.reviewedAt}` : ''}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider">
@@ -3719,15 +4670,40 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* SUBTAB 9: AUDIT TRAIL */}
       {activeTab === 'audit' && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div className="bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div>
-            <h3 className="text-base font-bold text-slate-800">Audit Trail & Log Perubahan KPI</h3>
+            <h3 className="text-sm sm:text-base font-bold text-slate-800">Audit Trail & Log Perubahan KPI</h3>
             <p className="text-xs text-slate-500">
               Riwayat pencatatan aktivitas pembaruan nilai aktual dan otentikasi role
             </p>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          {/* Mobile Audit Cards */}
+          <div className="md:hidden space-y-2.5">
+            {auditLogs.length === 0 ? (
+              <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs italic text-slate-400">
+                Belum ada catatan audit log baru.
+              </div>
+            ) : (
+              auditLogs.map((log) => (
+                <div key={log.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-800">{log.user}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{log.timestamp}</span>
+                  </div>
+                  <p className="text-xs text-slate-700">{log.activity}</p>
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70 text-[11px]">
+                    <span className="font-semibold text-emerald-700">{log.month} {log.year}</span>
+                    <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      Nilai: {log.newValue}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-900 text-white uppercase text-[11px] tracking-wider">
@@ -3766,11 +4742,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: INPUT NILAI AKTUAL KPI */}
       {editModalItem && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-slate-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-800">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">
                   Perbarui Nilai KPI: {editModalItem.objective}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -3779,7 +4755,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
               <button
                 onClick={() => setEditModalItem(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -3835,7 +4811,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     setEditModalMonth(m);
                     setEditModalValue(editModalItem.months[m] !== null ? String(editModalItem.months[m]) : '');
                   }}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
                 >
                   {MONTH_NAMES.map((m) => (
                     <option key={m} value={m}>{MONTH_FULL_NAMES[m]}</option>
@@ -3854,7 +4830,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   onChange={(e) => setEditModalValue(e.target.value)}
                   required
                   placeholder="Masukkan angka capaian aktual..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                 />
               </div>
 
@@ -3865,21 +4841,21 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   value={editModalKet}
                   onChange={(e) => setEditModalKet(e.target.value)}
                   placeholder="Cth: Peningkatan efisiensi berkat standardisasi CAD..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditModalItem(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                  className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 ${
+                  className={`w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 text-white rounded-xl text-xs font-semibold shadow-md flex items-center justify-center space-x-1.5 ${
                     isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
                   }`}
                 >
@@ -3894,14 +4870,19 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EMAIL REPORT */}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
                 <Mail className="w-5 h-5 text-blue-600" />
                 <span>Kirim Laporan via Email (Gmail)</span>
               </h3>
-              <button onClick={() => setShowEmailModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="text-slate-400 hover:text-slate-600 min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
@@ -3911,7 +4892,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   type="text"
                   value={emailTo}
                   onChange={(e) => setEmailTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs"
                 />
               </div>
               <div>
@@ -3920,7 +4901,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   type="text"
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs"
                 />
               </div>
               <div>
@@ -3929,24 +4910,24 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   rows={3}
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setShowEmailModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
               >
                 Batal
               </button>
               <button
                 onClick={() => {
-                  alert('Laporan KPI telah disiapkan untuk dikirim melalui Google Mail / MailApp API.');
+                  setEmailSentMessage('Laporan KPI telah disiapkan untuk dikirim melalui Google Mail / MailApp API.');
                   setShowEmailModal(false);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center justify-center space-x-1.5"
               >
                 <Mail className="w-4 h-4" />
                 <span>Kirim Laporan</span>
@@ -3958,17 +4939,22 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EXPORT MATRIKS */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 border border-slate-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-sm p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800">Ekspor Laporan Resmi KPI</h3>
-              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800">Ekspor Laporan Resmi KPI</h3>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-slate-400 hover:text-slate-600 min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 py-2">
               <button
                 onClick={handleExportMatrixExcel}
-                className="flex flex-col items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl transition group"
+                className="flex flex-col items-center justify-center min-h-[110px] p-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl transition group"
               >
                 <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg mb-2 shadow">
                   <FileSpreadsheet className="w-5 h-5" />
@@ -3979,7 +4965,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
               <button
                 onClick={handleExportMatrixPDF}
-                className="flex flex-col items-center justify-center p-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-2xl transition group"
+                className="flex flex-col items-center justify-center min-h-[110px] p-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-2xl transition group"
               >
                 <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center text-lg mb-2 shadow">
                   <FileDown className="w-5 h-5" />
@@ -3992,7 +4978,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
             <div className="flex justify-end pt-2 border-t border-slate-100">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="px-4 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold"
               >
                 Tutup
               </button>
@@ -4003,11 +4989,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EDIT FEEDBACK DESIGN QUALITY (CATEGORY 1) */}
       {feedbackModalProject && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-slate-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">
                   Edit Feedback Design Quality
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -4016,7 +5002,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
               <button
                 onClick={() => setFeedbackModalProject(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -4032,7 +5018,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   value={modalFbProduksi}
                   onChange={(e) => setModalFbProduksi(e.target.value)}
                   placeholder="Ketik feedback dari tim produksi jika ada revisi..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
                 />
               </div>
 
@@ -4045,7 +5031,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   value={modalFbKastamer}
                   onChange={(e) => setModalFbKastamer(e.target.value)}
                   placeholder="Ketik feedback dari tim kastamer jika ada revisi..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
                 />
               </div>
 
@@ -4054,10 +5040,10 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setFeedbackModalProject(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
               >
                 Batal
               </button>
@@ -4120,7 +5106,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   onUpdateFeedback(updated);
                   setFeedbackModalProject(null);
                 }}
-                className={`px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
+                className={`w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
                   isSupervisor
                     ? 'bg-amber-600 hover:bg-amber-500 text-white'
                     : 'bg-yellow-500 hover:bg-yellow-400 text-slate-900'
@@ -4135,11 +5121,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EDIT DATES FOR ON-TIME DESIGN & DISTRIBUSI DRAWING (CATEGORY 2 & 3) */}
       {dateModalProject && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-200 space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">
                   {dateModalMode === 'onTime' ? 'Edit On-Time Design' : 'Edit Distribusi Drawing'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -4148,7 +5134,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
               <button
                 onClick={() => setDateModalProject(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -4163,7 +5149,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   type="date"
                   value={modalTargetDate}
                   onChange={(e) => setModalTargetDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                 />
               </div>
 
@@ -4176,7 +5162,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     type="date"
                     value={modalFinishDate}
                     onChange={(e) => setModalFinishDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                   />
                 </div>
               )}
@@ -4190,16 +5176,16 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     type="date"
                     value={modal2DDate}
                     onChange={(e) => setModal2DDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-base sm:text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                   />
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setDateModalProject(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
               >
                 Batal
               </button>
@@ -4264,7 +5250,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   }
                   setDateModalProject(null);
                 }}
-                className={`px-5 py-2 text-white font-semibold rounded-xl text-xs shadow-md ${
+                className={`w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 text-white font-semibold rounded-xl text-xs shadow-md ${
                   isSupervisor ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
@@ -4277,11 +5263,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EDIT COST & TAMBAH PENGELUARAN */}
       {costModalProject && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
                   <DollarSign className="w-5 h-5 text-amber-500" />
                   <span>Kelola Cost Engineering</span>
                 </h3>
@@ -4291,7 +5277,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
               <button
                 onClick={() => setCostModalProject(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -4310,13 +5296,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     value={modalAnggaranInput}
                     onChange={(e) => setModalAnggaranInput(e.target.value)}
                     placeholder="Contoh: 10000000"
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-base sm:text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Form Tambah Rincian Biaya */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                 <h4 className="font-bold text-slate-700">+ Tambah Rincian Pengeluaran</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
@@ -4326,7 +5312,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       value={modalExpenseDescInput}
                       onChange={(e) => setModalExpenseDescInput(e.target.value)}
                       placeholder="Cth: kesite, lembur 2hari"
-                      className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-900"
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-base sm:text-xs text-slate-900"
                     />
                   </div>
                   <div>
@@ -4336,7 +5322,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                       value={modalExpenseAmountInput}
                       onChange={(e) => setModalExpenseAmountInput(e.target.value)}
                       placeholder="Cth: 500000"
-                      className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-mono text-slate-900"
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-base sm:text-xs font-mono text-slate-900"
                     />
                   </div>
                 </div>
@@ -4395,7 +5381,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     setModalExpenseDescInput('');
                     setModalExpenseAmountInput('');
                   }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="w-full sm:w-auto min-h-[42px] sm:min-h-0 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-sm transition"
                 >
                   {isSupervisor ? '+ Ajukan Rincian Pengeluaran' : '+ Tambah Rincian Pengeluaran'}
                 </button>
@@ -4414,9 +5400,9 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   }
 
                   return (
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
                       {expList.map((x) => (
-                        <div key={x.id} className="flex justify-between items-center p-1.5 bg-white border border-slate-200 rounded text-xs">
+                        <div key={x.id} className="flex justify-between items-center p-2 bg-white border border-slate-200 rounded-lg text-xs">
                           <span className="font-medium text-slate-800">{x.desc}</span>
                           <div className="flex items-center space-x-2">
                             <span className="font-mono font-semibold text-slate-900">Rp {x.amount.toLocaleString('id-ID')}</span>
@@ -4431,7 +5417,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                   });
                                   onUpdateReviewCost(updated);
                                 }}
-                                className="text-rose-500 hover:text-rose-700 font-bold"
+                                className="text-rose-500 hover:text-rose-700 font-bold min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-rose-50"
                                 title="Hapus rincian"
                               >
                                 ✕
@@ -4452,13 +5438,13 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
             )}
 
-            <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 onClick={() => {
                   setCostModalProject(null);
                   setModalSubmitNotice(null);
                 }}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
               >
                 Tutup
               </button>
@@ -4519,7 +5505,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   setModalExpenseAmountInput('');
                   setCostModalProject(null);
                 }}
-                className={`px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
+                className={`w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 font-bold rounded-xl text-xs shadow-md ${
                   isSupervisor
                     ? 'bg-amber-600 hover:bg-amber-500 text-white'
                     : 'bg-amber-500 hover:bg-amber-400 text-slate-900'
@@ -4534,11 +5520,11 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
       {/* MODAL: EDIT ERROR & TAMBAH KASUS ERROR */}
       {errorModalProject && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center space-x-2">
                   <AlertCircle className="w-5 h-5 text-rose-600" />
                   <span>Kelola Drawing & Design Error</span>
                 </h3>
@@ -4548,7 +5534,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
               </div>
               <button
                 onClick={() => setErrorModalProject(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold min-w-[40px] min-h-[40px] rounded-xl hover:bg-slate-100 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -4556,7 +5542,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
 
             {/* Form Tambah Kasus Error */}
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-2.5">
                 <h4 className="font-bold text-rose-900">+ Catat Kasus Drawing Error Baru</h4>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Nama Part / Komponen:</label>
@@ -4565,7 +5551,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     value={modalPartNameInput}
                     onChange={(e) => setModalPartNameInput(e.target.value)}
                     placeholder="Contoh: shaft well, bracket L, flange A"
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900"
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-base sm:text-xs text-slate-900"
                   />
                 </div>
                 <div>
@@ -4575,7 +5561,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     value={modalFeedbackErrorInput}
                     onChange={(e) => setModalFeedbackErrorInput(e.target.value)}
                     placeholder="Contoh: Dimention salah, posisi lubang baut geser 2mm"
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900"
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-base sm:text-xs text-slate-900"
                   />
                 </div>
                 <button
@@ -4629,7 +5615,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                     setModalPartNameInput('');
                     setModalFeedbackErrorInput('');
                   }}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="w-full sm:w-auto min-h-[42px] sm:min-h-0 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-sm transition"
                 >
                   {isSupervisor ? '+ Ajukan Kasus Error ke Manager' : '+ Tambah Kasus Error'}
                 </button>
@@ -4650,7 +5636,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   return (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
                       {errList.map((err, idx) => (
-                        <div key={err.id} className="p-2 bg-slate-50 border border-slate-200 rounded flex justify-between items-start text-xs">
+                        <div key={err.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-start text-xs">
                           <div>
                             <span className="font-bold text-slate-800">{idx + 1}. {err.partName}</span>
                             <p className="text-slate-600 mt-0.5">{err.feedback}</p>
@@ -4666,7 +5652,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                                 });
                                 onUpdateReviewError(updated);
                               }}
-                              className="text-rose-500 hover:text-rose-700 font-bold ml-2"
+                              className="text-rose-500 hover:text-rose-700 font-bold ml-2 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-rose-50"
                               title="Hapus error"
                             >
                               ✕
@@ -4692,7 +5678,7 @@ export const KPIView: React.FC<KPIViewProps> = ({
                   setErrorModalProject(null);
                   setModalSubmitNotice(null);
                 }}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs shadow-md"
+                className="w-full sm:w-auto min-h-[44px] sm:min-h-0 px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs shadow-md"
               >
                 Selesai
               </button>

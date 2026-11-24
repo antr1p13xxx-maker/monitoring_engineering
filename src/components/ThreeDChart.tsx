@@ -55,7 +55,12 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+      if (!container) return;
+
+    const getEffectiveHeight = () => {
+      const w = container.clientWidth || window.innerWidth;
+      return w < 640 ? Math.min(height, 250) : height;
+    };
 
     // Detect software WebGL to adapt performance settings
     const isSoftwareGl = (() => {
@@ -72,8 +77,8 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
       }
     })();
 
-    const width = container.clientWidth || 600;
-    const chartHeight = height;
+    const width = container.clientWidth || 340;
+    const chartHeight = getEffectiveHeight();
 
     // 1. Scene
     const scene = new THREE.Scene();
@@ -353,10 +358,11 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const newW = entry.contentRect.width;
-        if (newW > 0) {
-          camera.aspect = newW / chartHeight;
+        const newH = newW < 640 ? Math.min(height, 250) : height;
+        if (newW > 0 && newH > 0) {
+          camera.aspect = newW / newH;
           camera.updateProjectionMatrix();
-          renderer.setSize(newW, chartHeight);
+          renderer.setSize(newW, newH);
         }
       }
     });
@@ -429,13 +435,17 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
     controlsRef.current.update();
   };
 
+  const mobileHeight = Math.min(height, 250);
+
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shadow-inner group">
+    <div
+      className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shadow-inner group"
+      style={{ '--chart-h-sm': `${mobileHeight}px`, '--chart-h-md': `${height}px` } as React.CSSProperties}
+    >
       {/* 3D Canvas Mounting Container */}
       <div
         ref={containerRef}
-        style={{ height: `${height}px` }}
-        className="w-full cursor-grab active:cursor-grabbing"
+        className="w-full h-[var(--chart-h-sm)] sm:h-[var(--chart-h-md)] cursor-grab active:cursor-grabbing touch-none"
       />
 
       {/* Floating Hover Tooltip */}
@@ -466,13 +476,13 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
       )}
 
       {/* Top Floating Badge & Controls */}
-      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="pointer-events-auto flex items-center space-x-2 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 text-white shadow-md">
-          <Compass className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-xs font-bold text-slate-200">
+      <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 right-2.5 sm:right-3 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
+        <div className="pointer-events-auto flex items-center space-x-1.5 sm:space-x-2 bg-slate-900/80 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-700 text-white shadow-md max-w-full">
+          <Compass className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="text-[11px] sm:text-xs font-bold text-slate-200 truncate">
             {title || 'Grafik 3D Interaktif'}
           </span>
-          <span className="text-[10px] bg-blue-500/30 text-blue-300 font-semibold px-2 py-0.5 rounded-full border border-blue-400/30">
+          <span className="hidden sm:inline-block text-[10px] bg-blue-500/30 text-blue-300 font-semibold px-2 py-0.5 rounded-full border border-blue-400/30 shrink-0">
             WebGL 3D
           </span>
         </div>
@@ -483,7 +493,7 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
             type="button"
             onClick={() => handleSetView('iso')}
             title="Tampak Isometrik"
-            className="px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+            className="min-h-[30px] px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
           >
             Iso
           </button>
@@ -491,7 +501,7 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
             type="button"
             onClick={() => handleSetView('front')}
             title="Tampak Depan"
-            className="px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+            className="min-h-[30px] px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
           >
             Depan
           </button>
@@ -499,7 +509,7 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
             type="button"
             onClick={() => handleSetView('top')}
             title="Tampak Atas"
-            className="px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+            className="min-h-[30px] px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
           >
             Atas
           </button>
@@ -507,7 +517,7 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
             type="button"
             onClick={handleResetCamera}
             title="Reset Sudut Pandang"
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+            className="min-h-[30px] p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
@@ -515,13 +525,13 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
       </div>
 
       {/* Bottom Floating Interactive Dock & Legend */}
-      <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 right-2.5 sm:right-3 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
         {/* Series Legend */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 shadow-md max-w-full overflow-x-auto">
+        <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-700 shadow-md max-w-full overflow-x-auto no-scrollbar">
           {series.map((s) => (
-            <div key={s.name} className="flex items-center space-x-1.5 text-xs text-slate-200">
+            <div key={s.name} className="flex items-center space-x-1.5 text-xs text-slate-200 shrink-0">
               <span className="w-2.5 h-2.5 rounded-md shrink-0 shadow-sm" style={{ backgroundColor: s.color }} />
-              <span className="font-semibold text-[11px] whitespace-nowrap">{s.name}</span>
+              <span className="font-semibold text-[10px] sm:text-[11px] whitespace-nowrap">{s.name}</span>
             </div>
           ))}
         </div>
@@ -531,18 +541,18 @@ export const ThreeDChart: React.FC<ThreeDChartProps> = ({
           <button
             type="button"
             onClick={() => setAutoRotate(!autoRotate)}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-md border ${
+            className={`min-h-[32px] px-2.5 sm:px-3 py-1 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center space-x-1.5 shadow-md border ${
               autoRotate
                 ? 'bg-blue-600 border-blue-500 text-white'
                 : 'bg-slate-900/80 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
             }`}
           >
             <RotateCw className={`w-3 h-3 ${autoRotate ? 'animate-spin' : ''}`} />
-            <span>{autoRotate ? 'Auto Putar: ON' : 'Auto Putar: OFF'}</span>
+            <span>{autoRotate ? 'Putar: ON' : 'Putar: OFF'}</span>
           </button>
 
           <span className="hidden sm:inline-block text-[10px] bg-slate-900/80 border border-slate-700 text-slate-400 px-2.5 py-1 rounded-xl">
-            🖱️ Klik & geser untuk memutar • Scroll zoom
+            Klik & geser untuk memutar • Scroll zoom
           </span>
         </div>
       </div>

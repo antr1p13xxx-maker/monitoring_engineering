@@ -10,6 +10,7 @@ import { CadViewerModal } from './components/CadViewerModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { VercelModal } from './components/VercelModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -70,6 +71,8 @@ export default function App() {
 
   // App Navigation & Role State (Default role is Viewer: Read-only)
   const [currentView, setCurrentView] = useState<'monitoring' | 'kpi' | 'appsScript'>('monitoring');
+  const [monitoringSubTab, setMonitoringSubTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
+  const [mobileRolePickerOpen, setMobileRolePickerOpen] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>('Viewer');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -1022,14 +1025,18 @@ export default function App() {
         onLogoChange={setLogoUrl}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenVercelModal={() => setIsVercelModalOpen(true)}
+        externalRolePickerOpen={mobileRolePickerOpen}
+        onCloseExternalRolePicker={() => setMobileRolePickerOpen(false)}
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-[99%] w-full mx-auto p-3 sm:p-5">
+      <main className="flex-1 max-w-[99%] w-full mx-auto p-2.5 sm:p-5 pb-24 md:pb-5">
         {currentView === 'monitoring' && (
           <MonitoringView
             projects={projects}
             userRole={userRole}
+            activeMonitoringTab={monitoringSubTab}
+            onChangeMonitoringTab={setMonitoringSubTab}
             onAddClick={() => {
               setEditingProject(null);
               setIsDataModalOpen(true);
@@ -1132,13 +1139,13 @@ export default function App() {
 
       {/* Toast Notification Container */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-[250] flex flex-col gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-5 md:bottom-5 z-[250] flex flex-col gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div
             className={`px-4 py-3 rounded-xl shadow-2xl text-white text-xs font-semibold flex items-center space-x-2.5 border pointer-events-auto ${
               toast.type === 'error'
-                ? 'bg-rose-900/90 border-rose-700'
+                ? 'bg-rose-900/95 border-rose-700'
                 : toast.type === 'info'
-                ? 'bg-slate-900/90 border-slate-700 text-slate-200'
+                ? 'bg-slate-900/95 border-slate-700 text-slate-200'
                 : 'bg-slate-950/95 border-emerald-500/40 text-white shadow-emerald-500/10'
             }`}
           >
@@ -1153,6 +1160,24 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomNav
+        currentView={currentView}
+        monitoringSubTab={monitoringSubTab}
+        userRole={userRole}
+        pendingApprovalCount={approvalRequests.filter((r) => r.status === 'pending').length}
+        onSelectMonitoring={() => {
+          setCurrentView('monitoring');
+          setMonitoringSubTab('drawingProjects');
+        }}
+        onSelectStandartPart={() => {
+          setCurrentView('monitoring');
+          setMonitoringSubTab('standartPartHandover');
+        }}
+        onSelectKPI={() => setCurrentView('kpi')}
+        onSelectAppsScript={() => setCurrentView('appsScript')}
+        onOpenRolePicker={() => setMobileRolePickerOpen(true)}
+      />
       {/* Offline Mode Connectivity Indicator */}
       <OfflineIndicator />
     </div>

@@ -10,7 +10,10 @@ import {
   KeyRound, 
   Camera, 
   AlertCircle,
-  Flame
+  Flame,
+  MoreVertical,
+  X,
+  Check
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
@@ -24,7 +27,17 @@ interface HeaderProps {
   onLogoChange: (url: string) => void;
   onOpenFirebaseModal?: () => void;
   onOpenVercelModal?: () => void;
+  externalRolePickerOpen?: boolean;
+  onCloseExternalRolePicker?: () => void;
 }
+
+const ROLE_OPTIONS: { value: UserRole; label: string; desc: string }[] = [
+  { value: 'Manager', label: 'Manager Engineering', desc: 'Akses penuh, persetujuan KPI & hapus data' },
+  { value: 'Supervisor', label: 'Supervisor Engineering', desc: 'Monitoring & pengajuan edit KPI (butuh approval)' },
+  { value: 'Lead', label: 'Lead Engineer', desc: 'Edit data proyek & checklist monitoring' },
+  { value: 'Drafter', label: 'Drafter / Designer', desc: 'Update proyek, upload CAD/PDF & checklist' },
+  { value: 'Viewer', label: 'Viewer (Read-Only)', desc: 'Hanya melihat dashboard tanpa mengubah data' }
+];
 
 export const Header: React.FC<HeaderProps> = ({
   currentView,
@@ -34,14 +47,29 @@ export const Header: React.FC<HeaderProps> = ({
   logoUrl,
   onLogoChange,
   onOpenFirebaseModal,
-  onOpenVercelModal
+  onOpenVercelModal,
+  externalRolePickerOpen = false,
+  onCloseExternalRolePicker
 }) => {
   const [timeString, setTimeString] = useState<string>('');
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
+  const [showMobileRoleSheet, setShowMobileRoleSheet] = useState<boolean>(false);
+  const [showMobileTools, setShowMobileTools] = useState<boolean>(false);
   const [pendingRole, setPendingRole] = useState<UserRole>('Viewer');
   const [enteredPin, setEnteredPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (externalRolePickerOpen) {
+      setShowMobileRoleSheet(true);
+    }
+  }, [externalRolePickerOpen]);
+
+  const closeMobileRoleSheet = () => {
+    setShowMobileRoleSheet(false);
+    if (onCloseExternalRolePicker) onCloseExternalRolePicker();
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -57,6 +85,8 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const handleRoleSelectChange = (newRole: UserRole) => {
+    closeMobileRoleSheet();
+    if (newRole === userRole) return;
     if (newRole === 'Viewer') {
       onRoleChange('Viewer');
       return;
@@ -92,25 +122,36 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const shortRoleLabel =
+    userRole === 'Manager'
+      ? 'Manager'
+      : userRole === 'Supervisor'
+      ? 'Supervisor'
+      : userRole === 'Lead'
+      ? 'Lead'
+      : userRole === 'Drafter'
+      ? 'Drafter'
+      : 'Viewer';
+
   return (
     <header className="bg-gradient-to-r from-[#0a0f2c] via-[#16204a] to-[#1a1446] text-white shadow-lg shadow-indigo-950/20 sticky top-0 z-50 border-b border-indigo-400/20">
       <div className="h-0.5 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 via-fuchsia-500 to-emerald-400" />
-      <div className="max-w-[99%] mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-3">
+      <div className="max-w-[99%] mx-auto px-3 sm:px-4 py-1.5 sm:py-2.5 flex justify-between items-center gap-2 sm:gap-3">
         {/* Brand & Logo */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
           <div 
             onClick={() => fileInputRef.current?.click()}
             className={`${
               logoUrl
-                ? 'bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 p-1.5'
-                : 'bg-white/95 hover:bg-white p-1 border border-emerald-200/70'
+                ? 'bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 p-1'
+                : 'bg-white/95 hover:bg-white p-0.5 sm:p-1 border border-emerald-200/70'
             } rounded-xl shadow-lg shadow-emerald-500/20 cursor-pointer relative group transition-transform active:scale-95 flex items-center justify-center shrink-0`}
             title="Klik untuk upload logo kustom dashboard"
           >
             {logoUrl ? (
               <img src={logoUrl} alt="App Logo" className="w-8 h-8 object-cover rounded-lg" />
             ) : (
-              <MonitoringLogo className="w-9 h-9" />
+              <MonitoringLogo className="w-8 h-8 sm:w-9 sm:h-9" />
             )}
             <div className="absolute inset-0 bg-black/45 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               <Camera className="w-3.5 h-3.5 text-white" />
@@ -123,23 +164,90 @@ export const Header: React.FC<HeaderProps> = ({
               onChange={handleLogoUpload}
             />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-base sm:text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-indigo-200 bg-clip-text text-transparent leading-tight">
-                Monitoring Design & Drawing Engineering
+          <div className="min-w-0">
+            <div className="flex items-center space-x-1.5 sm:space-x-2">
+              <h1 className="text-sm sm:text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-indigo-200 bg-clip-text text-transparent leading-tight truncate">
+                <span className="sm:hidden">Monitoring Engineering</span>
+                <span className="hidden sm:inline">Monitoring Design & Drawing Engineering</span>
               </h1>
-              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 items-center">
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 items-center shrink-0">
                 Live Cloud
               </span>
             </div>
-            <p className="text-[11px] text-indigo-200/75">
+            <p className="hidden md:block text-[11px] text-indigo-200/75 truncate">
               Industrial Engineering Cloud System • Google Firebase Firestore & Sheets Integrated
             </p>
           </div>
         </div>
 
-        {/* View Switchers & Role Controls */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Mobile Compact Right Controls (< md) */}
+        <div className="flex md:hidden items-center gap-1.5 shrink-0">
+          <PWAInstallButton compactMobile />
+
+          <button
+            type="button"
+            onClick={() => setShowMobileRoleSheet(true)}
+            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-indigo-950/90 border border-cyan-400/35 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="max-w-[70px] truncate">{shortRoleLabel}</span>
+          </button>
+
+          {userRole === 'Manager' && (onOpenFirebaseModal || onOpenVercelModal) && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMobileTools((v) => !v)}
+                aria-label="Menu Cloud & Deploy"
+                className="min-w-[38px] min-h-[38px] rounded-xl bg-slate-900/90 border border-indigo-400/30 text-slate-200 flex items-center justify-center active:scale-95 transition"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {showMobileTools && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowMobileTools(false)}
+                  />
+                  <div className="absolute right-0 top-11 z-50 w-52 bg-slate-900 border border-indigo-400/30 rounded-2xl shadow-2xl p-1.5 space-y-1">
+                    {onOpenFirebaseModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileTools(false);
+                          onOpenFirebaseModal();
+                        }}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-amber-200 hover:bg-white/10 flex items-center gap-2"
+                      >
+                        <Flame className="w-4 h-4 text-amber-400" />
+                        <span>Firebase Console</span>
+                      </button>
+                    )}
+                    {onOpenVercelModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileTools(false);
+                          onOpenVercelModal();
+                        }}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-200 hover:bg-white/10 flex items-center gap-2"
+                      >
+                        <svg viewBox="0 0 76 65" className="w-3.5 h-3.5 fill-current text-cyan-300">
+                          <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
+                        </svg>
+                        <span>Deploy Vercel</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop View Switchers & Role Controls (md+) */}
+        <div className="hidden md:flex flex-wrap items-center gap-2">
           {/* View Buttons */}
           <div className="flex items-center bg-slate-950/50 p-1 rounded-xl border border-indigo-400/20 shadow-inner backdrop-blur-sm">
             <button
@@ -240,10 +348,59 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
+      {/* Mobile Role Picker Bottom Sheet */}
+      {showMobileRoleSheet && (
+        <div className="fixed inset-0 bg-slate-950/80 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-slate-900 border-t sm:border border-indigo-400/30 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md text-white overflow-hidden pb-safe">
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-emerald-500/20 border border-emerald-400/30 rounded-xl">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold">Pilih Role Pengguna</h3>
+                  <p className="text-[11px] text-slate-400">Tentukan hak akses di aplikasi</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeMobileRoleSheet}
+                className="min-w-[40px] min-h-[40px] rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-3 space-y-2 max-h-[70dvh] overflow-y-auto">
+              {ROLE_OPTIONS.map((opt) => {
+                const active = userRole === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleRoleSelectChange(opt.value)}
+                    className={`w-full min-h-[54px] px-4 py-3 rounded-2xl border text-left flex items-center justify-between gap-3 transition active:scale-[0.99] ${
+                      active
+                        ? 'bg-gradient-to-r from-cyan-500/20 to-indigo-500/25 border-cyan-400/50 text-white'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-200 hover:bg-slate-800/80'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-xs font-extrabold">{opt.label}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</p>
+                    </div>
+                    {active && <Check className="w-5 h-5 text-cyan-400 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Role Verification PIN Modal */}
       {showRoleModal && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[120] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-white space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-[140] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-sm p-5 sm:p-6 text-white space-y-4 pb-safe">
             <div className="flex items-center space-x-3">
               <div className="p-2.5 bg-blue-600 rounded-xl text-white">
                 <KeyRound className="w-5 h-5" />
@@ -269,7 +426,7 @@ export const Header: React.FC<HeaderProps> = ({
                   autoFocus
                   required
                   placeholder={`PIN rahasia...`}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-3 text-base sm:text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
                 <p className="mt-1.5 text-[11px] text-slate-400">
                   Masukkan PIN otentikasi resmi untuk mengaktifkan akses role {pendingRole}.
@@ -277,7 +434,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               {pinError && (
-                <div className="p-2 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-300 text-xs flex items-center space-x-1.5">
+                <div className="p-2.5 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-300 text-xs flex items-center space-x-1.5">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{pinError}</span>
                 </div>
@@ -287,13 +444,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowRoleModal(false)}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition"
+                  className="min-h-[44px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow transition"
+                  className="min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow transition"
                 >
                   Verifikasi Role
                 </button>

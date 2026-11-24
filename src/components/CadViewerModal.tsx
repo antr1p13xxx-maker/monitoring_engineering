@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Box, Layers, RotateCw, X, Eye, Sparkles, HardDrive, Info } from 'lucide-react';
+import { Box, Layers, RotateCw, X, Eye, Sparkles, Info, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface CadViewerModalProps {
   isOpen: boolean;
@@ -18,6 +18,7 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
   customerName = 'PT. Engineering Industry'
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const zoomFnRef = useRef<((delta: number) => void) | null>(null);
   const [isWireframe, setIsWireframe] = useState(false);
   const [isExploded, setIsExploded] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
@@ -27,8 +28,8 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
     if (!isOpen || !mountRef.current) return;
 
     const container = mountRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || 340;
+    const height = container.clientHeight || 300;
 
     // Scene
     const scene = new THREE.Scene();
@@ -118,13 +119,11 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
       [-5.5, 1.5, 3.8],
       [5.5, 1.5, 3.8]
     ];
-    const pillars: THREE.Mesh[] = [];
     pillarPositions.forEach((pos) => {
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 7.5, 32), chromeMaterial);
       pillar.position.set(pos[0], pos[1], pos[2]);
       pillar.castShadow = true;
       pillar.userData = { name: 'Hardened Linear Guide Column Ø30mm' };
-      pillars.push(pillar);
       assemblyGroup.add(pillar);
     });
 
@@ -156,10 +155,11 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
     chuck.userData = { name: 'Precision Collet Chuck & Fixture Flange' };
     assemblyGroup.add(chuck);
 
-    // Interactive mouse drag to orbit
+    // Interactive mouse + touch orbit & pinch zoom
     let isDragging = false;
-    let prevMousePos = { x: 0, y: 0 };
-    let spherical = { radius: 26, theta: 0.8, phi: 1.1 };
+    let prevPos = { x: 0, y: 0 };
+    let prevPinchDist: number | null = null;
+    const spherical = { radius: 26, theta: 0.8, phi: 1.1 };
 
     const updateCameraPos = () => {
       camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
@@ -169,16 +169,21 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
     };
     updateCameraPos();
 
+    zoomFnRef.current = (delta: number) => {
+      spherical.radius = Math.max(10, Math.min(50, spherical.radius + delta));
+      updateCameraPos();
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       isDragging = true;
-      prevMousePos = { x: e.clientX, y: e.clientY };
+      prevPos = { x: e.clientX, y: e.clientY };
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      const deltaX = e.clientX - prevMousePos.x;
-      const deltaY = e.clientY - prevMousePos.y;
-      prevMousePos = { x: e.clientX, y: e.clientY };
+      const deltaX = e.clientX - prevPos.x;
+      const deltaY = e.clientY - prevPos.y;
+      prevPos = { x: e.clientX, y: e.clientY };
 
       spherical.theta -= deltaX * 0.008;
       spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 + 0.3, spherical.phi - deltaY * 0.008));
@@ -195,20 +200,13 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
       updateCameraPos();
     };
 
-    const canvas = renderer.domElement;
-    canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-
-    // Click raycaster to pick part
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    const handleCanvasClick = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
+    const pointer = new THREE.Vector2();
+    const pickPartAt = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
       const intersects = raycaster.intersectObjects(assemblyGroup.children, true);
       if (intersects.length > 0) {
         const hit = intersects[0].object;
@@ -217,15 +215,77 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
         }
       }
     };
+
+    let touchStartPos = { x: 0, y: 0 };
+    let touchMoved = false;
+
+    const getPinchDist = (t1: Touch, t2: Touch) =>
+      Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        touchMoved = false;
+        prevPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        touchStartPos = { ...prevPos };
+        prevPinchDist = null;
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        prevPinchDist = getPinchDist(e.touches[0], e.touches[1]);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 1 && isDragging) {
+        const curX = e.touches[0].clientX;
+        const curY = e.touches[0].clientY;
+        if (Math.hypot(curX - touchStartPos.x, curY - touchStartPos.y) > 8) {
+          touchMoved = true;
+        }
+        const deltaX = curX - prevPos.x;
+        const deltaY = curY - prevPos.y;
+        prevPos = { x: curX, y: curY };
+
+        spherical.theta -= deltaX * 0.01;
+        spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 + 0.3, spherical.phi - deltaY * 0.01));
+        updateCameraPos();
+      } else if (e.touches.length === 2 && prevPinchDist !== null) {
+        const newDist = getPinchDist(e.touches[0], e.touches[1]);
+        const diff = prevPinchDist - newDist;
+        prevPinchDist = newDist;
+        spherical.radius = Math.max(10, Math.min(50, spherical.radius + diff * 0.08));
+        updateCameraPos();
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchMoved && e.changedTouches.length === 1 && e.touches.length === 0) {
+        pickPartAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      }
+      isDragging = false;
+      prevPinchDist = null;
+    };
+
+    const canvas = renderer.domElement;
+    canvas.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+
+    const handleCanvasClick = (e: MouseEvent) => {
+      pickPartAt(e.clientX, e.clientY);
+    };
     canvas.addEventListener('click', handleCanvasClick);
 
     // Animation Loop
     let animId: number;
-    let clock = new THREE.Clock();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
 
       if (autoRotate && !isDragging) {
         assemblyGroup.rotation.y += 0.006;
@@ -253,20 +313,28 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
       if (!container) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
       cancelAnimationFrame(animId);
+      resizeObserver.disconnect();
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('click', handleCanvasClick);
       window.removeEventListener('resize', handleResize);
+      zoomFnRef.current = null;
       renderer.dispose();
     };
   }, [isOpen, isWireframe, isExploded, autoRotate]);
@@ -274,80 +342,106 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/85 z-[150] flex items-center justify-center p-3 sm:p-6 backdrop-blur-md">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 bg-slate-950/85 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6 backdrop-blur-md">
+      <div className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92dvh]">
         {/* Modal Header */}
-        <div className="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center border-b border-slate-700">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-md">
+        <div className="bg-slate-800 text-white px-4 sm:px-5 py-3 flex justify-between items-center border-b border-slate-700 shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-md shrink-0">
               <Box className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <h3 className="text-sm sm:text-base font-bold">Industrial 3D CAD & .STEP Interactive Viewer</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <h3 className="text-xs sm:text-base font-bold truncate">3D CAD & .STEP Interactive Viewer</h3>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   WebGL 3D Engine
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Project: <strong className="text-blue-400">{projectName}</strong> • Customer: {customerName} {spk ? `• SPK: ${spk}` : ''}
+              <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                <strong className="text-blue-400">{projectName}</strong> • {customerName} {spk ? `• ${spk}` : ''}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 transition min-w-[40px] min-h-[40px] flex items-center justify-center shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 3D Viewport */}
-        <div className="relative w-full h-[460px] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center select-none overflow-hidden">
-          <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+        <div className="relative w-full h-[300px] sm:h-[460px] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center select-none overflow-hidden">
+          <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" />
 
           {/* Quick HUD Controls */}
-          <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-10">
+          <div className="absolute top-3 left-3 right-14 sm:right-auto flex flex-wrap gap-1.5 sm:gap-2 z-10">
             <button
+              type="button"
               onClick={() => setIsWireframe(!isWireframe)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
                 isWireframe ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>{isWireframe ? 'Shaded Solid' : 'Wireframe'}</span>
+              <span>{isWireframe ? 'Solid' : 'Wireframe'}</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setIsExploded(!isExploded)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
                 isExploded ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>{isExploded ? 'Collapse Model' : 'Explode Assembly'}</span>
+              <span>{isExploded ? 'Collapse' : 'Explode'}</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setAutoRotate(!autoRotate)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-md transition ${
                 autoRotate ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <RotateCw className="w-3.5 h-3.5" />
-              <span>Auto-Rotate: {autoRotate ? 'ON' : 'OFF'}</span>
+              <span>Putar: {autoRotate ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+
+          {/* Mobile & Desktop Quick Zoom Buttons */}
+          <div className="absolute top-3 right-3 sm:top-auto sm:bottom-4 sm:right-4 flex flex-col sm:flex-row gap-1.5 z-10">
+            <button
+              type="button"
+              onClick={() => zoomFnRef.current?.(-4)}
+              title="Zoom In"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-white flex items-center justify-center shadow-lg active:scale-95"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomFnRef.current?.(4)}
+              title="Zoom Out"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-white flex items-center justify-center shadow-lg active:scale-95"
+            >
+              <ZoomOut className="w-4 h-4" />
             </button>
           </div>
 
           {/* Part Inspector Tooltip */}
-          <div className="absolute bottom-4 left-4 bg-slate-900/90 border border-slate-700/80 backdrop-blur-md px-3.5 py-2.5 rounded-xl text-xs text-slate-300 shadow-xl max-w-sm">
-            <div className="flex items-center space-x-2 text-white font-semibold mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              <span>Komponen Terpilih:</span>
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto sm:bottom-4 sm:left-4 bg-slate-900/90 border border-slate-700/80 backdrop-blur-md px-3 py-2 rounded-xl text-xs text-slate-300 shadow-xl sm:max-w-sm">
+            <div className="flex items-center space-x-1.5 text-white font-semibold mb-0.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-[11px] sm:text-xs">Komponen Terpilih:</span>
             </div>
             <p className="text-blue-400 font-mono text-[11px] truncate">{selectedPart}</p>
-            <p className="text-[10px] text-slate-400 mt-1">
+            <p className="text-[10px] text-slate-400 mt-0.5 hidden sm:block">
               Klik komponen untuk inspeksi. Klik & geser mouse untuk rotasi 360°. Scroll untuk zoom in/out.
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5 sm:hidden">
+              Geser 1 jari untuk putar 360° • Cubit 2 jari untuk zoom
             </p>
           </div>
 
@@ -369,19 +463,18 @@ export const CadViewerModal: React.FC<CadViewerModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-800 px-5 py-3 flex flex-wrap justify-between items-center gap-3 border-t border-slate-700">
-          <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <Info className="w-4 h-4 text-blue-400" />
-            <span>Format CAD yang didukung: <strong>.step, .stp, .iges, .sldprt, .dwg, .stl</strong></span>
+        <div className="bg-slate-800 px-4 sm:px-5 py-3 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 border-t border-slate-700 shrink-0 pb-safe">
+          <div className="flex items-center space-x-2 text-[11px] sm:text-xs text-slate-400">
+            <Info className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>Format CAD: <strong>.step, .stp, .iges, .sldprt, .dwg, .stl</strong></span>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-semibold transition"
-            >
-              Tutup Viewer
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto min-h-[42px] px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-semibold transition"
+          >
+            Tutup Viewer
+          </button>
         </div>
       </div>
     </div>

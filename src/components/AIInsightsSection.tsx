@@ -139,7 +139,7 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
 
   return (
     <div
-      className="text-white rounded-2xl p-5 shadow-xl border border-indigo-400/30 space-y-4 relative overflow-hidden"
+      className="text-white rounded-2xl p-4 sm:p-5 shadow-xl border border-indigo-400/30 space-y-4 relative overflow-hidden"
       style={{
         backgroundColor: '#0d1333',
         backgroundImage:
@@ -169,11 +169,11 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto sm:justify-end">
           {insight && (
             <button
               onClick={handleCopyText}
-              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/15 text-slate-100 border border-white/15 flex items-center space-x-1.5 transition cursor-pointer"
+              className="min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:py-1.5 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/15 text-slate-100 border border-white/15 flex items-center justify-center space-x-1.5 transition cursor-pointer"
               title="Salin ringkasan ke clipboard"
             >
               <Copy className="w-3.5 h-3.5" />
@@ -184,7 +184,7 @@ ${insight.actionPlan.map((a, i) => `[ ] ${a}`).join('\n')}
           <button
             onClick={fetchAIInsights}
             disabled={loading}
-            className="px-4 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:via-teal-400 hover:to-cyan-400 text-white shadow-md shadow-emerald-900/30 flex items-center space-x-1.5 transition disabled:opacity-60 cursor-pointer"
+            className="min-h-[44px] sm:min-h-0 px-4 py-2 sm:py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:via-teal-400 hover:to-cyan-400 text-white shadow-md shadow-emerald-900/30 flex items-center justify-center space-x-1.5 transition disabled:opacity-60 cursor-pointer"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'Menganalisis...' : insight ? 'Perbarui Analisis' : 'Generate AI Insight'}</span>

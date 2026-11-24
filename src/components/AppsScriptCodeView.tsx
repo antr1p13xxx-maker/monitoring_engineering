@@ -58,74 +58,74 @@ export const AppsScriptCodeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-2xl shadow-md border border-indigo-800/40 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-6 rounded-2xl shadow-md border border-indigo-800/40 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
               Google Apps Script Ready
             </span>
-            <span className="text-xs text-indigo-300 font-medium">Versi Lengkap Standalone WebApp</span>
+            <span className="text-xs text-indigo-300 font-medium">Versi Standalone WebApp</span>
           </div>
-          <h2 className="text-xl font-extrabold text-white mt-1">
+          <h2 className="text-lg sm:text-xl font-extrabold text-white mt-1.5">
             Source Code Code.gs & Index.html
           </h2>
           <p className="text-xs text-slate-300 max-w-2xl mt-1">
-            File Google Apps Script backend (<code className="text-amber-300 font-mono">Code.gs</code>) dan frontend UI (<code className="text-cyan-300 font-mono">Index.html</code>) yang dapat langsung di-deploy di Spreadsheet perusahaan Anda.
+            File Google Apps Script backend (<code className="text-amber-300 font-mono">Code.gs</code>) dan frontend UI (<code className="text-cyan-300 font-mono">Index.html</code>) siap deploy di Spreadsheet.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             onClick={handleDownloadAll}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-2 transition"
+            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition"
           >
-            <FolderArchive className="w-4 h-4" />
-            <span>Download Semua File (Code.gs & Index.html)</span>
+            <FolderArchive className="w-4 h-4 shrink-0" />
+            <span>Download Semua File</span>
           </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="flex border-b border-slate-200 bg-slate-50/80 px-4 pt-3 gap-2">
+        <div className="flex border-b border-slate-200 bg-slate-50/80 px-3 sm:px-4 pt-3 gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('codegs')}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition ${
+            className={`min-h-[42px] px-3.5 sm:px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition whitespace-nowrap shrink-0 ${
               activeTab === 'codegs'
                 ? 'bg-white text-indigo-700 border-slate-200 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-100'
             }`}
           >
-            <Code2 className="w-4 h-4 text-amber-500" />
-            <span>Code.gs (Apps Script Backend)</span>
+            <Code2 className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>Code.gs</span>
             <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">.gs</span>
           </button>
 
           <button
             onClick={() => setActiveTab('indexhtml')}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition ${
+            className={`min-h-[42px] px-3.5 sm:px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition whitespace-nowrap shrink-0 ${
               activeTab === 'indexhtml'
                 ? 'bg-white text-indigo-700 border-slate-200 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-100'
             }`}
           >
-            <FileCode2 className="w-4 h-4 text-cyan-500" />
-            <span>Index.html (Frontend UI)</span>
+            <FileCode2 className="w-4 h-4 text-cyan-500 shrink-0" />
+            <span>Index.html</span>
             <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">.html</span>
           </button>
 
           <button
             onClick={() => setActiveTab('guide')}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition ${
+            className={`min-h-[42px] px-3.5 sm:px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center space-x-2 border-t border-l border-r transition whitespace-nowrap shrink-0 ${
               activeTab === 'guide'
                 ? 'bg-white text-indigo-700 border-slate-200 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-100'
             }`}
           >
-            <BookOpen className="w-4 h-4 text-emerald-600" />
-            <span>Panduan Deploy Spreadsheet</span>
+            <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Panduan Deploy</span>
           </button>
         </div>
 
