@@ -715,81 +715,284 @@ export const KPIView: React.FC<KPIViewProps> = ({
     return score !== null ? score : 0;
   }, [designCategory, designMonth, recapProjects, feedbackList, reviewCostList, reviewErrorList]);
 
-  // Export Matrix to PDF
+  // Export Matrix to PDF (Sesuai Tampilan Matriks Resmi)
   const handleExportMatrixPDF = () => {
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text(`MATRIKS RESMI KPI - ENGINEERING DEPARTMENT (${activeYear})`, 14, 12);
+      const pageWidth = 297;
+      const pageHeight = 210;
+      const marginX = 8;
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Engineering Department Plant CDR & BTG`, 14, 18);
+      const formatPdfTarget = (txt: string, compact = false) => {
+        const normalized = String(txt || '')
+          .replace(/≥/g, '>=')
+          .replace(/≤/g, '<=');
+        if (compact) {
+          return normalized.replace('0 Accident', '0\nAccident');
+        }
+        return normalized;
+      };
 
       const fmtActualPdf = (val: number | null | undefined, unit: string) => {
         if (val === null || val === undefined) return '-';
-        return unit === '%' ? `${val}%` : val;
+        return unit === '%' ? `${val}%` : String(val);
       };
 
-      const tableRows: any[] = [];
-      syncedKpiList.forEach((kpi) => {
-        // Row 1: Target
-        tableRows.push([
-          kpi.no,
-          kpi.objective,
-          kpi.kpi,
-          `${kpi.bobot * 100}%`,
-          kpi.unit,
-          kpi.target,
-          'T',
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.target,
-          kpi.keterangan || '-'
+      // Top Header Banner
+      doc.setFillColor(4, 120, 87);
+      doc.rect(marginX, 7, pageWidth - marginX * 2, 1.5, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`KPI - ENGINEERING DEPARTMENT (Matriks Resmi ${activeYear})`, marginX, 13.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        `PT. Kurnia Mustika Indah Lestari • Plant CDR & BTG • Dicetak: ${new Date().toLocaleDateString('id-ID')}`,
+        marginX,
+        17.8
+      );
+
+      // Header Right Badge (Auto-Sync Info)
+      doc.setFillColor(239, 246, 255);
+      doc.setDrawColor(191, 219, 254);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(pageWidth - marginX - 58, 9.8, 58, 6.2, 1.5, 1.5, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(29, 78, 216);
+      doc.text('Auto-Sync % Input Rekapitulasi (KPI 1-5)', pageWidth - marginX - 29, 13.8, {
+        align: 'center'
+      });
+
+      // Track which colSpan=5 row belongs to KPI 1-5 for drawing the "Auto % Input Rekapitulasi" badge
+      const autoBadgeRows = new Set<number>();
+      const bodyRows: any[] = [];
+
+      syncedKpiList.forEach((item) => {
+        const targetLabel = formatPdfTarget(item.target, false);
+        const targetMonthLabel = formatPdfTarget(item.target, true);
+
+        // Row 1: Target (T)
+        bodyRows.push([
+          {
+            content: item.no,
+            rowSpan: 2,
+            styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [30, 41, 59] }
+          },
+          {
+            content: item.objective,
+            styles: { halign: 'left', valign: 'middle', fontStyle: 'bold', textColor: [15, 23, 42] }
+          },
+          {
+            content: item.kpi,
+            styles: { halign: 'left', valign: 'middle', textColor: [71, 85, 105] }
+          },
+          {
+            content: `${Math.round(item.bobot * 100)}%`,
+            styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [51, 65, 85] }
+          },
+          {
+            content: item.id === 7 ? 'Angka' : item.unit,
+            styles: { halign: 'center', valign: 'middle', textColor: [51, 65, 85] }
+          },
+          {
+            content: targetLabel,
+            styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [15, 23, 42] }
+          },
+          {
+            content: 'T',
+            styles: {
+              halign: 'center',
+              valign: 'middle',
+              fontStyle: 'bold',
+              fillColor: [236, 253, 245],
+              textColor: [6, 95, 70]
+            }
+          },
+          ...MONTH_NAMES.map(() => ({
+            content: targetMonthLabel,
+            styles: { halign: 'center', valign: 'middle', textColor: [51, 65, 85], fontSize: 5.7 }
+          })),
+          {
+            content: item.keterangan || '-',
+            rowSpan: 2,
+            styles: { halign: 'left', valign: 'middle', textColor: [71, 85, 105], fontSize: 6 }
+          }
         ]);
-        // Row 2: Actual
-        tableRows.push([
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          'A',
-          fmtActualPdf(kpi.months.Jan, kpi.unit),
-          fmtActualPdf(kpi.months.Feb, kpi.unit),
-          fmtActualPdf(kpi.months.Mar, kpi.unit),
-          fmtActualPdf(kpi.months.Apr, kpi.unit),
-          fmtActualPdf(kpi.months.Mei, kpi.unit),
-          fmtActualPdf(kpi.months.Jun, kpi.unit),
-          fmtActualPdf(kpi.months.Jul, kpi.unit),
-          fmtActualPdf(kpi.months.Aug, kpi.unit),
-          fmtActualPdf(kpi.months.Sep, kpi.unit),
-          fmtActualPdf(kpi.months.Okt, kpi.unit),
-          fmtActualPdf(kpi.months.Nop, kpi.unit),
-          fmtActualPdf(kpi.months.Des, kpi.unit),
-          ''
+
+        // Row 2: Actual (A)
+        const actualRowIndex = bodyRows.length;
+        if (item.id >= 1 && item.id <= 5) {
+          autoBadgeRows.add(actualRowIndex);
+        }
+
+        bodyRows.push([
+          {
+            content: 'Pencapaian Aktual Departemen',
+            colSpan: 5,
+            styles: {
+              halign: 'left',
+              valign: 'middle',
+              fontStyle: 'italic',
+              textColor: [148, 163, 184],
+              fontSize: 5.8
+            }
+          },
+          {
+            content: 'A',
+            styles: {
+              halign: 'center',
+              valign: 'middle',
+              fontStyle: 'bold',
+              fillColor: [239, 246, 255],
+              textColor: [30, 64, 175]
+            }
+          },
+          ...MONTH_NAMES.map((m) => {
+            const val = item.months[m];
+            const isAuto = autoSyncedCells.has(`${item.id}_${m}`);
+            const evalRes = evaluateKPI(item, val);
+            const hasVal = val !== null && val !== undefined;
+            const displayVal = fmtActualPdf(val, item.unit);
+
+            let textColor: [number, number, number] = [148, 163, 184];
+            let fillColor: [number, number, number] = [255, 255, 255];
+            let fontStyle: 'normal' | 'bold' = 'normal';
+
+            if (hasVal) {
+              fontStyle = 'bold';
+              if (evalRes.achieved) {
+                textColor = [4, 120, 87];
+                fillColor = isAuto ? [236, 253, 245] : [255, 255, 255];
+              } else {
+                textColor = [220, 38, 38];
+                fillColor = [255, 241, 242];
+              }
+            }
+
+            return {
+              content: displayVal,
+              styles: {
+                halign: 'center',
+                valign: 'middle',
+                fontStyle,
+                textColor,
+                fillColor,
+                fontSize: 6.2
+              }
+            };
+          })
         ]);
       });
 
       autoTable(doc, {
-        startY: 22,
-        head: [['No', 'Quality Objective', 'KPI', 'Bobot', 'Unit', 'Target', 'T/A', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nop', 'Des', 'Keterangan']],
-        body: tableRows,
+        startY: 20.5,
+        head: [
+          [
+            { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Quality Objective', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
+            { content: 'KPI', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
+            { content: 'Bobot', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Unit', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Target', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'T/A', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: String(activeYear), colSpan: 12, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Keterangan', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
+          ],
+          MONTH_NAMES.map((m) => ({
+            content: m,
+            styles: { halign: 'center', valign: 'middle', fillColor: [6, 95, 70] }
+          }))
+        ],
+        body: bodyRows,
         theme: 'grid',
-        headStyles: { fillColor: [4, 120, 87], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 7 },
-        margin: { left: 10, right: 10 }
+        styles: {
+          font: 'helvetica',
+          lineColor: [203, 213, 225],
+          lineWidth: 0.2,
+          cellPadding: { top: 1.7, right: 1.4, bottom: 1.7, left: 1.4 },
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fillColor: [4, 120, 87],
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+          lineColor: [6, 78, 59],
+          lineWidth: 0.2,
+          cellPadding: { top: 2.0, right: 1.2, bottom: 2.0, left: 1.2 }
+        },
+        bodyStyles: {
+          fontSize: 6.4,
+          minCellHeight: 7.2
+        },
+        columnStyles: {
+          0: { cellWidth: 7 },
+          1: { cellWidth: 34 },
+          2: { cellWidth: 47 },
+          3: { cellWidth: 10 },
+          4: { cellWidth: 10 },
+          5: { cellWidth: 18 },
+          6: { cellWidth: 8 },
+          7: { cellWidth: 10 },
+          8: { cellWidth: 10 },
+          9: { cellWidth: 10 },
+          10: { cellWidth: 10 },
+          11: { cellWidth: 10 },
+          12: { cellWidth: 10 },
+          13: { cellWidth: 10 },
+          14: { cellWidth: 10 },
+          15: { cellWidth: 10 },
+          16: { cellWidth: 10 },
+          17: { cellWidth: 10 },
+          18: { cellWidth: 10 },
+          19: { cellWidth: 27 }
+        },
+        margin: { left: marginX, right: marginX, bottom: 10 },
+        didDrawCell: (data) => {
+          if (
+            data.section === 'body' &&
+            data.column.index === 1 &&
+            autoBadgeRows.has(data.row.index)
+          ) {
+            const badgeW = 31;
+            const badgeH = 4.0;
+            const badgeX = data.cell.x + data.cell.width - badgeW - 1.5;
+            const badgeY = data.cell.y + (data.cell.height - badgeH) / 2;
+
+            doc.setFillColor(239, 246, 255);
+            doc.setDrawColor(191, 219, 254);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.9, 0.9, 'FD');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(5.1);
+            doc.setTextColor(29, 78, 216);
+            doc.text('Auto % Input Rekapitulasi', badgeX + badgeW / 2, badgeY + 2.75, {
+              align: 'center'
+            });
+          }
+        },
+        didDrawPage: () => {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(
+            `Dokumen Matriks Resmi KPI Engineering • PT. Kurnia Mustika Indah Lestari • Tahun ${activeYear}`,
+            marginX,
+            pageHeight - 4.5
+          );
+          doc.text(
+            `Engineering Manager: Andry Setyawan`,
+            pageWidth - marginX,
+            pageHeight - 4.5,
+            { align: 'right' }
+          );
+        }
       });
 
       doc.save(`Matriks_Resmi_KPI_Engineering_${activeYear}.pdf`);
