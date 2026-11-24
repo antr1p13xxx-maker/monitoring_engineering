@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Flame
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   currentView: 'monitoring' | 'kpi' | 'appsScript';
@@ -180,6 +181,9 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </div>
+
+          {/* PWA Install App Button (PC & Mobile) */}
+          <PWAInstallButton />
 
           {/* Firebase Console Status & Config Button (Manager Only) */}
           {userRole === 'Manager' && onOpenFirebaseModal && (

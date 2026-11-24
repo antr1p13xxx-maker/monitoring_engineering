@@ -9,6 +9,7 @@ import { UploadModal } from './components/UploadModal';
 import { CadViewerModal } from './components/CadViewerModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { VercelModal } from './components/VercelModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -1152,6 +1153,8 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Offline Mode Connectivity Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }
