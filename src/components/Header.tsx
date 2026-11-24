@@ -13,14 +13,15 @@ import {
   Flame,
   MoreVertical,
   X,
-  Check
+  Check,
+  QrCode
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
 
 interface HeaderProps {
-  currentView: 'monitoring' | 'kpi' | 'appsScript';
-  onViewChange: (view: 'monitoring' | 'kpi' | 'appsScript') => void;
+  currentView: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript';
+  onViewChange: (view: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript') => void;
   userRole: UserRole;
   onRoleChange: (role: UserRole) => void;
   logoUrl: string | null;
@@ -260,6 +261,17 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Table2 className="w-3.5 h-3.5" />
               <span>Monitoring Drawing</span>
+            </button>
+            <button
+              onClick={() => onViewChange('barcodes')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                currentView === 'barcodes'
+                  ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Barcode Kastamer</span>
             </button>
             <button
               onClick={() => onViewChange('kpi')}

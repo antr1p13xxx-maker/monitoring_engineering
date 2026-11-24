@@ -1,14 +1,15 @@
 import React from 'react';
-import { Table2, PackageCheck, BarChart3, FileCode2, ShieldCheck } from 'lucide-react';
+import { Table2, PackageCheck, BarChart3, FileCode2, ShieldCheck, QrCode } from 'lucide-react';
 import { UserRole } from '../types/engineering';
 
 interface MobileBottomNavProps {
-  currentView: 'monitoring' | 'kpi' | 'appsScript';
+  currentView: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript';
   monitoringSubTab: 'drawingProjects' | 'standartPartHandover';
   userRole: UserRole;
   pendingApprovalCount?: number;
   onSelectMonitoring: () => void;
   onSelectStandartPart: () => void;
+  onSelectBarcodes: () => void;
   onSelectKPI: () => void;
   onSelectAppsScript: () => void;
   onOpenRolePicker: () => void;
@@ -21,12 +22,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   pendingApprovalCount = 0,
   onSelectMonitoring,
   onSelectStandartPart,
+  onSelectBarcodes,
   onSelectKPI,
   onSelectAppsScript,
   onOpenRolePicker
 }) => {
   const isDrawingActive = currentView === 'monitoring' && monitoringSubTab === 'drawingProjects';
   const isStandartPartActive = currentView === 'monitoring' && monitoringSubTab === 'standartPartHandover';
+  const isBarcodeActive = currentView === 'barcodes';
   const isKpiActive = currentView === 'kpi';
   const isGasActive = currentView === 'appsScript';
 
@@ -46,7 +49,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       aria-label="Navigasi Utama Mobile"
       className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b1230]/95 backdrop-blur-xl border-t border-indigo-400/25 shadow-[0_-8px_24px_rgba(10,15,44,0.35)] pb-safe"
     >
-      <div className="grid grid-cols-4 gap-1 px-1.5 pt-1.5">
+      <div className="grid grid-cols-5 gap-1 px-1 pt-1.5">
         <button
           type="button"
           onClick={onSelectMonitoring}
@@ -57,7 +60,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <Table2 className="w-4 h-4 shrink-0" />
-          <span className="truncate max-w-full px-1">Drawing</span>
+          <span className="truncate max-w-full px-0.5">Drawing</span>
         </button>
 
         <button
@@ -70,7 +73,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <PackageCheck className="w-4 h-4 shrink-0" />
-          <span className="truncate max-w-full px-1">Std Part</span>
+          <span className="truncate max-w-full px-0.5">Std Part</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onSelectBarcodes}
+          className={`min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
+            isBarcodeActive
+              ? 'bg-gradient-to-b from-violet-500/30 to-indigo-600/30 text-violet-200 border border-violet-400/40 shadow-sm'
+              : 'text-slate-300 hover:text-white'
+          }`}
+        >
+          <QrCode className="w-4 h-4 shrink-0" />
+          <span className="truncate max-w-full px-0.5">Barcode</span>
         </button>
 
         <button
@@ -83,9 +99,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <BarChart3 className="w-4 h-4 shrink-0" />
-          <span className="truncate max-w-full px-1">KPI CDR</span>
+          <span className="truncate max-w-full px-0.5">KPI CDR</span>
           {pendingApprovalCount > 0 && (
-            <span className="absolute top-1 right-2.5 px-1.5 min-w-[16px] h-4 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center leading-none shadow">
+            <span className="absolute top-1 right-1.5 px-1.5 min-w-[16px] h-4 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center leading-none shadow">
               {pendingApprovalCount}
             </span>
           )}
@@ -102,7 +118,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             }`}
           >
             <FileCode2 className="w-4 h-4 shrink-0" />
-            <span className="truncate max-w-full px-1">Code.gs</span>
+            <span className="truncate max-w-full px-0.5">Code.gs</span>
           </button>
         ) : (
           <button
@@ -111,7 +127,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             className="min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-cyan-200 hover:text-white transition-all active:scale-95"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="truncate max-w-full px-1">{shortRole}</span>
+            <span className="truncate max-w-full px-0.5">{shortRole}</span>
           </button>
         )}
       </div>

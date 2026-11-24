@@ -30,7 +30,8 @@ import {
   Table2,
   ChevronDown,
   ChevronUp,
-  CheckSquare
+  CheckSquare,
+  QrCode
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -58,6 +59,7 @@ interface MonitoringViewProps {
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
   activeMonitoringTab?: 'drawingProjects' | 'standartPartHandover';
   onChangeMonitoringTab?: (tab: 'drawingProjects' | 'standartPartHandover') => void;
+  onOpenCustomerBarcode?: (customerName: string) => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -75,7 +77,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   onUpdateStandartPartList,
   showToast,
   activeMonitoringTab: controlledSubTab,
-  onChangeMonitoringTab
+  onChangeMonitoringTab,
+  onOpenCustomerBarcode
 }) => {
   // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
   const [internalMonitoringTab, setInternalMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
@@ -1235,7 +1238,19 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                         {item['Nama Project']}
                       </h4>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-600">
-                        <span className="font-semibold text-slate-700">{item.Customer}</span>
+                        <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+                          <span>{item.Customer}</span>
+                          {onOpenCustomerBarcode && item.Customer && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCustomerBarcode(item.Customer)}
+                              title={`Buka Barcode & Rekam Jejak ${item.Customer}`}
+                              className="p-1 rounded-md text-indigo-600 hover:bg-indigo-50 inline-flex items-center"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </span>
                         <span>• PIC: <strong className="text-slate-800">{item.PIC}</strong></span>
                         <span>• Qty: <strong className="text-blue-700 tabular-nums">{item['Qty Drawing']}</strong></span>
                       </div>
@@ -1492,7 +1507,21 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 sticky-col-2 text-center font-semibold text-indigo-700">{item.Bulan}</td>
                       <td className="p-3 sticky-col-3 font-bold text-blue-600 font-mono">{item.SPK}</td>
                       <td className="p-3 sticky-col-4 font-mono text-slate-700 truncate" title={item['Nomor PO']}>{item['Nomor PO']}</td>
-                      <td className="p-3 sticky-col-5 font-medium text-slate-800 truncate" title={item.Customer}>{item.Customer}</td>
+                      <td className="p-3 sticky-col-5 font-medium text-slate-800" title={item.Customer}>
+                        <div className="flex items-center justify-between gap-1.5 max-w-[170px]">
+                          <span className="truncate">{item.Customer}</span>
+                          {onOpenCustomerBarcode && item.Customer && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCustomerBarcode(item.Customer)}
+                              title={`Buka Barcode & Rekam Jejak ${item.Customer}`}
+                              className="p-1 rounded hover:bg-indigo-100 text-indigo-600 shrink-0 transition"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 sticky-col-6 text-center">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
                           item.Status === 'Selesai'

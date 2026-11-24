@@ -11,6 +11,7 @@ import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { VercelModal } from './components/VercelModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { CustomerBarcodeView } from './components/CustomerBarcodeView';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -70,7 +71,22 @@ export default function App() {
   const [isVercelModalOpen, setIsVercelModalOpen] = useState<boolean>(false);
 
   // App Navigation & Role State (Default role is Viewer: Read-only)
-  const [currentView, setCurrentView] = useState<'monitoring' | 'kpi' | 'appsScript'>('monitoring');
+  const [currentView, setCurrentView] = useState<'monitoring' | 'barcodes' | 'kpi' | 'appsScript'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('customer_barcode') || params.get('customer')) {
+        return 'barcodes';
+      }
+    }
+    return 'monitoring';
+  });
+  const [barcodeLookupQuery, setBarcodeLookupQuery] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('customer_barcode') || params.get('customer') || null;
+    }
+    return null;
+  });
   const [monitoringSubTab, setMonitoringSubTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
   const [mobileRolePickerOpen, setMobileRolePickerOpen] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>('Viewer');
@@ -1060,6 +1076,32 @@ export default function App() {
             standartPartList={standartPartList}
             onUpdateStandartPartList={handleUpdateStandartPartList}
             showToast={showToast}
+            onOpenCustomerBarcode={(custName) => {
+              setBarcodeLookupQuery(custName);
+              setCurrentView('barcodes');
+            }}
+          />
+        )}
+
+        {currentView === 'barcodes' && (
+          <CustomerBarcodeView
+            projects={projects}
+            standartPartList={standartPartList}
+            feedbackList={feedbackList}
+            reviewCostList={reviewCostList}
+            reviewErrorList={reviewErrorList}
+            userRole={userRole}
+            initialLookupQuery={barcodeLookupQuery}
+            onClearInitialLookup={() => setBarcodeLookupQuery(null)}
+            onEditProject={(p) => {
+              setEditingProject(p);
+              setIsDataModalOpen(true);
+            }}
+            onOpenCadViewer={(spk, projectName, customer) => {
+              setCadModalData({ spk, projectName, customer });
+              setIsCadModalOpen(true);
+            }}
+            showToast={showToast}
           />
         )}
 
@@ -1174,6 +1216,7 @@ export default function App() {
           setCurrentView('monitoring');
           setMonitoringSubTab('standartPartHandover');
         }}
+        onSelectBarcodes={() => setCurrentView('barcodes')}
         onSelectKPI={() => setCurrentView('kpi')}
         onSelectAppsScript={() => setCurrentView('appsScript')}
         onOpenRolePicker={() => setMobileRolePickerOpen(true)}
