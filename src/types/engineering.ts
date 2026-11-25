@@ -101,6 +101,18 @@ export interface AuditLog {
   newValue: string;
 }
 
+export interface StandartPartAttachment {
+  id: string;
+  partIndex?: number;
+  partLabel?: string;
+  fileName: string;
+  fileType: 'image' | 'pdf';
+  mimeType: string;
+  sizeBytes: number;
+  dataUrl: string;
+  uploadedAt: string;
+}
+
 export interface SerahTerimaStandartPartItem {
   id: string;
   no: number;
@@ -108,6 +120,7 @@ export interface SerahTerimaStandartPartItem {
   prepareStaff: string[];
   projectName: string;
   partNames: string[];
+  partAttachments?: StandartPartAttachment[];
   customer: string;
   distributionDate: string;
   distributionTime: string;

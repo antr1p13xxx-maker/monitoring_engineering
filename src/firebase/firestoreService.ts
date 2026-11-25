@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -443,6 +443,7 @@ export function subscribeToFirestoreStandartParts(
       const data = docSnap.data();
       let staff: string[] = [];
       let parts: string[] = [];
+      let attachments: StandartPartAttachment[] = [];
       try {
         staff = typeof data.prepareStaff === 'string' ? JSON.parse(data.prepareStaff) : (data.prepareStaff || []);
       } catch {
@@ -453,6 +454,14 @@ export function subscribeToFirestoreStandartParts(
       } catch {
         parts = data.partNames || [];
       }
+      try {
+        attachments =
+          typeof data.partAttachments === 'string'
+            ? JSON.parse(data.partAttachments)
+            : (Array.isArray(data.partAttachments) ? data.partAttachments : []);
+      } catch {
+        attachments = [];
+      }
 
       list.push({
         id: docSnap.id,
@@ -461,6 +470,7 @@ export function subscribeToFirestoreStandartParts(
         prepareStaff: staff,
         projectName: data.projectName || '',
         partNames: parts,
+        partAttachments: Array.isArray(attachments) ? attachments : [],
         customer: data.customer || '',
         distributionDate: data.distributionDate || '',
         distributionTime: data.distributionTime || '',
@@ -489,6 +499,7 @@ export async function saveStandartPartToFirestore(
     ...item,
     prepareStaff: JSON.stringify(item.prepareStaff),
     partNames: JSON.stringify(item.partNames),
+    partAttachments: JSON.stringify(item.partAttachments || []),
     updatedAt: new Date().toISOString()
   }, { merge: true });
 }
@@ -522,6 +533,7 @@ export async function seedStandartPartsIfEmpty(
           ...item,
           prepareStaff: JSON.stringify(item.prepareStaff),
           partNames: JSON.stringify(item.partNames),
+          partAttachments: JSON.stringify(item.partAttachments || []),
           updatedAt: new Date().toISOString()
         });
       });

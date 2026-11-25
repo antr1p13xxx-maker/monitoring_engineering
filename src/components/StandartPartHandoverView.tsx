@@ -1,10 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   SerahTerimaStandartPartItem, 
+  StandartPartAttachment,
   EngineeringProject, 
   UserRole 
 } from '../types/engineering';
 import { MONTH_NAMES } from '../data/initialData';
+import {
+  ACCEPTED_PART_FILE_TYPES,
+  processPartAttachmentFile,
+  formatFileSize
+} from '../utils/partAttachmentUtils';
+import { PartAttachmentPreviewModal } from './PartAttachmentPreviewModal';
 import { 
   FileSpreadsheet, 
   FileDown, 
@@ -26,7 +33,11 @@ import {
   AlertCircle,
   FileText,
   LayoutGrid,
-  Table2
+  Table2,
+  Upload,
+  Camera,
+  Eye,
+  Paperclip
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -61,6 +72,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     customer: string;
     prepareStaff: string[];
     partNames: Array<{ name: string; qty: string }>;
+    partAttachments: StandartPartAttachment[];
     distributionDate: string;
     distributionTime: string;
     division: string;
@@ -72,6 +84,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     customer: '',
     prepareStaff: [''],
     partNames: [],
+    partAttachments: [],
     distributionDate: '',
     distributionTime: '09:00 WIB',
     division: 'Assembly',
@@ -84,6 +97,21 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
   const [quickPartInput, setQuickPartInput] = useState<{ rowId: string; name: string; qty: string } | null>(null);
   const [editingPartQty, setEditingPartQty] = useState<{ rowId: string; partIdx: number; qty: string } | null>(null);
   const [quickReceiverInput, setQuickReceiverInput] = useState<{ rowId: string; name: string } | null>(null);
+
+  // Part Attachment Upload & Preview State
+  const partFileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetRef = useRef<{
+    mode: 'row' | 'modal';
+    rowId?: string;
+    partIndex?: number;
+    partLabel?: string;
+  } | null>(null);
+  const [uploadingRowId, setUploadingRowId] = useState<string | null>(null);
+  const [previewAttachmentState, setPreviewAttachmentState] = useState<{
+    attachment: StandartPartAttachment;
+    sourceMode: 'row' | 'modal';
+    rowId?: string;
+  } | null>(null);
 
   const isReadOnly = userRole === 'Viewer';
 
@@ -115,8 +143,11 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       const matchCust = item.customer?.toLowerCase().includes(q);
       const matchStaff = item.prepareStaff?.some((s) => s.toLowerCase().includes(q));
       const matchPart = item.partNames?.some((p) => p.toLowerCase().includes(q));
+      const matchAttachment = item.partAttachments?.some(
+        (att) => att.fileName.toLowerCase().includes(q) || att.partLabel?.toLowerCase().includes(q)
+      );
       const matchDivision = item.division?.toLowerCase().includes(q);
-      return matchProject || matchCust || matchStaff || matchPart || matchDivision;
+      return matchProject || matchCust || matchStaff || matchPart || matchAttachment || matchDivision;
     });
   }, [handoverList, selectedMonth, searchQuery]);
 
@@ -274,6 +305,114 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
     showToast(`Part berhasil dihapus.`);
   };
 
+  // Part Photo / PDF Attachment Management
+  const triggerPartFileUpload = (target: {
+    mode: 'row' | 'modal';
+    rowId?: string;
+    partIndex?: number;
+    partLabel?: string;
+  }) => {
+    if (isReadOnly) {
+      showToast('Akses Dibatasi: Role Viewer tidak dapat mengunggah lampiran.', 'error');
+      return;
+    }
+    uploadTargetRef.current = target;
+    if (partFileInputRef.current) {
+      partFileInputRef.current.value = '';
+      partFileInputRef.current.click();
+    }
+  };
+
+  const handlePartFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    const target = uploadTargetRef.current;
+    if (!files.length || !target) return;
+
+    const targetKey = target.mode === 'modal' ? 'MODAL' : target.rowId || '';
+    setUploadingRowId(targetKey);
+
+    try {
+      const existingList: StandartPartAttachment[] =
+        target.mode === 'modal'
+          ? formData.partAttachments
+          : handoverList.find((i) => i.id === target.rowId)?.partAttachments || [];
+
+      const accumulated = [...existingList];
+      const newlyAdded: StandartPartAttachment[] = [];
+
+      for (const file of files) {
+        try {
+          const processed = await processPartAttachmentFile(file, {
+            partIndex: target.partIndex,
+            partLabel: target.partLabel,
+            existingAttachments: accumulated
+          });
+          accumulated.push(processed);
+          newlyAdded.push(processed);
+        } catch (fileErr: any) {
+          showToast(fileErr?.message || `Gagal memproses file "${file.name}".`, 'error');
+        }
+      }
+
+      if (newlyAdded.length > 0) {
+        if (target.mode === 'modal') {
+          setFormData((prev) => ({
+            ...prev,
+            partAttachments: [...prev.partAttachments, ...newlyAdded]
+          }));
+        } else if (target.rowId) {
+          onUpdateHandoverList((prev) =>
+            prev.map((item) =>
+              item.id === target.rowId
+                ? {
+                    ...item,
+                    partAttachments: [...(item.partAttachments || []), ...newlyAdded]
+                  }
+                : item
+            )
+          );
+        }
+        showToast(
+          `${newlyAdded.length} lampiran Foto/PDF berhasil diunggah ke kolom Part Name.`,
+          'success'
+        );
+      }
+    } finally {
+      setUploadingRowId(null);
+      if (partFileInputRef.current) {
+        partFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveRowAttachment = (rowId: string, attachmentId: string) => {
+    if (isReadOnly) return;
+    onUpdateHandoverList((prev) =>
+      prev.map((item) =>
+        item.id === rowId
+          ? {
+              ...item,
+              partAttachments: (item.partAttachments || []).filter((att) => att.id !== attachmentId)
+            }
+          : item
+      )
+    );
+    if (previewAttachmentState?.attachment.id === attachmentId) {
+      setPreviewAttachmentState(null);
+    }
+    showToast('Lampiran part berhasil dihapus.');
+  };
+
+  const handleRemoveModalAttachment = (attachmentId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      partAttachments: prev.partAttachments.filter((att) => att.id !== attachmentId)
+    }));
+    if (previewAttachmentState?.attachment.id === attachmentId) {
+      setPreviewAttachmentState(null);
+    }
+  };
+
   // Recipient / Signature Management (Diterima)
   const handleSetReceiver = (itemId: string, receiverName: string) => {
     if (!receiverName.trim() || isReadOnly) return;
@@ -331,6 +470,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       customer: '',
       prepareStaff: [''],
       partNames: [],
+      partAttachments: [],
       distributionDate: '',
       distributionTime: '09:00 WIB',
       division: 'Assembly Jig',
@@ -356,6 +496,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         item.partNames && item.partNames.length > 0
           ? item.partNames.map((p) => parsePartWithQty(p))
           : [],
+      partAttachments: item.partAttachments ? [...item.partAttachments] : [],
       distributionDate: item.distributionDate,
       distributionTime: item.distributionTime,
       division: item.division,
@@ -394,6 +535,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 customer: formData.customer,
                 prepareStaff: cleanStaff.length > 0 ? cleanStaff : ['Staff'],
                 partNames: cleanParts,
+                partAttachments: formData.partAttachments,
                 distributionDate: formData.distributionDate,
                 distributionTime: formData.distributionTime,
                 division: formData.division,
@@ -413,6 +555,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
         customer: formData.customer,
         prepareStaff: cleanStaff.length > 0 ? cleanStaff : ['Staff Engineering'],
         partNames: cleanParts,
+        partAttachments: formData.partAttachments,
         distributionDate: formData.distributionDate,
         distributionTime: formData.distributionTime,
         division: formData.division,
@@ -477,17 +620,25 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       doc.text(': 1-1', 238, 30);
 
       // Table Data
-      const tableRows = filteredList.map((item, idx) => [
-        idx + 1,
-        item.prepareStaff.join('\n'),
-        item.projectName || '-',
-        item.partNames.map((p, i) => `${i + 1}. ${p}`).join('\n'),
-        item.customer || '-',
-        item.distributionDate || '-',
-        item.distributionTime || '-',
-        item.division || '-',
-        item.signature || '-'
-      ]);
+      const tableRows = filteredList.map((item, idx) => {
+        const partLines = item.partNames.map((p, i) => `${i + 1}. ${p}`);
+        if (item.partAttachments && item.partAttachments.length > 0) {
+          partLines.push(
+            `[Lampiran: ${item.partAttachments.map((a) => a.fileName).join(', ')}]`
+          );
+        }
+        return [
+          idx + 1,
+          item.prepareStaff.join('\n'),
+          item.projectName || '-',
+          partLines.length > 0 ? partLines.join('\n') : '-',
+          item.customer || '-',
+          item.distributionDate || '-',
+          item.distributionTime || '-',
+          item.division || '-',
+          item.signature || '-'
+        ];
+      });
 
       autoTable(doc, {
         startY: 37,
@@ -553,6 +704,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
       Prepare_Staff: item.prepareStaff.join(', '),
       Project_Name: item.projectName,
       Part_Name: item.partNames.join('; '),
+      Lampiran_Foto_PDF: (item.partAttachments || []).map((a) => a.fileName).join('; '),
       Customer: item.customer,
       Distribution_Date: item.distributionDate,
       Distribution_Time: item.distributionTime,
@@ -888,6 +1040,16 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Hidden Global File Input for Foto / PDF Part Attachments */}
+      <input
+        ref={partFileInputRef}
+        type="file"
+        accept={ACCEPTED_PART_FILE_TYPES}
+        multiple
+        onChange={handlePartFilesSelected}
+        className="hidden"
+      />
+
       {/* Official Document Letterhead Banner (Modernized KMIL) */}
       <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-200/80 overflow-hidden">
         <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500" />
@@ -1179,21 +1341,34 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                     )}
                   </div>
 
-                  {/* Part Name & Qty */}
-                  <div className="bg-emerald-50/40 border border-emerald-200/70 rounded-xl p-2.5 space-y-2">
-                    <div className="flex items-center justify-between">
+                  {/* Part Name & Qty + Foto/PDF Lampiran */}
+                  <div className="bg-emerald-50/40 border border-emerald-200/70 rounded-xl p-2.5 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
                       <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
                         Part Name & Qty ({item.partNames?.length || 0})
                       </span>
-                      {!isReadOnly && quickPartInput?.rowId !== item.id && (
-                        <button
-                          type="button"
-                          onClick={() => setQuickPartInput({ rowId: item.id, name: '', qty: '1' })}
-                          className="text-xs text-emerald-700 font-bold flex items-center space-x-1 px-2 py-1 rounded-lg bg-white border border-emerald-200 min-h-[32px]"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Tambah Part</span>
-                        </button>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={uploadingRowId === item.id}
+                            onClick={() => triggerPartFileUpload({ mode: 'row', rowId: item.id })}
+                            className="text-xs text-blue-700 font-bold flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-white border border-blue-200 min-h-[34px] disabled:opacity-60"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>{uploadingRowId === item.id ? 'Memproses...' : 'Foto / PDF'}</span>
+                          </button>
+                          {quickPartInput?.rowId !== item.id && (
+                            <button
+                              type="button"
+                              onClick={() => setQuickPartInput({ rowId: item.id, name: '', qty: '1' })}
+                              className="text-xs text-emerald-700 font-bold flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-white border border-emerald-200 min-h-[34px]"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah Part</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -1211,7 +1386,7 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                               <span className="font-semibold flex-1 min-w-0 break-words">
                                 {pIdx + 1}. {parsed.name}
                               </span>
-                              <div className="flex items-center space-x-1.5 shrink-0">
+                              <div className="flex items-center space-x-1 shrink-0">
                                 {isEditingThisQty && !isReadOnly ? (
                                   <div className="flex items-center space-x-1">
                                     <input
@@ -1256,14 +1431,31 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                                   </button>
                                 )}
                                 {!isReadOnly && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemovePart(item.id, pIdx)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 min-w-[32px] min-h-[32px] flex items-center justify-center"
-                                    title="Hapus part"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        triggerPartFileUpload({
+                                          mode: 'row',
+                                          rowId: item.id,
+                                          partIndex: pIdx,
+                                          partLabel: parsed.name
+                                        })
+                                      }
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg min-w-[32px] min-h-[32px] flex items-center justify-center"
+                                      title={`Upload Foto/PDF untuk ${parsed.name}`}
+                                    >
+                                      <Paperclip className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePart(item.id, pIdx)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 min-w-[32px] min-h-[32px] flex items-center justify-center"
+                                      title="Hapus part"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </li>
@@ -1271,7 +1463,71 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         })}
                       </ul>
                     ) : (
-                      <p className="text-xs text-slate-400 italic">Belum ada item part tercatat.</p>
+                      (!item.partAttachments || item.partAttachments.length === 0) && (
+                        <p className="text-xs text-slate-400 italic">
+                          Belum ada item part atau lampiran Foto/PDF tercatat.
+                        </p>
+                      )
+                    )}
+
+                    {/* Uploaded Photos & PDFs Strip (Mobile) */}
+                    {item.partAttachments && item.partAttachments.length > 0 && (
+                      <div className="space-y-1.5 pt-1 border-t border-emerald-200/70">
+                        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                          Lampiran Foto / PDF ({item.partAttachments.length})
+                        </p>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {item.partAttachments.map((att) => (
+                            <div
+                              key={att.id}
+                              className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewAttachmentState({
+                                    attachment: att,
+                                    sourceMode: 'row',
+                                    rowId: item.id
+                                  })
+                                }
+                                className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+                              >
+                                {att.fileType === 'image' ? (
+                                  <img
+                                    src={att.dataUrl}
+                                    alt={att.fileName}
+                                    className="w-11 h-11 rounded-lg object-cover border border-slate-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-11 h-11 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-bold text-slate-800 truncate">
+                                    {att.fileName}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    {att.fileType === 'pdf' ? 'PDF' : 'Foto'} • {formatFileSize(att.sizeBytes)}
+                                    {att.partLabel ? ` • ${att.partLabel}` : ''}
+                                  </p>
+                                </div>
+                              </button>
+                              {!isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRowAttachment(item.id, att.id)}
+                                  className="p-2 text-slate-400 hover:text-rose-600 min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
+                                  title="Hapus lampiran"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {!isReadOnly && quickPartInput?.rowId === item.id && (
@@ -1642,9 +1898,9 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         </div>
                       </td>
 
-                      {/* Part Name (Multiple Parts with Qty, Add/Delete) */}
-                      <td className="p-3 border-r border-slate-200 min-w-[260px]">
-                        <div className="space-y-1.5">
+                      {/* Part Name (Multiple Parts with Qty, Foto/PDF Upload, Add/Delete) */}
+                      <td className="p-3 border-r border-slate-200 min-w-[290px] align-top">
+                        <div className="space-y-2">
                           {item.partNames && item.partNames.length > 0 && (
                             <ul className="space-y-1">
                               {item.partNames.map((part, pIdx) => {
@@ -1716,14 +1972,31 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                                       )}
 
                                       {!isReadOnly && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemovePart(item.id, pIdx)}
-                                          title="Hapus part"
-                                          className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0"
-                                        >
-                                          <X className="w-3 h-3" />
-                                        </button>
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              triggerPartFileUpload({
+                                                mode: 'row',
+                                                rowId: item.id,
+                                                partIndex: pIdx,
+                                                partLabel: parsed.name
+                                              })
+                                            }
+                                            title={`Upload Foto / PDF untuk ${parsed.name}`}
+                                            className="p-0.5 rounded text-blue-600 hover:bg-blue-50 opacity-80 group-hover:opacity-100 shrink-0"
+                                          >
+                                            <Paperclip className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemovePart(item.id, pIdx)}
+                                            title="Hapus part"
+                                            className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-rose-600 shrink-0"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </>
                                       )}
                                     </div>
                                   </li>
@@ -1732,8 +2005,74 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                             </ul>
                           )}
 
+                          {/* Foto & PDF Attachment Strip inside Part Name Cell */}
+                          {item.partAttachments && item.partAttachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                              {item.partAttachments.map((att) => (
+                                <div
+                                  key={att.id}
+                                  className={`group/att inline-flex items-center gap-1.5 rounded-lg border px-1.5 py-1 max-w-[230px] transition ${
+                                    att.fileType === 'pdf'
+                                      ? 'bg-rose-50/80 border-rose-200 text-rose-800 hover:bg-rose-100/70'
+                                      : 'bg-blue-50/70 border-blue-200 text-slate-800 hover:bg-blue-100/60'
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewAttachmentState({
+                                        attachment: att,
+                                        sourceMode: 'row',
+                                        rowId: item.id
+                                      })
+                                    }
+                                    title={`Klik untuk pratinjau ${att.fileName}${att.partLabel ? ` (${att.partLabel})` : ''}`}
+                                    className="flex items-center gap-1.5 min-w-0 text-left"
+                                  >
+                                    {att.fileType === 'image' ? (
+                                      <div className="relative w-7 h-7 rounded overflow-hidden border border-slate-200 shrink-0 bg-white">
+                                        <img
+                                          src={att.dataUrl}
+                                          alt={att.fileName}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute inset-0 bg-slate-900/35 opacity-0 group-hover/att:opacity-100 flex items-center justify-center transition">
+                                          <Eye className="w-3 h-3 text-white" />
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="w-7 h-7 rounded bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                                        <FileText className="w-3.5 h-3.5" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-bold truncate max-w-[130px] leading-tight">
+                                        {att.fileName}
+                                      </p>
+                                      <p className="text-[9px] text-slate-500 truncate leading-tight">
+                                        {att.partLabel ? `${att.partLabel} • ` : ''}
+                                        {formatFileSize(att.sizeBytes)}
+                                      </p>
+                                    </div>
+                                  </button>
+
+                                  {!isReadOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveRowAttachment(item.id, att.id)}
+                                      title="Hapus lampiran"
+                                      className="p-0.5 text-slate-400 hover:text-rose-600 shrink-0"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           {!isReadOnly ? (
-                            <div>
+                            <div className="space-y-1">
                               {quickPartInput?.rowId === item.id ? (
                                 <div className="flex items-center space-x-1 mt-1">
                                   <input
@@ -1790,20 +2129,35 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                                   </button>
                                 </div>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setQuickPartInput({ rowId: item.id, name: '', qty: '1' })
-                                  }
-                                  className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center space-x-1 pt-0.5 transition hover:underline"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Tambah Part</span>
-                                </button>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setQuickPartInput({ rowId: item.id, name: '', qty: '1' })
+                                    }
+                                    className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center space-x-1 transition hover:underline"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Tambah Part</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={uploadingRowId === item.id}
+                                    onClick={() => triggerPartFileUpload({ mode: 'row', rowId: item.id })}
+                                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center space-x-1 transition hover:underline disabled:opacity-60"
+                                    title="Upload Foto atau Dokumen PDF Part Name"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    <span>
+                                      {uploadingRowId === item.id ? 'Mengunggah...' : 'Upload Foto / PDF'}
+                                    </span>
+                                  </button>
+                                </div>
                               )}
                             </div>
                           ) : (
-                            (!item.partNames || item.partNames.length === 0) && (
+                            (!item.partNames || item.partNames.length === 0) &&
+                            (!item.partAttachments || item.partAttachments.length === 0) && (
                               <span className="text-slate-400 italic text-[11px]">-</span>
                             )
                           )}
@@ -2188,29 +2542,40 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                 ))}
               </div>
 
-              {/* Part Names List */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
+              {/* Part Names List & Foto/PDF Lampiran */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="font-bold text-slate-800">
-                    Part Name & Qty (Dapat diisi beberapa nama part)
+                    Part Name, Qty & Lampiran Foto / PDF
                   </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        partNames: [...formData.partNames, { name: '', qty: '1' }]
-                      })
-                    }
-                    className="text-xs sm:text-[11px] text-emerald-600 font-bold flex items-center space-x-1"
-                  >
-                    <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                    <span>Tambah Part</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={uploadingRowId === 'MODAL'}
+                      onClick={() => triggerPartFileUpload({ mode: 'modal' })}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs sm:text-[11px] font-bold flex items-center space-x-1 disabled:opacity-60"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingRowId === 'MODAL' ? 'Memproses...' : 'Upload Foto / PDF'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          partNames: [...formData.partNames, { name: '', qty: '1' }]
+                        })
+                      }
+                      className="text-xs sm:text-[11px] text-emerald-600 font-bold flex items-center space-x-1"
+                    >
+                      <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                      <span>Tambah Part</span>
+                    </button>
+                  </div>
                 </div>
                 {formData.partNames.length === 0 ? (
                   <p className="text-[11px] text-slate-400 italic py-1">
-                    Kolom part name kosong. Klik "+ Tambah Part" jika ingin menambahkan part standard beserta Qty.
+                    Kolom part name kosong. Klik "+ Tambah Part" untuk teks/Qty atau "Upload Foto / PDF" untuk melampirkan gambar/dokumen part.
                   </p>
                 ) : (
                   formData.partNames.map((part, pIdx) => (
@@ -2248,6 +2613,20 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       </div>
                       <button
                         type="button"
+                        onClick={() =>
+                          triggerPartFileUpload({
+                            mode: 'modal',
+                            partIndex: pIdx,
+                            partLabel: part.name || `Part ${pIdx + 1}`
+                          })
+                        }
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg shrink-0"
+                        title="Upload Foto / PDF untuk part ini"
+                      >
+                        <Paperclip className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           const newParts = formData.partNames.filter((_, idx) => idx !== pIdx);
                           setFormData({ ...formData, partNames: newParts });
@@ -2259,6 +2638,61 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                       </button>
                     </div>
                   ))
+                )}
+
+                {/* Modal Attachment Previews */}
+                {formData.partAttachments.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                    <p className="text-[11px] font-bold text-slate-600">
+                      File Lampiran Part Name ({formData.partAttachments.length}) — Foto otomatis dikompres, PDF maks. 700 KB
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {formData.partAttachments.map((att) => (
+                        <div
+                          key={att.id}
+                          className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewAttachmentState({
+                                attachment: att,
+                                sourceMode: 'modal'
+                              })
+                            }
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                          >
+                            {att.fileType === 'image' ? (
+                              <img
+                                src={att.dataUrl}
+                                alt={att.fileName}
+                                className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                                <FileText className="w-5 h-5" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-800 truncate">{att.fileName}</p>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                {att.fileType === 'pdf' ? 'PDF' : 'Foto'} • {formatFileSize(att.sizeBytes)}
+                                {att.partLabel ? ` • ${att.partLabel}` : ''}
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveModalAttachment(att.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 shrink-0"
+                            title="Hapus lampiran"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -2389,6 +2823,25 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
           </div>
         </div>
       )}
+      {/* Part Attachment Preview Modal (Photo & PDF) */}
+      <PartAttachmentPreviewModal
+        attachment={previewAttachmentState?.attachment || null}
+        onClose={() => setPreviewAttachmentState(null)}
+        onDelete={
+          !isReadOnly && previewAttachmentState
+            ? () => {
+                if (previewAttachmentState.sourceMode === 'modal') {
+                  handleRemoveModalAttachment(previewAttachmentState.attachment.id);
+                } else if (previewAttachmentState.rowId) {
+                  handleRemoveRowAttachment(
+                    previewAttachmentState.rowId,
+                    previewAttachmentState.attachment.id
+                  );
+                }
+              }
+            : undefined
+        }
+      />
     </div>
   );
 };

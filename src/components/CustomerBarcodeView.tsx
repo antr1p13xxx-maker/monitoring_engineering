@@ -2,11 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   EngineeringProject,
   SerahTerimaStandartPartItem,
+  StandartPartAttachment,
   DesignFeedbackItem,
   ReviewCostItem,
   ReviewErrorItem,
   UserRole
 } from '../types/engineering';
+import { PartAttachmentPreviewModal } from './PartAttachmentPreviewModal';
+import { formatFileSize } from '../utils/partAttachmentUtils';
 import { CHECKLIST_KEYS } from '../data/initialData';
 import {
   CustomerRecordSummary,
@@ -79,6 +82,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
   const [qrMode, setQrMode] = useState<'url' | 'offline'>('url');
   const [expandedProjectSpk, setExpandedProjectSpk] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [previewPartAttachment, setPreviewPartAttachment] = useState<StandartPartAttachment | null>(null);
 
   // Camera Scanner Modal state
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -1195,6 +1199,43 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                             ) : (
                               <span className="text-xs italic text-slate-400">Belum ada rincian nama part</span>
                             )}
+
+                            {sp.partAttachments && sp.partAttachments.length > 0 && (
+                              <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5">
+                                <span className="text-[11px] text-slate-500 block">
+                                  Lampiran Foto / PDF Part ({sp.partAttachments.length}):
+                                </span>
+                                <div className="flex flex-wrap gap-2">
+                                  {sp.partAttachments.map((att) => (
+                                    <button
+                                      key={att.id}
+                                      type="button"
+                                      onClick={() => setPreviewPartAttachment(att)}
+                                      className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition"
+                                    >
+                                      {att.fileType === 'image' ? (
+                                        <img
+                                          src={att.dataUrl}
+                                          alt={att.fileName}
+                                          className="w-7 h-7 rounded object-cover border border-slate-200 shrink-0"
+                                        />
+                                      ) : (
+                                        <FileText className="w-4 h-4 text-rose-600 shrink-0" />
+                                      )}
+                                      <div className="min-w-0">
+                                        <span className="block text-[11px] font-semibold text-slate-800 truncate max-w-[160px]">
+                                          {att.fileName}
+                                        </span>
+                                        <span className="block text-[10px] text-slate-500">
+                                          {att.fileType === 'pdf' ? 'PDF' : 'Foto'} · {formatFileSize(att.sizeBytes)}
+                                          {att.partLabel ? ` · ${att.partLabel}` : ''}
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -1451,6 +1492,12 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Preview Modal for Standart Part Foto / PDF */}
+      <PartAttachmentPreviewModal
+        attachment={previewPartAttachment}
+        onClose={() => setPreviewPartAttachment(null)}
+      />
     </div>
   );
 };
