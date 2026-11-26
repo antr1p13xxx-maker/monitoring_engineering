@@ -32,7 +32,10 @@ import {
   ChevronUp,
   CheckSquare,
   QrCode,
-  X
+  X,
+  Bell,
+  BellRing,
+  BellOff
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -43,6 +46,72 @@ import { AIInsightsSection } from './AIInsightsSection';
 import { ThreeDChart } from './ThreeDChart';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, BarController, LineController, Title, Tooltip, Legend);
+
+interface DeadlineAlertInfo {
+  kind: 'overdue' | 'soon';
+  diffDays: number;
+  label: string;
+  title: string;
+}
+
+const parseLocalMidnight = (dateStr?: string): Date | null => {
+  if (!dateStr) return null;
+  const trimmed = dateStr.trim();
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    const d = new Date(year, month, day);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const getTargetDesignDeadlineInfo = (targetDateStr?: string, status?: string): DeadlineAlertInfo | null => {
+  if (!targetDateStr || status === 'Selesai') return null;
+  const target = parseLocalMidnight(targetDateStr);
+  if (!target) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays);
+    return {
+      kind: 'overdue',
+      diffDays,
+      label: 'Overdue',
+      title: `Target Design terlewat ${overdueDays} hari (${targetDateStr})`
+    };
+  }
+  if (diffDays === 0) {
+    return {
+      kind: 'soon',
+      diffDays,
+      label: 'Target Hari Ini',
+      title: `Target Design jatuh tempo hari ini (${targetDateStr})`
+    };
+  }
+  if (diffDays === 1) {
+    return {
+      kind: 'soon',
+      diffDays,
+      label: 'Target Besok',
+      title: `Target Design besok / H-1 (${targetDateStr})`
+    };
+  }
+  if (diffDays <= 3) {
+    return {
+      kind: 'soon',
+      diffDays,
+      label: `H-${diffDays}`,
+      title: `Target Design dalam ${diffDays} hari lagi (${targetDateStr})`
+    };
+  }
+  return null;
+};
 
 interface MonitoringViewProps {
   projects: EngineeringProject[];
@@ -99,7 +168,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const [filterYear, setFilterYear] = useState<string>('2026');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterDueSoonOnly, setFilterDueSoonOnly] = useState<boolean>(false);
   const [sortSpkAsc, setSortSpkAsc] = useState<boolean>(true);
+  const [deadlineNotifEnabled, setDeadlineNotifEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('eng_deadline_notif_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -166,12 +244,123 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           return false;
         }
       }
+      // Filter khusus deadline <= 3 hari
+      if (filterDueSoonOnly) {
+        const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
+        if (deadlineInfo?.kind !== 'soon') {
+          return false;
+        }
+      }
       return true;
     }).sort((a, b) => {
       const cmp = a.SPK.localeCompare(b.SPK, undefined, { numeric: true });
       return sortSpkAsc ? cmp : -cmp;
     });
-  }, [projects, filterMonth, filterYear, filterStatus, searchQuery, sortSpkAsc]);
+  }, [projects, filterMonth, filterYear, filterStatus, searchQuery, filterDueSoonOnly, sortSpkAsc]);
+
+  // Projects with Target Design within 3 days (0..3 days from today) and not Selesai
+  const dueSoonProjects = useMemo(() => {
+    return projects
+      .map((project) => ({
+        project,
+        deadline: getTargetDesignDeadlineInfo(project['Target Design'], project.Status)
+      }))
+      .filter(
+        (entry): entry is { project: EngineeringProject; deadline: DeadlineAlertInfo & { kind: 'soon' } } =>
+          entry.deadline?.kind === 'soon'
+      )
+      .sort((a, b) => a.deadline.diffDays - b.deadline.diffDays);
+  }, [projects]);
+
+  const sendLocalDeadlineNotification = (
+    items: Array<{ project: EngineeringProject; deadline: DeadlineAlertInfo & { kind: 'soon' } }>,
+    force = false
+  ) => {
+    if (items.length === 0) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const sig = `${todayKey}|${items.map((i) => `${i.project.SPK}:${i.deadline.diffDays}`).join(',')}`;
+
+    try {
+      if (!force && localStorage.getItem('eng_deadline_notif_last_sig') === sig) {
+        return;
+      }
+      const preview = items
+        .slice(0, 3)
+        .map((i) => `${i.project.SPK} (${i.deadline.label})`)
+        .join(', ');
+      const extra = items.length > 3 ? ` +${items.length - 3} proyek lain` : '';
+      new Notification(`Pengingat Target Design (${items.length} Proyek)`, {
+        body: `Mendekati batas Target Design (≤3 hari): ${preview}${extra}`,
+        tag: 'engineering-target-design-reminder'
+      });
+      localStorage.setItem('eng_deadline_notif_last_sig', sig);
+    } catch {
+      // Ignore Notification construction errors in restricted contexts
+    }
+  };
+
+  useEffect(() => {
+    if (!deadlineNotifEnabled || dueSoonProjects.length === 0) return;
+    sendLocalDeadlineNotification(dueSoonProjects, false);
+  }, [deadlineNotifEnabled, dueSoonProjects]);
+
+  const handleToggleDeadlineNotif = async () => {
+    setNotifFeedback(null);
+    if (deadlineNotifEnabled) {
+      setDeadlineNotifEnabled(false);
+      try {
+        localStorage.setItem('eng_deadline_notif_enabled', 'false');
+      } catch {
+        // Ignore storage error
+      }
+      setNotifFeedback('Notifikasi browser dimatikan. Badge pengingat tetap tampil di daftar proyek.');
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotifFeedback('Browser tidak mendukung Notification API. Gunakan badge pengingat di daftar proyek.');
+      return;
+    }
+
+    try {
+      if (Notification.permission === 'granted') {
+        setDeadlineNotifEnabled(true);
+        localStorage.setItem('eng_deadline_notif_enabled', 'true');
+        if (dueSoonProjects.length > 0) {
+          sendLocalDeadlineNotification(dueSoonProjects, true);
+          setNotifFeedback(`Notifikasi lokal aktif (${dueSoonProjects.length} proyek Target Design ≤3 hari).`);
+        } else {
+          setNotifFeedback('Notifikasi lokal aktif. Anda akan diingatkan saat ada Target Design ≤3 hari.');
+        }
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        setNotifFeedback('Izin notifikasi diblokir oleh browser. Aktifkan izin situs atau pantau badge H-3 di tabel/kartu.');
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setDeadlineNotifEnabled(true);
+        localStorage.setItem('eng_deadline_notif_enabled', 'true');
+        if (dueSoonProjects.length > 0) {
+          sendLocalDeadlineNotification(dueSoonProjects, true);
+          setNotifFeedback(`Notifikasi lokal aktif (${dueSoonProjects.length} proyek Target Design ≤3 hari).`);
+        } else {
+          setNotifFeedback('Notifikasi lokal aktif untuk Target Design ≤3 hari.');
+        }
+      } else {
+        setNotifFeedback('Izin notifikasi browser tidak diaktifkan. Badge H-3 tetap tampil di daftar proyek.');
+      }
+    } catch {
+      setNotifFeedback('Notifikasi browser dibatasi pada tampilan iframe ini; gunakan badge H-3 di daftar proyek.');
+    }
+  };
 
   // Summary Metrics
   const stats = useMemo(() => {
@@ -179,10 +368,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
     const onProgress = filteredProjects.filter((d) => d.Status === 'In Progress').length;
     const done = filteredProjects.filter((d) => d.Status === 'Selesai').length;
     const revisi = filteredProjects.filter((d) => d.Status === 'Revisi').length;
-    const overdue = filteredProjects.filter((d) => {
-      if (!d['Target Design'] || d.Status === 'Selesai') return false;
-      return new Date(d['Target Design']) < new Date();
-    }).length;
+    const overdue = filteredProjects.filter((d) => getTargetDesignDeadlineInfo(d['Target Design'], d.Status)?.kind === 'overdue').length;
 
     return { total, onProgress, done, overdue, revisi };
   }, [filteredProjects]);
@@ -992,6 +1178,29 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               <Layers className="w-4 h-4 text-amber-200 shrink-0" />
               <span className="truncate">Standart Part</span>
             </button>
+
+            <button
+              type="button"
+              onClick={handleToggleDeadlineNotif}
+              className={`min-h-[42px] font-bold text-xs px-3 py-2 rounded-xl border transition flex items-center justify-center space-x-1.5 ${
+                deadlineNotifEnabled
+                  ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+              title="Aktifkan/matikan notifikasi browser lokal untuk Target Design ≤ 3 hari"
+            >
+              {deadlineNotifEnabled ? (
+                <BellRing className="w-4 h-4 text-amber-600 shrink-0" />
+              ) : (
+                <Bell className="w-4 h-4 text-slate-500 shrink-0" />
+              )}
+              <span className="truncate">{deadlineNotifEnabled ? 'Notif H-3 Aktif' : 'Notif H-3'}</span>
+              {dueSoonProjects.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-extrabold tabular-nums">
+                  {dueSoonProjects.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -1141,6 +1350,73 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             </select>
           </div>
         </div>
+
+        {/* Subtle Target Design <= 3 Days Reminder Bar */}
+        {(dueSoonProjects.length > 0 || notifFeedback) && (
+          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+            {dueSoonProjects.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2 text-amber-900 bg-amber-50/80 border border-amber-200/80 rounded-xl px-3 py-2 flex-1 min-w-[240px]">
+                <Clock3 className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-semibold">
+                  <strong className="tabular-nums">{dueSoonProjects.length}</strong> proyek mendekati <strong>Target Design</strong> (≤3 hari):
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {dueSoonProjects.slice(0, 3).map(({ project, deadline }) => (
+                    <button
+                      key={project.SPK}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(project.SPK);
+                        setFilterDueSoonOnly(false);
+                        setCurrentPage(1);
+                      }}
+                      title={`${project['Nama Project']} • ${deadline.title}`}
+                      className="px-2 py-0.5 rounded-md bg-white/90 hover:bg-white border border-amber-300/80 text-[11px] font-mono font-bold text-amber-900 transition"
+                    >
+                      {project.SPK} <span className="text-amber-700 font-sans">({deadline.label})</span>
+                    </button>
+                  ))}
+                  {dueSoonProjects.length > 3 && (
+                    <span className="text-[11px] font-semibold text-amber-700">
+                      +{dueSoonProjects.length - 3} lainnya
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterDueSoonOnly((v) => !v);
+                    setCurrentPage(1);
+                  }}
+                  className={`ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold border transition shrink-0 ${
+                    filterDueSoonOnly
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-amber-800 border-amber-300 hover:bg-amber-100'
+                  }`}
+                >
+                  {filterDueSoonOnly ? 'Tampilkan Semua' : 'Filter ≤3 Hari'}
+                </button>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {notifFeedback && (
+              <div className="flex items-center gap-2 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                <BellOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{notifFeedback}</span>
+                <button
+                  type="button"
+                  onClick={() => setNotifFeedback(null)}
+                  className="text-slate-400 hover:text-slate-700"
+                  aria-label="Tutup pesan notifikasi"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Mobile View Switcher (Kartu Mobile vs Tabel Lengkap) */}
@@ -1182,7 +1458,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           ) : (
             paginatedData.map((item, idx) => {
               const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
-              const isOverdue = item['Target Design'] && item.Status !== 'Selesai' && new Date(item['Target Design']) < new Date();
+              const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
+              const isOverdue = deadlineInfo?.kind === 'overdue';
+              const isDueSoon = deadlineInfo?.kind === 'soon';
               const isLate = item['Aktual Engineering'] && item['Target Design'] && new Date(item['Aktual Engineering']) > new Date(item['Target Design']);
               const completedChecklists = CHECKLIST_KEYS.filter((ck) => Boolean(item[ck])).length;
               const checklistPercent = Math.round((completedChecklists / CHECKLIST_KEYS.length) * 100);
@@ -1200,6 +1478,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   className={`rounded-2xl shadow-sm border overflow-hidden transition-all ${
                     isOverdue || isLate
                       ? 'bg-rose-50/60 border-rose-200'
+                      : isDueSoon
+                      ? 'bg-amber-50/35 border-amber-200'
                       : 'bg-white border-indigo-100'
                   }`}
                 >
@@ -1218,10 +1498,23 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                         {(isOverdue || isLate) && (
                           <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold">
                             {isOverdue ? 'Overdue' : 'Late'}
+                          </span>
+                        )}
+                        {isDueSoon && deadlineInfo && (
+                          <span
+                            title={deadlineInfo.title}
+                            className={`px-2 py-0.5 rounded-full border text-[10px] font-bold inline-flex items-center gap-1 ${
+                              deadlineInfo.diffDays === 0
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            <Clock3 className="w-2.5 h-2.5 shrink-0" />
+                            <span>{deadlineInfo.label}</span>
                           </span>
                         )}
                         <span
@@ -1275,9 +1568,23 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                     <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px]">
                       <div>
                         <span className="text-[10px] text-slate-500 block">Target Design</span>
-                        <span className="font-mono font-bold text-slate-800 tabular-nums">
-                          {item['Target Design'] || '-'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono font-bold text-slate-800 tabular-nums">
+                            {item['Target Design'] || '-'}
+                          </span>
+                          {isDueSoon && deadlineInfo && (
+                            <span
+                              title={deadlineInfo.title}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                deadlineInfo.diffDays === 0
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}
+                            >
+                              {deadlineInfo.label}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-500 block">Delivery Time</span>
@@ -1509,9 +1816,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               ) : (
                 paginatedData.map((item, idx) => {
                   const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
-                  const isOverdue = item['Target Design'] && item.Status !== 'Selesai' && new Date(item['Target Design']) < new Date();
+                  const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
+                  const isOverdue = deadlineInfo?.kind === 'overdue';
+                  const isDueSoon = deadlineInfo?.kind === 'soon';
                   const isLate = item['Aktual Engineering'] && item['Target Design'] && new Date(item['Aktual Engineering']) > new Date(item['Target Design']);
-                  const rowBg = isOverdue || isLate ? 'bg-rose-50/70 hover:bg-rose-100/60' : 'hover:bg-slate-50';
+                  const rowBg =
+                    isOverdue || isLate
+                      ? 'bg-rose-50/70 hover:bg-rose-100/60'
+                      : isDueSoon
+                      ? 'bg-amber-50/45 hover:bg-amber-50/80'
+                      : 'hover:bg-slate-50';
 
                   return (
                     <tr key={item.SPK} className={`${rowBg} transition-colors border-b border-slate-200`}>
@@ -1554,7 +1868,32 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       </td>
                       <td className="p-3 text-right font-bold text-slate-800">{item['Qty Drawing']}</td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Permintaan Drawing/Design'] || '-'}</td>
-                      <td className="p-3 text-center font-mono font-medium text-slate-700">{item['Target Design'] || '-'}</td>
+                      <td className="p-3 text-center font-mono font-medium text-slate-700">
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                          <span>{item['Target Design'] || '-'}</span>
+                          {isDueSoon && deadlineInfo && (
+                            <span
+                              title={deadlineInfo.title}
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border font-sans text-[10px] font-bold ${
+                                deadlineInfo.diffDays === 0
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}
+                            >
+                              <Clock3 className="w-2.5 h-2.5 shrink-0" />
+                              <span>{deadlineInfo.label}</span>
+                            </span>
+                          )}
+                          {isOverdue && deadlineInfo && (
+                            <span
+                              title={deadlineInfo.title}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-sans text-[10px] font-bold"
+                            >
+                              Overdue
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Tanggal Penyelesaian'] || '-'}</td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Aktual Engineering'] || '-'}</td>
 

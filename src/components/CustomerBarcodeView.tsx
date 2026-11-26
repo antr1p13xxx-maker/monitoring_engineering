@@ -44,7 +44,9 @@ import {
   ExternalLink,
   Camera,
   FileText,
-  Layers
+  Layers,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -80,6 +82,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [dossierTab, setDossierTab] = useState<'projects' | 'standartPart' | 'kpiCostError' | 'label'>('projects');
   const [dossierSearch, setDossierSearch] = useState('');
+  const [dossierSpkSort, setDossierSpkSort] = useState<'asc' | 'desc'>('asc');
   const [qrMode, setQrMode] = useState<'url' | 'offline'>('url');
   const [expandedProjectSpk, setExpandedProjectSpk] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -149,9 +152,10 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     [customerRecords, selectedCustomerKey]
   );
 
-  // Reset internal dossier search whenever switching or closing customer
+  // Reset internal dossier search & SPK sort whenever switching or closing customer
   useEffect(() => {
     setDossierSearch('');
+    setDossierSpkSort('asc');
     setExpandedProjectSpk(null);
   }, [selectedCustomerKey]);
 
@@ -165,75 +169,135 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         reviewErrors: [] as ReviewErrorItem[]
       };
     }
-    const q = dossierSearch.trim().toLowerCase();
-    if (!q) {
-      return {
-        projects: selectedCustomer.projects,
-        standartParts: selectedCustomer.standartParts,
-        feedbacks: selectedCustomer.feedbacks,
-        reviewCosts: selectedCustomer.reviewCosts,
-        reviewErrors: selectedCustomer.reviewErrors
-      };
-    }
 
-    const projectsMatched = selectedCustomer.projects.filter((p) => {
-      const hitMeta =
-        (p.SPK || '').toLowerCase().includes(q) ||
-        (p['Nomor PO'] || '').toLowerCase().includes(q) ||
-        (p['Nama Project'] || '').toLowerCase().includes(q) ||
-        (p.PIC || '').toLowerCase().includes(q) ||
-        (p.Bulan || '').toLowerCase().includes(q) ||
-        (p.Status || '').toLowerCase().includes(q) ||
-        (p.keterangan || '').toLowerCase().includes(q) ||
-        (p['Target Design'] || '').toLowerCase().includes(q);
-      if (hitMeta) return true;
-      return CHECKLIST_KEYS.some(
-        (ck) => ck.toLowerCase().includes(q) && Boolean(p[ck] && String(p[ck]).trim() !== '')
-      );
+    const spkByProjectName = new Map<string, string>();
+    selectedCustomer.projects.forEach((p) => {
+      const pname = (p['Nama Project'] || '').trim().toLowerCase();
+      if (pname && p.SPK && !spkByProjectName.has(pname)) {
+        spkByProjectName.set(pname, p.SPK);
+      }
     });
 
-    const standartPartsMatched = selectedCustomer.standartParts.filter(
-      (sp) =>
-        (sp.projectName || '').toLowerCase().includes(q) ||
-        (sp.month || '').toLowerCase().includes(q) ||
-        (sp.division || '').toLowerCase().includes(q) ||
-        (sp.signature || '').toLowerCase().includes(q) ||
-        (sp.spk || '').toLowerCase().includes(q) ||
-        (sp.notes || '').toLowerCase().includes(q) ||
-        (sp.prepareStaff || []).some((s) => s.toLowerCase().includes(q)) ||
-        (sp.partNames || []).some((pn) => pn.toLowerCase().includes(q)) ||
-        (sp.partAttachments || []).some(
-          (att) =>
-            att.fileName.toLowerCase().includes(q) ||
-            (att.partLabel || '').toLowerCase().includes(q)
+    const compareBySpk = (spkA?: string, spkB?: string) => {
+      const a = (spkA || '').trim();
+      const b = (spkB || '').trim();
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+      const cmp = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+      return dossierSpkSort === 'asc' ? cmp : -cmp;
+    };
+
+    const q = dossierSearch.trim().toLowerCase();
+
+    const projectsMatched = (
+      !q
+        ? selectedCustomer.projects
+        : selectedCustomer.projects.filter((p) => {
+            const hitMeta =
+              (p.SPK || '').toLowerCase().includes(q) ||
+              (p['Nomor PO'] || '').toLowerCase().includes(q) ||
+              (p['Nama Project'] || '').toLowerCase().includes(q) ||
+              (p.PIC || '').toLowerCase().includes(q) ||
+              (p.Bulan || '').toLowerCase().includes(q) ||
+              (p.Status || '').toLowerCase().includes(q) ||
+              (p.keterangan || '').toLowerCase().includes(q) ||
+              (p['Target Design'] || '').toLowerCase().includes(q);
+            if (hitMeta) return true;
+            return CHECKLIST_KEYS.some(
+              (ck) => ck.toLowerCase().includes(q) && Boolean(p[ck] && String(p[ck]).trim() !== '')
+            );
+          })
+    )
+      .slice()
+      .sort((a, b) => compareBySpk(a.SPK, b.SPK));
+
+    const standartPartsMatched = (
+      !q
+        ? selectedCustomer.standartParts
+        : selectedCustomer.standartParts.filter(
+            (sp) =>
+              (sp.projectName || '').toLowerCase().includes(q) ||
+              (sp.month || '').toLowerCase().includes(q) ||
+              (sp.division || '').toLowerCase().includes(q) ||
+              (sp.signature || '').toLowerCase().includes(q) ||
+              (sp.spk || '').toLowerCase().includes(q) ||
+              (sp.notes || '').toLowerCase().includes(q) ||
+              (sp.prepareStaff || []).some((s) => s.toLowerCase().includes(q)) ||
+              (sp.partNames || []).some((pn) => pn.toLowerCase().includes(q)) ||
+              (sp.partAttachments || []).some(
+                (att) =>
+                  att.fileName.toLowerCase().includes(q) ||
+                  (att.partLabel || '').toLowerCase().includes(q)
+              )
+          )
+    )
+      .slice()
+      .sort((a, b) =>
+        compareBySpk(
+          a.spk || spkByProjectName.get((a.projectName || '').trim().toLowerCase()),
+          b.spk || spkByProjectName.get((b.projectName || '').trim().toLowerCase())
         )
-    );
+      );
 
-    const feedbacksMatched = selectedCustomer.feedbacks.filter(
-      (fb) =>
-        (fb.projectName || '').toLowerCase().includes(q) ||
-        (fb.month || '').toLowerCase().includes(q) ||
-        (fb.fbProduksi || '').toLowerCase().includes(q) ||
-        (fb.fbKastamer || '').toLowerCase().includes(q)
-    );
-
-    const reviewCostsMatched = selectedCustomer.reviewCosts.filter(
-      (rc) =>
-        (rc.projectName || '').toLowerCase().includes(q) ||
-        (rc.month || '').toLowerCase().includes(q) ||
-        rc.pengeluaran.some((item) => item.desc.toLowerCase().includes(q))
-    );
-
-    const reviewErrorsMatched = selectedCustomer.reviewErrors.filter(
-      (re) =>
-        (re.projectName || '').toLowerCase().includes(q) ||
-        (re.month || '').toLowerCase().includes(q) ||
-        re.errors.some(
-          (err) =>
-            err.partName.toLowerCase().includes(q) ||
-            err.feedback.toLowerCase().includes(q)
+    const feedbacksMatched = (
+      !q
+        ? selectedCustomer.feedbacks
+        : selectedCustomer.feedbacks.filter(
+            (fb) =>
+              (fb.projectName || '').toLowerCase().includes(q) ||
+              (fb.month || '').toLowerCase().includes(q) ||
+              (fb.fbProduksi || '').toLowerCase().includes(q) ||
+              (fb.fbKastamer || '').toLowerCase().includes(q)
+          )
+    )
+      .slice()
+      .sort((a, b) =>
+        compareBySpk(
+          spkByProjectName.get((a.projectName || '').trim().toLowerCase()),
+          spkByProjectName.get((b.projectName || '').trim().toLowerCase())
         )
-    );
+      );
+
+    const reviewCostsMatched = (
+      !q
+        ? selectedCustomer.reviewCosts
+        : selectedCustomer.reviewCosts.filter(
+            (rc) =>
+              (rc.projectName || '').toLowerCase().includes(q) ||
+              (rc.month || '').toLowerCase().includes(q) ||
+              rc.pengeluaran.some((item) => item.desc.toLowerCase().includes(q))
+          )
+    )
+      .slice()
+      .sort((a, b) =>
+        compareBySpk(
+          spkByProjectName.get((a.projectName || '').trim().toLowerCase()),
+          spkByProjectName.get((b.projectName || '').trim().toLowerCase())
+        )
+      );
+
+    const reviewErrorsMatched = (
+      !q
+        ? selectedCustomer.reviewErrors
+        : selectedCustomer.reviewErrors.filter(
+            (re) =>
+              (re.projectName || '').toLowerCase().includes(q) ||
+              (re.month || '').toLowerCase().includes(q) ||
+              re.errors.some(
+                (err) =>
+                  err.partName.toLowerCase().includes(q) ||
+                  err.feedback.toLowerCase().includes(q)
+              )
+          )
+    )
+      .slice()
+      .sort((a, b) =>
+        compareBySpk(
+          spkByProjectName.get((a.projectName || '').trim().toLowerCase()),
+          spkByProjectName.get((b.projectName || '').trim().toLowerCase())
+        )
+      );
 
     return {
       projects: projectsMatched,
@@ -242,7 +306,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
       reviewCosts: reviewCostsMatched,
       reviewErrors: reviewErrorsMatched
     };
-  }, [selectedCustomer, dossierSearch]);
+  }, [selectedCustomer, dossierSearch, dossierSpkSort]);
 
   // Global totals
   const globalStats = useMemo(() => {
@@ -1024,7 +1088,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               </button>
             </div>
 
-            {/* Pinned Search Bar Inside Opened Customer Record */}
+            {/* Pinned Search & SPK Sort Bar Inside Opened Customer Record */}
             {dossierTab !== 'label' && (
               <div className="px-4 sm:px-6 py-2.5 border-b border-slate-200 bg-slate-50/90 flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
                 <div className="relative flex-1">
@@ -1047,28 +1111,49 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                     </button>
                   )}
                 </div>
-                {dossierSearch.trim() && (
-                  <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px] text-slate-600 shrink-0">
-                    <span className="font-semibold">
-                      Ditemukan:{' '}
-                      <strong className="text-slate-900 tabular-nums">
-                        {filteredDossier.projects.length +
-                          filteredDossier.standartParts.length +
-                          filteredDossier.feedbacks.length +
-                          filteredDossier.reviewCosts.length +
-                          filteredDossier.reviewErrors.length}
-                      </strong>{' '}
-                      item
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDossierSearch('')}
-                      className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
+
+                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDossierSpkSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                    title={
+                      dossierSpkSort === 'asc'
+                        ? 'Sedang urut SPK menaik (kecil ke besar). Klik untuk membalik.'
+                        : 'Sedang urut SPK menurun (besar ke kecil). Klik untuk membalik.'
+                    }
+                    className="min-h-[40px] sm:min-h-[36px] px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-800 flex items-center gap-1.5 transition"
+                  >
+                    {dossierSpkSort === 'asc' ? (
+                      <ArrowUp className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    ) : (
+                      <ArrowDown className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    )}
+                    <span>{dossierSpkSort === 'asc' ? 'Urut SPK: A→Z' : 'Urut SPK: Z→A'}</span>
+                  </button>
+
+                  {dossierSearch.trim() && (
+                    <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                      <span className="font-semibold">
+                        Ditemukan:{' '}
+                        <strong className="text-slate-900 tabular-nums">
+                          {filteredDossier.projects.length +
+                            filteredDossier.standartParts.length +
+                            filteredDossier.feedbacks.length +
+                            filteredDossier.reviewCosts.length +
+                            filteredDossier.reviewErrors.length}
+                        </strong>{' '}
+                        item
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDossierSearch('')}
+                        className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
