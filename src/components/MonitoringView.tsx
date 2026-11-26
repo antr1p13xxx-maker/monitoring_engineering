@@ -668,7 +668,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
   // Export to Excel
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredProjects);
+    const exportRows = filteredProjects.map(({ 'Aktual Engineering': _omit, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Database_Engineering');
     XLSX.writeFile(wb, `Monitoring_Engineering_${filterYear}_${filterMonth}.xlsx`);
@@ -1593,14 +1594,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                           {item['Delivery Time'] || '-'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-500 block">Aktual Eng.</span>
-                        <span className="font-mono font-semibold text-indigo-700 tabular-nums">
-                          {item['Aktual Engineering'] || '-'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-500 block">Penyelesaian</span>
+                      <div className="col-span-2">
+                        <span className="text-[10px] text-slate-500 block">Tanggal Penyelesaian</span>
                         <span className="font-mono font-semibold text-slate-700 tabular-nums">
                           {item['Tanggal Penyelesaian'] || '-'}
                         </span>
@@ -1792,7 +1787,6 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <th className="p-3 border-b border-slate-700 text-center">Permintaan Drawing/Design</th>
                 <th className="p-3 border-b border-slate-700 text-center">Target Design</th>
                 <th className="p-3 border-b border-slate-700 text-center">Tanggal Penyelesaian</th>
-                <th className="p-3 border-b border-slate-700 text-center">Aktual Engineering</th>
                 <th className="p-3 border-b border-slate-700 text-center">File CAD / PDF</th>
 
                 {/* 14 Checklist Columns */}
@@ -1810,7 +1804,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             <tbody className="divide-y divide-slate-200">
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={30} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={29} className="p-8 text-center text-slate-400 italic">
                     Tidak ada proyek yang sesuai dengan kriteria filter.
                   </td>
                 </tr>
@@ -1897,7 +1891,6 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                         </div>
                       </td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Tanggal Penyelesaian'] || '-'}</td>
-                      <td className="p-3 text-center font-mono text-slate-600">{item['Aktual Engineering'] || '-'}</td>
 
                       {/* CAD & PDF Viewer Links */}
                       <td className="p-3 text-center">
