@@ -1,4 +1,4 @@
-export type UserRole = 'Manager' | 'Supervisor' | 'Lead' | 'Drafter' | 'Viewer';
+export type UserRole = 'Manager' | 'Supervisor' | 'Lead' | 'Designer' | 'Drafter' | 'Viewer';
 
 export interface EngineeringProject {
   No: number;

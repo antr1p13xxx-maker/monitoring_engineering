@@ -790,7 +790,7 @@ export function subscribeToFirestoreStaffAccounts(
         }
       });
       list.sort((a, b) => {
-        const order: Record<string, number> = { Manager: 1, Supervisor: 2, Lead: 3, Drafter: 4 };
+        const order: Record<string, number> = { Manager: 1, Supervisor: 2, Lead: 3, Designer: 4, Drafter: 5 };
         const diff = (order[a.role] || 9) - (order[b.role] || 9);
         return diff !== 0 ? diff : a.name.localeCompare(b.name);
       });

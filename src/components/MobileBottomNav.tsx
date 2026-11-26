@@ -43,6 +43,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     ? 'Spv'
     : userRole === 'Lead'
     ? 'Lead'
+    : userRole === 'Designer'
+    ? 'Designer'
     : userRole === 'Drafter'
     ? 'Drafter'
     : 'Viewer';

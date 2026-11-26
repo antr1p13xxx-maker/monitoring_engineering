@@ -36,6 +36,7 @@ interface StaffPINAndAuditModalProps {
   auditLogs: AuditLog[];
   onAddStaff: (name: string, role: Exclude<UserRole, 'Viewer'>, pin: string) => void;
   onResetStaffPin: (staffId: string, newPin: string) => void;
+  onUpdateStaffRole?: (staffId: string, newRole: Exclude<UserRole, 'Viewer'>) => void;
   onToggleStaffActive: (staffId: string) => void;
   onDeleteStaff: (staffId: string) => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
@@ -45,6 +46,7 @@ const ROLE_BADGE_STYLES: Record<string, string> = {
   Manager: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   Supervisor: 'bg-amber-100 text-amber-800 border-amber-200',
   Lead: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  Designer: 'bg-sky-100 text-sky-800 border-sky-200',
   Drafter: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   Viewer: 'bg-slate-100 text-slate-700 border-slate-200'
 };
@@ -66,6 +68,7 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
   auditLogs,
   onAddStaff,
   onResetStaffPin,
+  onUpdateStaffRole,
   onToggleStaffActive,
   onDeleteStaff,
   showToast
@@ -332,6 +335,7 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
                       className="w-full min-h-[40px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="Drafter">Drafter</option>
+                      <option value="Designer">Designer</option>
                       <option value="Lead">Lead Engineer</option>
                       <option value="Supervisor">Supervisor</option>
                       <option value="Manager">Manager</option>
@@ -404,13 +408,36 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
                               <h4 className="text-sm font-extrabold text-slate-900 truncate">
                                 {staff.name}
                               </h4>
-                              <span
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                                  ROLE_BADGE_STYLES[staff.role] || ROLE_BADGE_STYLES.Viewer
-                                }`}
-                              >
-                                {staff.role}
-                              </span>
+                              {onUpdateStaffRole && !isCurrentActor ? (
+                                <select
+                                  value={staff.role}
+                                  onChange={(e) =>
+                                    onUpdateStaffRole(
+                                      staff.id,
+                                      e.target.value as Exclude<UserRole, 'Viewer'>
+                                    )
+                                  }
+                                  aria-label={`Ubah role akses ${staff.name}`}
+                                  title="Ubah role akses staff"
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                                    ROLE_BADGE_STYLES[staff.role] || ROLE_BADGE_STYLES.Viewer
+                                  }`}
+                                >
+                                  <option value="Drafter">Drafter</option>
+                                  <option value="Designer">Designer</option>
+                                  <option value="Lead">Lead</option>
+                                  <option value="Supervisor">Supervisor</option>
+                                  <option value="Manager">Manager</option>
+                                </select>
+                              ) : (
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                    ROLE_BADGE_STYLES[staff.role] || ROLE_BADGE_STYLES.Viewer
+                                  }`}
+                                >
+                                  {staff.role}
+                                </span>
+                              )}
                               {!staff.isActive && (
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
                                   Nonaktif

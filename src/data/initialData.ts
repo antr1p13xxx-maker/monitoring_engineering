@@ -39,6 +39,7 @@ export const ROLE_PINS: Record<string, string> = {
   Manager: 'Eng159',
   Supervisor: 'Eng567',
   Lead: 'Eng123',
+  Designer: 'Eng234',
   Drafter: 'Eng345'
 };
 

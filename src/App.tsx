@@ -678,6 +678,43 @@ export default function App() {
     showToast(`PIN baru untuk ${target.name} berhasil disimpan (${cleanPin}).`, 'success');
   };
 
+  const handleUpdateStaffRole = (staffId: string, newRole: Exclude<UserRole, 'Viewer'>) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat mengubah role akses staff.', 'error');
+      return;
+    }
+    const target = staffAccounts.find((s) => s.id === staffId);
+    if (!target || target.role === newRole) return;
+    if (target.id === activeStaff?.id) {
+      showToast('Tidak dapat mengubah role akun yang sedang digunakan login.', 'error');
+      return;
+    }
+    const activeManagers = staffAccounts.filter((s) => s.role === 'Manager' && s.isActive);
+    if (target.role === 'Manager' && target.isActive && newRole !== 'Manager' && activeManagers.length <= 1) {
+      showToast('Minimal harus ada 1 akun Manager yang aktif.', 'error');
+      return;
+    }
+    const nowStr = formatNowTimestamp();
+    const updated: StaffAccount = {
+      ...target,
+      role: newRole,
+      updatedAt: nowStr
+    };
+    setStaffAccounts((prev) => prev.map((s) => (s.id === staffId ? updated : s)));
+    saveStaffAccountToFirestore(updated).catch((err) =>
+      console.warn('Firestore update staff role error:', err)
+    );
+    appendAuditLog({
+      module: 'Staff & PIN',
+      actionType: 'update',
+      target: `${target.name} (${newRole})`,
+      activity: `Manager mengubah role akses ${target.name}`,
+      oldValue: target.role,
+      newValue: newRole
+    });
+    showToast(`Role ${target.name} berhasil diubah menjadi ${newRole}.`, 'success');
+  };
+
   const handleToggleStaffActive = (staffId: string) => {
     if (userRole !== 'Manager') {
       showToast('Hanya Manager yang dapat mengubah status akun staff.', 'error');
@@ -1802,6 +1839,7 @@ export default function App() {
         auditLogs={auditLogs}
         onAddStaff={handleAddStaffAccount}
         onResetStaffPin={handleResetStaffPin}
+        onUpdateStaffRole={handleUpdateStaffRole}
         onToggleStaffActive={handleToggleStaffActive}
         onDeleteStaff={handleDeleteStaffAccount}
         showToast={showToast}
