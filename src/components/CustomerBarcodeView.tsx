@@ -79,6 +79,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [dossierTab, setDossierTab] = useState<'projects' | 'standartPart' | 'kpiCostError' | 'label'>('projects');
+  const [dossierSearch, setDossierSearch] = useState('');
   const [qrMode, setQrMode] = useState<'url' | 'offline'>('url');
   const [expandedProjectSpk, setExpandedProjectSpk] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -147,6 +148,101 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     () => customerRecords.find((c) => c.key === selectedCustomerKey) || null,
     [customerRecords, selectedCustomerKey]
   );
+
+  // Reset internal dossier search whenever switching or closing customer
+  useEffect(() => {
+    setDossierSearch('');
+    setExpandedProjectSpk(null);
+  }, [selectedCustomerKey]);
+
+  const filteredDossier = useMemo(() => {
+    if (!selectedCustomer) {
+      return {
+        projects: [] as EngineeringProject[],
+        standartParts: [] as SerahTerimaStandartPartItem[],
+        feedbacks: [] as DesignFeedbackItem[],
+        reviewCosts: [] as ReviewCostItem[],
+        reviewErrors: [] as ReviewErrorItem[]
+      };
+    }
+    const q = dossierSearch.trim().toLowerCase();
+    if (!q) {
+      return {
+        projects: selectedCustomer.projects,
+        standartParts: selectedCustomer.standartParts,
+        feedbacks: selectedCustomer.feedbacks,
+        reviewCosts: selectedCustomer.reviewCosts,
+        reviewErrors: selectedCustomer.reviewErrors
+      };
+    }
+
+    const projectsMatched = selectedCustomer.projects.filter((p) => {
+      const hitMeta =
+        (p.SPK || '').toLowerCase().includes(q) ||
+        (p['Nomor PO'] || '').toLowerCase().includes(q) ||
+        (p['Nama Project'] || '').toLowerCase().includes(q) ||
+        (p.PIC || '').toLowerCase().includes(q) ||
+        (p.Bulan || '').toLowerCase().includes(q) ||
+        (p.Status || '').toLowerCase().includes(q) ||
+        (p.keterangan || '').toLowerCase().includes(q) ||
+        (p['Target Design'] || '').toLowerCase().includes(q);
+      if (hitMeta) return true;
+      return CHECKLIST_KEYS.some(
+        (ck) => ck.toLowerCase().includes(q) && Boolean(p[ck] && String(p[ck]).trim() !== '')
+      );
+    });
+
+    const standartPartsMatched = selectedCustomer.standartParts.filter(
+      (sp) =>
+        (sp.projectName || '').toLowerCase().includes(q) ||
+        (sp.month || '').toLowerCase().includes(q) ||
+        (sp.division || '').toLowerCase().includes(q) ||
+        (sp.signature || '').toLowerCase().includes(q) ||
+        (sp.spk || '').toLowerCase().includes(q) ||
+        (sp.notes || '').toLowerCase().includes(q) ||
+        (sp.prepareStaff || []).some((s) => s.toLowerCase().includes(q)) ||
+        (sp.partNames || []).some((pn) => pn.toLowerCase().includes(q)) ||
+        (sp.partAttachments || []).some(
+          (att) =>
+            att.fileName.toLowerCase().includes(q) ||
+            (att.partLabel || '').toLowerCase().includes(q)
+        )
+    );
+
+    const feedbacksMatched = selectedCustomer.feedbacks.filter(
+      (fb) =>
+        (fb.projectName || '').toLowerCase().includes(q) ||
+        (fb.month || '').toLowerCase().includes(q) ||
+        (fb.fbProduksi || '').toLowerCase().includes(q) ||
+        (fb.fbKastamer || '').toLowerCase().includes(q)
+    );
+
+    const reviewCostsMatched = selectedCustomer.reviewCosts.filter(
+      (rc) =>
+        (rc.projectName || '').toLowerCase().includes(q) ||
+        (rc.month || '').toLowerCase().includes(q) ||
+        rc.pengeluaran.some((item) => item.desc.toLowerCase().includes(q))
+    );
+
+    const reviewErrorsMatched = selectedCustomer.reviewErrors.filter(
+      (re) =>
+        (re.projectName || '').toLowerCase().includes(q) ||
+        (re.month || '').toLowerCase().includes(q) ||
+        re.errors.some(
+          (err) =>
+            err.partName.toLowerCase().includes(q) ||
+            err.feedback.toLowerCase().includes(q)
+        )
+    );
+
+    return {
+      projects: projectsMatched,
+      standartParts: standartPartsMatched,
+      feedbacks: feedbacksMatched,
+      reviewCosts: reviewCostsMatched,
+      reviewErrors: reviewErrorsMatched
+    };
+  }, [selectedCustomer, dossierSearch]);
 
   // Global totals
   const globalStats = useMemo(() => {
@@ -861,7 +957,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 }`}
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                <span>Proyek & Drawing ({selectedCustomer.projects.length})</span>
+                <span>
+                  Proyek & Drawing (
+                  {dossierSearch.trim()
+                    ? `${filteredDossier.projects.length}/${selectedCustomer.projects.length}`
+                    : selectedCustomer.projects.length}
+                  )
+                </span>
               </button>
 
               <button
@@ -874,7 +976,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Standart Part ({selectedCustomer.standartParts.length})</span>
+                <span>
+                  Standart Part (
+                  {dossierSearch.trim()
+                    ? `${filteredDossier.standartParts.length}/${selectedCustomer.standartParts.length}`
+                    : selectedCustomer.standartParts.length}
+                  )
+                </span>
               </button>
 
               <button
@@ -888,7 +996,17 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               >
                 <DollarSign className="w-3.5 h-3.5" />
                 <span>
-                  KPI, Cost & Error ({selectedCustomer.feedbacks.length + selectedCustomer.reviewCosts.length + selectedCustomer.reviewErrors.length})
+                  KPI, Cost & Error (
+                  {dossierSearch.trim()
+                    ? `${filteredDossier.feedbacks.length + filteredDossier.reviewCosts.length + filteredDossier.reviewErrors.length}/${
+                        selectedCustomer.feedbacks.length +
+                        selectedCustomer.reviewCosts.length +
+                        selectedCustomer.reviewErrors.length
+                      }`
+                    : selectedCustomer.feedbacks.length +
+                      selectedCustomer.reviewCosts.length +
+                      selectedCustomer.reviewErrors.length}
+                  )
                 </span>
               </button>
 
@@ -905,6 +1023,54 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 <span>Kartu Barcode & Cetak</span>
               </button>
             </div>
+
+            {/* Pinned Search Bar Inside Opened Customer Record */}
+            {dossierTab !== 'label' && (
+              <div className="px-4 sm:px-6 py-2.5 border-b border-slate-200 bg-slate-50/90 flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={dossierSearch}
+                    onChange={(e) => setDossierSearch(e.target.value)}
+                    placeholder="Cari dalam rekaman: SPK, No PO, nama project, PIC, part, status, bulan, feedback, error..."
+                    className="w-full min-h-[40px] sm:min-h-[36px] pl-9 pr-9 py-1.5 bg-white border border-slate-300 rounded-xl text-base sm:text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                  {dossierSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setDossierSearch('')}
+                      aria-label="Hapus pencarian rekaman"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 min-w-[30px] min-h-[30px] rounded-lg text-slate-400 hover:text-slate-700 flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {dossierSearch.trim() && (
+                  <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px] text-slate-600 shrink-0">
+                    <span className="font-semibold">
+                      Ditemukan:{' '}
+                      <strong className="text-slate-900 tabular-nums">
+                        {filteredDossier.projects.length +
+                          filteredDossier.standartParts.length +
+                          filteredDossier.feedbacks.length +
+                          filteredDossier.reviewCosts.length +
+                          filteredDossier.reviewErrors.length}
+                      </strong>{' '}
+                      item
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDossierSearch('')}
+                      className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold transition"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
@@ -989,16 +1155,30 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               {dossierTab === 'projects' && (
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Daftar SPK, Drawing & Checklist Engineering ({selectedCustomer.projects.length})
+                    Daftar SPK, Drawing & Checklist Engineering ({filteredDossier.projects.length}
+                    {dossierSearch.trim() ? ` dari ${selectedCustomer.projects.length}` : ''})
                   </h4>
 
-                  {selectedCustomer.projects.length === 0 ? (
-                    <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
-                      Belum ada proyek monitoring drawing yang tercatat untuk kastamer ini.
+                  {filteredDossier.projects.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 space-y-2">
+                      <p>
+                        {dossierSearch.trim()
+                          ? `Tidak ada SPK atau proyek yang cocok dengan "${dossierSearch}".`
+                          : 'Belum ada proyek monitoring drawing yang tercatat untuk kastamer ini.'}
+                      </p>
+                      {dossierSearch.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setDossierSearch('')}
+                          className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold"
+                        >
+                          Reset Pencarian
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {selectedCustomer.projects.map((p) => {
+                      {filteredDossier.projects.map((p) => {
                         const completedChecklist = CHECKLIST_KEYS.filter((k) => Boolean(p[k] && String(p[k]).trim() !== ''));
                         const pct = Math.round((completedChecklist.length / CHECKLIST_KEYS.length) * 100);
                         const isExpanded = expandedProjectSpk === p.SPK;
@@ -1149,16 +1329,30 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               {dossierTab === 'standartPart' && (
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Riwayat Serah Terima Standart Part ({selectedCustomer.standartParts.length})
+                    Riwayat Serah Terima Standart Part ({filteredDossier.standartParts.length}
+                    {dossierSearch.trim() ? ` dari ${selectedCustomer.standartParts.length}` : ''})
                   </h4>
 
-                  {selectedCustomer.standartParts.length === 0 ? (
-                    <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500">
-                      Belum ada catatan serah terima standart part untuk kastamer ini.
+                  {filteredDossier.standartParts.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 space-y-2">
+                      <p>
+                        {dossierSearch.trim()
+                          ? `Tidak ada serah terima standart part yang cocok dengan "${dossierSearch}".`
+                          : 'Belum ada catatan serah terima standart part untuk kastamer ini.'}
+                      </p>
+                      {dossierSearch.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setDossierSearch('')}
+                          className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold"
+                        >
+                          Reset Pencarian
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {selectedCustomer.standartParts.map((sp) => (
+                      {filteredDossier.standartParts.map((sp) => (
                         <div key={sp.id} className="border border-slate-200 rounded-xl p-3.5 sm:p-4 space-y-2.5 bg-white">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
@@ -1250,15 +1444,18 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   {/* Design Quality Feedback */}
                   <div className="space-y-2.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      1. Feedback Design Quality ({selectedCustomer.feedbacks.length})
+                      1. Feedback Design Quality ({filteredDossier.feedbacks.length}
+                      {dossierSearch.trim() ? ` dari ${selectedCustomer.feedbacks.length}` : ''})
                     </h4>
-                    {selectedCustomer.feedbacks.length === 0 ? (
+                    {filteredDossier.feedbacks.length === 0 ? (
                       <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        Belum ada catatan feedback desain untuk kastamer ini.
+                        {dossierSearch.trim()
+                          ? `Tidak ada catatan feedback yang cocok dengan "${dossierSearch}".`
+                          : 'Belum ada catatan feedback desain untuk kastamer ini.'}
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {selectedCustomer.feedbacks.map((fb, idx) => {
+                        {filteredDossier.feedbacks.map((fb, idx) => {
                           const isClean = fb.isNoRevision || (!fb.fbProduksi?.trim() && !fb.fbKastamer?.trim());
                           return (
                             <div key={idx} className="p-3 border border-slate-200 rounded-xl text-xs space-y-1">
@@ -1282,15 +1479,18 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   {/* Cost Efficiency */}
                   <div className="space-y-2.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      2. Anggaran & Pengeluaran Cost Engineering ({selectedCustomer.reviewCosts.length})
+                      2. Anggaran & Pengeluaran Cost Engineering ({filteredDossier.reviewCosts.length}
+                      {dossierSearch.trim() ? ` dari ${selectedCustomer.reviewCosts.length}` : ''})
                     </h4>
-                    {selectedCustomer.reviewCosts.length === 0 ? (
+                    {filteredDossier.reviewCosts.length === 0 ? (
                       <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        Belum ada catatan anggaran atau pengeluaran biaya engineering untuk kastamer ini.
+                        {dossierSearch.trim()
+                          ? `Tidak ada catatan anggaran/cost yang cocok dengan "${dossierSearch}".`
+                          : 'Belum ada catatan anggaran atau pengeluaran biaya engineering untuk kastamer ini.'}
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {selectedCustomer.reviewCosts.map((rc, idx) => {
+                        {filteredDossier.reviewCosts.map((rc, idx) => {
                           const totalExp = rc.pengeluaran.reduce((s, x) => s + x.amount, 0);
                           const ratio = rc.anggaran > 0 ? ((totalExp / rc.anggaran) * 100).toFixed(1) : '-';
                           return (
@@ -1327,15 +1527,18 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   {/* Design Error Rate */}
                   <div className="space-y-2.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      3. Rekam Jejak Error & Revisi Drawing ({selectedCustomer.totalErrorCases} Kasus)
+                      3. Rekam Jejak Error & Revisi Drawing ({filteredDossier.reviewErrors.reduce((s, r) => s + r.errors.length, 0)} Kasus
+                      {dossierSearch.trim() ? ` dari ${selectedCustomer.totalErrorCases}` : ''})
                     </h4>
-                    {selectedCustomer.reviewErrors.length === 0 ? (
+                    {filteredDossier.reviewErrors.length === 0 ? (
                       <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        Zero Error — Belum ada kasus error drawing tercatat untuk kastamer ini.
+                        {dossierSearch.trim()
+                          ? `Tidak ada catatan error drawing yang cocok dengan "${dossierSearch}".`
+                          : 'Zero Error — Belum ada kasus error drawing tercatat untuk kastamer ini.'}
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {selectedCustomer.reviewErrors.map((re, idx) => (
+                        {filteredDossier.reviewErrors.map((re, idx) => (
                           <div key={idx} className="p-3 border border-slate-200 rounded-xl text-xs space-y-1.5">
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-slate-900">
