@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserRole } from '../types/engineering';
-import { MASTER_PIN, ROLE_PINS } from '../data/initialData';
+import { StaffAccount, UserRole } from '../types/engineering';
+import { MASTER_PIN } from '../data/initialData';
 import { 
   BarChart3, 
   Table2, 
@@ -15,7 +15,13 @@ import {
   X,
   Check,
   QrCode,
-  Palette
+  Palette,
+  Users,
+  History,
+  Eye,
+  EyeOff,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
@@ -24,54 +30,70 @@ interface HeaderProps {
   currentView: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript';
   onViewChange: (view: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript') => void;
   userRole: UserRole;
-  onRoleChange: (role: UserRole) => void;
+  activeStaff: StaffAccount | null;
+  staffAccounts: StaffAccount[];
+  onStaffLogin: (staff: StaffAccount) => void;
+  onLogoutToViewer: () => void;
   logoUrl: string | null;
   onLogoChange: (url: string) => void;
   onOpenFirebaseModal?: () => void;
   onOpenVercelModal?: () => void;
   onOpenThemeModal?: () => void;
+  onOpenStaffPinModal?: (tab: 'staff' | 'audit') => void;
   externalRolePickerOpen?: boolean;
   onCloseExternalRolePicker?: () => void;
 }
-
-const ROLE_OPTIONS: { value: UserRole; label: string; desc: string }[] = [
-  { value: 'Manager', label: 'Manager Engineering', desc: 'Akses penuh, persetujuan KPI & hapus data' },
-  { value: 'Supervisor', label: 'Supervisor Engineering', desc: 'Monitoring & pengajuan edit KPI (butuh approval)' },
-  { value: 'Lead', label: 'Lead Engineer', desc: 'Edit data proyek & checklist monitoring' },
-  { value: 'Drafter', label: 'Drafter / Designer', desc: 'Update proyek, upload CAD/PDF & checklist' },
-  { value: 'Viewer', label: 'Viewer (Read-Only)', desc: 'Hanya melihat dashboard tanpa mengubah data' }
-];
 
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onViewChange,
   userRole,
-  onRoleChange,
+  activeStaff,
+  staffAccounts,
+  onStaffLogin,
+  onLogoutToViewer,
   logoUrl,
   onLogoChange,
   onOpenFirebaseModal,
   onOpenVercelModal,
   onOpenThemeModal,
+  onOpenStaffPinModal,
   externalRolePickerOpen = false,
   onCloseExternalRolePicker
 }) => {
   const [timeString, setTimeString] = useState<string>('');
-  const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
-  const [showMobileRoleSheet, setShowMobileRoleSheet] = useState<boolean>(false);
+  const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   const [showMobileTools, setShowMobileTools] = useState<boolean>(false);
-  const [pendingRole, setPendingRole] = useState<UserRole>('Viewer');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [enteredPin, setEnteredPin] = useState<string>('');
+  const [showTypedPin, setShowTypedPin] = useState<boolean>(false);
   const [pinError, setPinError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const activeStaffOptions = React.useMemo(
+    () => staffAccounts.filter((s) => s.isActive),
+    [staffAccounts]
+  );
+
+  const openAccountModal = () => {
+    setEnteredPin('');
+    setPinError('');
+    setShowTypedPin(false);
+    setSelectedStaffId((prev) => {
+      if (prev && activeStaffOptions.some((s) => s.id === prev)) return prev;
+      return activeStaff?.id || activeStaffOptions[0]?.id || '';
+    });
+    setShowAccountModal(true);
+  };
+
   useEffect(() => {
     if (externalRolePickerOpen) {
-      setShowMobileRoleSheet(true);
+      openAccountModal();
     }
   }, [externalRolePickerOpen]);
 
-  const closeMobileRoleSheet = () => {
-    setShowMobileRoleSheet(false);
+  const closeAccountModal = () => {
+    setShowAccountModal(false);
     if (onCloseExternalRolePicker) onCloseExternalRolePicker();
   };
 
@@ -88,29 +110,34 @@ export const Header: React.FC<HeaderProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const handleRoleSelectChange = (newRole: UserRole) => {
-    closeMobileRoleSheet();
-    if (newRole === userRole) return;
-    if (newRole === 'Viewer') {
-      onRoleChange('Viewer');
+  const selectedStaffObj = activeStaffOptions.find((s) => s.id === selectedStaffId) || null;
+
+  const handleVerifyStaffPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffObj) {
+      setPinError('Pilih nama staff terlebih dahulu.');
       return;
     }
-    setPendingRole(newRole);
-    setEnteredPin('');
-    setPinError('');
-    setShowRoleModal(true);
+    const cleanPin = enteredPin.trim();
+    const isMatch =
+      cleanPin === selectedStaffObj.pin ||
+      (selectedStaffObj.role === 'Manager' && cleanPin === MASTER_PIN);
+
+    if (isMatch) {
+      onStaffLogin(selectedStaffObj);
+      setEnteredPin('');
+      setPinError('');
+      closeAccountModal();
+    } else {
+      setPinError(`PIN salah untuk akun ${selectedStaffObj.name}. Hubungi Manager jika lupa PIN.`);
+    }
   };
 
-  const handleVerifyRolePin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const expectedPin = ROLE_PINS[pendingRole] || MASTER_PIN;
-    if (enteredPin === expectedPin || enteredPin === MASTER_PIN) {
-      onRoleChange(pendingRole);
-      setShowRoleModal(false);
-      setPinError('');
-    } else {
-      setPinError(`PIN salah! Masukkan PIN otentikasi role ${pendingRole}.`);
-    }
+  const handleSwitchToViewer = () => {
+    onLogoutToViewer();
+    setEnteredPin('');
+    setPinError('');
+    closeAccountModal();
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,16 +153,11 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const shortRoleLabel =
-    userRole === 'Manager'
-      ? 'Manager'
-      : userRole === 'Supervisor'
-      ? 'Supervisor'
-      : userRole === 'Lead'
-      ? 'Lead'
-      : userRole === 'Drafter'
-      ? 'Drafter'
-      : 'Viewer';
+  const shortActorLabel = activeStaff
+    ? activeStaff.name
+    : userRole === 'Viewer'
+    ? 'Viewer'
+    : userRole;
 
   return (
     <header className="theme-header-bg text-white shadow-lg shadow-slate-950/20 sticky top-0 z-50 border-b border-white/15">
@@ -202,19 +224,20 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             type="button"
-            onClick={() => setShowMobileRoleSheet(true)}
+            onClick={openAccountModal}
             className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-950/70 border border-white/25 text-white text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="max-w-[70px] truncate">{shortRoleLabel}</span>
+            <span className="max-w-[82px] truncate">{shortActorLabel}</span>
           </button>
 
-          {userRole === 'Manager' && (onOpenFirebaseModal || onOpenVercelModal) && (
+          {userRole !== 'Viewer' &&
+            (onOpenStaffPinModal || onOpenFirebaseModal || onOpenVercelModal) && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowMobileTools((v) => !v)}
-                aria-label="Menu Cloud & Deploy"
+                aria-label="Menu Staff, Audit & Cloud"
                 className="min-w-[38px] min-h-[38px] rounded-xl bg-slate-900/90 border border-indigo-400/30 text-slate-200 flex items-center justify-center active:scale-95 transition"
               >
                 <MoreVertical className="w-4 h-4" />
@@ -226,8 +249,34 @@ export const Header: React.FC<HeaderProps> = ({
                     className="fixed inset-0 z-40"
                     onClick={() => setShowMobileTools(false)}
                   />
-                  <div className="absolute right-0 top-11 z-50 w-52 bg-slate-900 border border-indigo-400/30 rounded-2xl shadow-2xl p-1.5 space-y-1">
-                    {onOpenFirebaseModal && (
+                  <div className="absolute right-0 top-11 z-50 w-56 bg-slate-900 border border-indigo-400/30 rounded-2xl shadow-2xl p-1.5 space-y-1">
+                    {userRole === 'Manager' && onOpenStaffPinModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileTools(false);
+                          onOpenStaffPinModal('staff');
+                        }}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-emerald-200 hover:bg-white/10 flex items-center gap-2"
+                      >
+                        <Users className="w-4 h-4 text-emerald-400" />
+                        <span>Kelola Staff & PIN</span>
+                      </button>
+                    )}
+                    {onOpenStaffPinModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileTools(false);
+                          onOpenStaffPinModal('audit');
+                        }}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-indigo-200 hover:bg-white/10 flex items-center gap-2"
+                      >
+                        <History className="w-4 h-4 text-indigo-400" />
+                        <span>Jejak Audit Input</span>
+                      </button>
+                    )}
+                    {userRole === 'Manager' && onOpenFirebaseModal && (
                       <button
                         type="button"
                         onClick={() => {
@@ -240,7 +289,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <span>Firebase Console</span>
                       </button>
                     )}
-                    {onOpenVercelModal && (
+                    {userRole === 'Manager' && onOpenVercelModal && (
                       <button
                         type="button"
                         onClick={() => {
@@ -333,6 +382,32 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* Manager Staff & PIN Button */}
+          {userRole === 'Manager' && onOpenStaffPinModal && (
+            <button
+              type="button"
+              onClick={() => onOpenStaffPinModal('staff')}
+              title="Lihat PIN Staff, Buat Ulang PIN & Kelola Akun Staff"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/35 shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              <Users className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Staff & PIN</span>
+            </button>
+          )}
+
+          {/* Audit Log Button (Visible for active logged-in staff & Manager) */}
+          {userRole !== 'Viewer' && onOpenStaffPinModal && (
+            <button
+              type="button"
+              onClick={() => onOpenStaffPinModal('audit')}
+              title="Lihat Riwayat & Jejak Audit Input Staff"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              <History className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Audit Log</span>
+            </button>
+          )}
+
           {/* PWA Install App Button (PC & Mobile) */}
           <PWAInstallButton />
 
@@ -369,133 +444,178 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-mono text-[11px] tabular-nums">{timeString || 'Memuat waktu...'}</span>
           </div>
 
-          {/* Role Switcher */}
-          <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-950/80 to-slate-900/90 px-3 py-1.5 rounded-xl border border-cyan-400/30 shadow-sm">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px] text-indigo-200">Role:</span>
-            <select
-              value={userRole}
-              onChange={(e) => handleRoleSelectChange(e.target.value as UserRole)}
-              className="bg-transparent text-xs text-cyan-300 font-bold focus:outline-none cursor-pointer"
-            >
-              <option value="Manager" className="bg-slate-900 text-white">Manager Engineering</option>
-              <option value="Supervisor" className="bg-slate-900 text-white">Supervisor Engineering</option>
-              <option value="Lead" className="bg-slate-900 text-white">Lead Engineer</option>
-              <option value="Drafter" className="bg-slate-900 text-white">Drafter / Designer</option>
-              <option value="Viewer" className="bg-slate-900 text-white">Viewer (Read-Only)</option>
-            </select>
-          </div>
+          {/* Active Staff & Role Switcher Button */}
+          <button
+            type="button"
+            onClick={openAccountModal}
+            title="Pilih Akun Staff & Masukkan PIN Pribadi"
+            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-950/85 to-slate-900/95 hover:from-indigo-900 hover:to-slate-800 px-3 py-1.5 rounded-xl border border-cyan-400/35 shadow-sm cursor-pointer transition"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <div className="text-left leading-tight">
+              <span className="text-[10px] text-indigo-200 block">
+                {activeStaff ? 'Operator Aktif:' : 'Mode Akses:'}
+              </span>
+              <span className="text-xs text-cyan-300 font-bold">
+                {activeStaff ? `${activeStaff.name} (${activeStaff.role})` : 'Viewer (Read-Only)'}
+              </span>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+          </button>
         </div>
       </div>
 
-      {/* Mobile Role Picker Bottom Sheet */}
-      {showMobileRoleSheet && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
-          <div className="bg-slate-900 border-t sm:border border-indigo-400/30 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md text-white overflow-hidden pb-safe">
-            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-emerald-500/20 border border-emerald-400/30 rounded-xl">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+      {/* Unified Staff Account & PIN Login Modal (Desktop & Mobile) */}
+      {showAccountModal && (
+        <div
+          className="fixed inset-0 bg-slate-950/80 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={closeAccountModal}
+        >
+          <div
+            className="bg-slate-900 border-t sm:border border-indigo-400/30 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md text-white overflow-hidden flex flex-col max-h-[90dvh] pb-safe"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-blue-600 rounded-xl text-white">
+                  <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold">Pilih Role Pengguna</h3>
-                  <p className="text-[11px] text-slate-400">Tentukan hak akses di aplikasi</p>
+                  <h3 className="text-sm font-extrabold">Login Staff & Verifikasi PIN</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Setiap perubahan data dicatat atas nama staff yang login
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={closeMobileRoleSheet}
+                onClick={closeAccountModal}
                 className="min-w-[40px] min-h-[40px] rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-3 space-y-2 max-h-[70dvh] overflow-y-auto">
-              {ROLE_OPTIONS.map((opt) => {
-                const active = userRole === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleRoleSelectChange(opt.value)}
-                    className={`w-full min-h-[54px] px-4 py-3 rounded-2xl border text-left flex items-center justify-between gap-3 transition active:scale-[0.99] ${
-                      active
-                        ? 'bg-gradient-to-r from-cyan-500/20 to-indigo-500/25 border-cyan-400/50 text-white'
-                        : 'bg-slate-950/60 border-slate-800 text-slate-200 hover:bg-slate-800/80'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-extrabold">{opt.label}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</p>
-                    </div>
-                    {active && <Check className="w-5 h-5 text-cyan-400 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Role Verification PIN Modal */}
-      {showRoleModal && (
-        <div className="fixed inset-0 bg-slate-950/80 z-[140] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-sm p-5 sm:p-6 text-white space-y-4 pb-safe">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 bg-blue-600 rounded-xl text-white">
-                <KeyRound className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold">Verifikasi Akses Role</h3>
-                <p className="text-xs text-slate-400">Beralih ke: <span className="text-blue-400 font-semibold">{pendingRole}</span></p>
-              </div>
-            </div>
-
-            <form onSubmit={handleVerifyRolePin} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Masukkan PIN Akses {pendingRole}
-                </label>
-                <input
-                  type="password"
-                  value={enteredPin}
-                  onChange={(e) => {
-                    setEnteredPin(e.target.value);
-                    setPinError('');
-                  }}
-                  autoFocus
-                  required
-                  placeholder={`PIN rahasia...`}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-3 text-base sm:text-xs text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-                <p className="mt-1.5 text-[11px] text-slate-400">
-                  Masukkan PIN otentikasi resmi untuk mengaktifkan akses role {pendingRole}.
-                </p>
-              </div>
-
-              {pinError && (
-                <div className="p-2.5 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-300 text-xs flex items-center space-x-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{pinError}</span>
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+              {/* Quick Mode Viewer Switch */}
+              <button
+                type="button"
+                onClick={handleSwitchToViewer}
+                className={`w-full min-h-[46px] px-4 py-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition ${
+                  userRole === 'Viewer'
+                    ? 'bg-emerald-500/20 border-emerald-400/50 text-white'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <LogOut className="w-4 h-4 text-slate-400" />
+                  <div>
+                    <p className="text-xs font-bold">Mode Viewer (Hanya Lihat / Keluar Edit)</p>
+                    <p className="text-[10px] text-slate-400">
+                      Kunci form agar aman dari sentuhan atau salah input tidak sengaja
+                    </p>
+                  </div>
                 </div>
-              )}
+                {userRole === 'Viewer' && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+              </button>
 
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRoleModal(false)}
-                  className="min-h-[44px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow transition"
-                >
-                  Verifikasi Role
-                </button>
-              </div>
-            </form>
+              {/* Staff Account Selection & Personal PIN Form */}
+              <form onSubmit={handleVerifyStaffPin} className="space-y-3 pt-1 border-t border-slate-800">
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                    1. Pilih Nama Akun Staff
+                  </label>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                    {activeStaffOptions.map((stf) => {
+                      const isPicked = selectedStaffId === stf.id;
+                      return (
+                        <button
+                          key={stf.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStaffId(stf.id);
+                            setPinError('');
+                          }}
+                          className={`w-full min-h-[44px] px-3 py-2 rounded-xl border text-left flex items-center justify-between gap-2 transition ${
+                            isPicked
+                              ? 'bg-indigo-600/30 border-cyan-400/70 text-white'
+                              : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0">
+                              {stf.name.slice(0, 2).toUpperCase()}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate">{stf.name}</p>
+                              <p className="text-[10px] text-cyan-300 font-semibold">{stf.role}</p>
+                            </div>
+                          </div>
+                          {isPicked && <Check className="w-4 h-4 text-cyan-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {selectedStaffObj && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      2. Masukkan PIN Pribadi{' '}
+                      <span className="text-cyan-300">
+                        {selectedStaffObj.name} ({selectedStaffObj.role})
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showTypedPin ? 'text' : 'password'}
+                        value={enteredPin}
+                        onChange={(e) => {
+                          setEnteredPin(e.target.value);
+                          setPinError('');
+                        }}
+                        autoFocus
+                        required
+                        placeholder="Masukkan PIN pribadi..."
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-3.5 pr-11 py-3 text-base sm:text-xs font-mono text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowTypedPin((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-white"
+                        aria-label={showTypedPin ? 'Sembunyikan PIN' : 'Lihat PIN'}
+                      >
+                        {showTypedPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {pinError && (
+                  <div className="p-2.5 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center space-x-1.5">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{pinError}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeAccountModal}
+                    className="min-h-[44px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!selectedStaffObj}
+                    className="min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow transition"
+                  >
+                    Masuk & Aktifkan Akun
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

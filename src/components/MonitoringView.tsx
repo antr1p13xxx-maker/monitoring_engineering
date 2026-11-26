@@ -920,7 +920,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             <div>
               <p className="text-xs font-bold">Akses Role: Viewer (Mode Hanya Melihat)</p>
               <p className="text-[11px] text-amber-700">
-                Anda memiliki akses penuh untuk melihat tabel monitoring, 3 grafik vertikal, 3D CAD viewer, serta ekspor PDF dan Excel. Hak akses menambah, mengedit, checklist, atau menghapus data terkunci. Untuk mengedit, ganti role ke Manager/Supervisor/Drafter dan masukkan PIN pada menu header.
+                Anda memiliki akses penuh untuk melihat tabel monitoring, 3 grafik vertikal, 3D CAD viewer, serta ekspor PDF dan Excel. Hak akses menambah, mengedit, checklist, atau menghapus data terkunci. Untuk mengedit, pilih Nama Akun Staff Anda dan masukkan PIN pribadi pada menu header.
               </p>
             </div>
           </div>
@@ -1256,6 +1256,12 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       </div>
                       {item['Nomor PO'] && (
                         <p className="text-[10px] font-mono text-slate-500 mt-0.5">PO: {item['Nomor PO']}</p>
+                      )}
+                      {item.lastModifiedBy && (
+                        <p className="text-[10px] text-indigo-700 font-semibold mt-1">
+                          Diubah oleh: {item.lastModifiedBy}
+                          {item.lastModifiedAt ? ` • ${item.lastModifiedAt}` : ''}
+                        </p>
                       )}
                     </div>
 
@@ -1625,7 +1631,15 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       })}
 
                       <td className="p-3 max-w-xs truncate text-slate-600" title={item.keterangan}>
-                        {item.keterangan || '-'}
+                        <div className="truncate">{item.keterangan || '-'}</div>
+                        {item.lastModifiedBy && (
+                          <div
+                            className="text-[10px] text-indigo-600 font-semibold truncate mt-0.5"
+                            title={`Terakhir diubah oleh ${item.lastModifiedBy} (${item.lastModifiedAt || ''})`}
+                          >
+                            Diubah: {item.lastModifiedBy}
+                          </div>
+                        )}
                       </td>
 
                       {/* Action column */}

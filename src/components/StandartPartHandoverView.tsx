@@ -1265,6 +1265,12 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                         <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span className="truncate">{item.customer}</span>
                       </p>
+                      {item.lastModifiedBy && (
+                        <p className="text-[10px] text-indigo-700 font-semibold mt-1">
+                          Diubah oleh: {item.lastModifiedBy}
+                          {item.lastModifiedAt ? ` • ${item.lastModifiedAt}` : ''}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1893,6 +1899,14 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
                           {item.spk && (
                             <span className="block text-[10px] font-mono text-blue-600 font-normal mt-0.5">
                               {item.spk}
+                            </span>
+                          )}
+                          {item.lastModifiedBy && (
+                            <span
+                              className="block text-[10px] text-indigo-600 font-semibold mt-0.5"
+                              title={`Terakhir diubah oleh ${item.lastModifiedBy} (${item.lastModifiedAt || ''})`}
+                            >
+                              Diubah: {item.lastModifiedBy}
                             </span>
                           )}
                         </div>

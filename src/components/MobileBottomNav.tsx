@@ -6,6 +6,7 @@ interface MobileBottomNavProps {
   currentView: 'monitoring' | 'barcodes' | 'kpi' | 'appsScript';
   monitoringSubTab: 'drawingProjects' | 'standartPartHandover';
   userRole: UserRole;
+  activeStaffName?: string;
   pendingApprovalCount?: number;
   onSelectMonitoring: () => void;
   onSelectStandartPart: () => void;
@@ -19,6 +20,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   monitoringSubTab,
   userRole,
+  activeStaffName,
   pendingApprovalCount = 0,
   onSelectMonitoring,
   onSelectStandartPart,
@@ -33,16 +35,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const isKpiActive = currentView === 'kpi';
   const isGasActive = currentView === 'appsScript';
 
-  const shortRole =
-    userRole === 'Manager'
-      ? 'Manager'
-      : userRole === 'Supervisor'
-      ? 'Spv'
-      : userRole === 'Lead'
-      ? 'Lead'
-      : userRole === 'Drafter'
-      ? 'Drafter'
-      : 'Viewer';
+  const shortRole = activeStaffName
+    ? activeStaffName.split(' ')[0]
+    : userRole === 'Manager'
+    ? 'Manager'
+    : userRole === 'Supervisor'
+    ? 'Spv'
+    : userRole === 'Lead'
+    ? 'Lead'
+    : userRole === 'Drafter'
+    ? 'Drafter'
+    : 'Viewer';
 
   return (
     <nav

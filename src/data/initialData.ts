@@ -1,4 +1,4 @@
-import { EngineeringProject, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, SerahTerimaStandartPartItem } from '../types/engineering';
+import { EngineeringProject, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, SerahTerimaStandartPartItem, StaffAccount } from '../types/engineering';
 
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nop', 'Des'] as const;
 
@@ -41,6 +41,97 @@ export const ROLE_PINS: Record<string, string> = {
   Lead: 'Eng123',
   Drafter: 'Eng345'
 };
+
+export const INITIAL_STAFF_ACCOUNTS: StaffAccount[] = [
+  {
+    id: 'stf-manager-andry',
+    name: 'Andry Setyawan',
+    role: 'Manager',
+    pin: 'Eng159',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-sup-rian',
+    name: 'Rian',
+    role: 'Supervisor',
+    pin: 'Sup567',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-lead-fadil',
+    name: 'Fadil',
+    role: 'Lead',
+    pin: 'Led123',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-dft-pram',
+    name: 'Pram',
+    role: 'Drafter',
+    pin: 'Prm301',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-dft-budi',
+    name: 'Budi',
+    role: 'Drafter',
+    pin: 'Bud302',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-dft-hendra',
+    name: 'Hendra',
+    role: 'Drafter',
+    pin: 'Hnd303',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-dft-siti',
+    name: 'Siti',
+    role: 'Drafter',
+    pin: 'Sit304',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  },
+  {
+    id: 'stf-dft-rahmat',
+    name: 'Rahmat',
+    role: 'Drafter',
+    pin: 'Rhm305',
+    isActive: true,
+    createdAt: '2026-01-02 08:00:00',
+    updatedAt: '2026-01-02 08:00:00'
+  }
+];
+
+export function generateRandomStaffPin(existingPins: string[] = []): string {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const p =
+      letters[Math.floor(Math.random() * letters.length)] +
+      letters[Math.floor(Math.random() * letters.length)] +
+      digits[Math.floor(Math.random() * digits.length)] +
+      digits[Math.floor(Math.random() * digits.length)] +
+      digits[Math.floor(Math.random() * digits.length)] +
+      digits[Math.floor(Math.random() * digits.length)];
+    if (!existingPins.includes(p)) return p;
+  }
+  return `ENG${String(Math.floor(100 + Math.random() * 899))}`;
+}
 
 export function getBaseKPITemplate(): KPIItem[] {
   return [

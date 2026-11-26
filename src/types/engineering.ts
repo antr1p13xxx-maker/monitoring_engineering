@@ -31,6 +31,8 @@ export interface EngineeringProject {
   simulation: string;
   penawaran: string;
   keterangan: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
 }
 
 export type ChecklistKey =
@@ -91,13 +93,30 @@ export interface DesignFeedbackItem {
   isNoRevision: boolean;
 }
 
+export interface StaffAccount {
+  id: string;
+  name: string;
+  role: Exclude<UserRole, 'Viewer'>;
+  pin: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditLog {
   id: string;
   timestamp: string;
   user: string;
+  staffId?: string;
+  staffName?: string;
+  staffRole?: UserRole;
+  module?: 'Monitoring' | 'Standart Part' | 'KPI' | 'Staff & PIN';
+  actionType?: 'create' | 'update' | 'delete' | 'checklist' | 'upload' | 'approval' | 'pin';
+  target?: string;
   activity: string;
   year: string;
   month: string;
+  oldValue?: string;
   newValue: string;
 }
 
@@ -128,6 +147,8 @@ export interface SerahTerimaStandartPartItem {
   signature: string;
   spk?: string;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
 }
 
 export type KPIApprovalCategory =

@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -17,6 +17,8 @@ const REVIEW_ERROR_COLLECTION = 'review_error_records';
 const STANDART_PART_COLLECTION = 'standart_part_handovers';
 const DESIGN_FEEDBACK_COLLECTION = 'design_feedback_records';
 const KPI_APPROVAL_COLLECTION = 'kpi_approval_requests';
+const STAFF_ACCOUNTS_COLLECTION = 'staff_accounts';
+const AUDIT_LOGS_COLLECTION = 'activity_audit_logs';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -63,12 +65,14 @@ export async function saveProjectToFirestore(project: EngineeringProject): Promi
 export async function updateChecklistInFirestore(
   spk: string, 
   checklistKey: string, 
-  value: string
+  value: string,
+  lastModifiedBy?: string
 ): Promise<void> {
   const docId = spk.replace(/\//g, '_');
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
   await setDoc(docRef, {
     [checklistKey]: value,
+    ...(lastModifiedBy ? { lastModifiedBy, lastModifiedAt: new Date().toISOString() } : {}),
     updatedAt: new Date().toISOString(),
   }, { merge: true });
 }
@@ -477,7 +481,9 @@ export function subscribeToFirestoreStandartParts(
         division: data.division || 'Assembly',
         signature: data.signature || '',
         spk: data.spk || '',
-        notes: data.notes || ''
+        notes: data.notes || '',
+        lastModifiedBy: data.lastModifiedBy || '',
+        lastModifiedAt: data.lastModifiedAt || ''
       });
     });
     list.sort((a, b) => (a.no || 0) - (b.no || 0));
@@ -756,4 +762,147 @@ export async function deleteApprovalFromFirestore(requestId: string): Promise<vo
   const docId = requestId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const docRef = doc(db, KPI_APPROVAL_COLLECTION, docId);
   await deleteDoc(docRef);
+}
+
+/**
+ * Real-time listener untuk daftar akun staff & PIN pribadi.
+ */
+export function subscribeToFirestoreStaffAccounts(
+  onUpdate: (items: StaffAccount[]) => void
+) {
+  const colRef = collection(db, STAFF_ACCOUNTS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: StaffAccount[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.name && data.role && data.pin) {
+          list.push({
+            id: String(data.id || docSnap.id),
+            name: String(data.name),
+            role: data.role,
+            pin: String(data.pin),
+            isActive: data.isActive !== false,
+            createdAt: String(data.createdAt || ''),
+            updatedAt: String(data.updatedAt || ''),
+          });
+        }
+      });
+      list.sort((a, b) => {
+        const order: Record<string, number> = { Manager: 1, Supervisor: 2, Lead: 3, Drafter: 4 };
+        const diff = (order[a.role] || 9) - (order[b.role] || 9);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Staff Accounts listener notice:', err.message);
+    }
+  );
+}
+
+/**
+ * Menyimpan atau memperbarui akun staff (termasuk pembuatan ulang PIN oleh Manager).
+ */
+export async function saveStaffAccountToFirestore(staff: StaffAccount): Promise<void> {
+  const docId = (staff.id || `stf_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, STAFF_ACCOUNTS_COLLECTION, docId);
+  await setDoc(
+    docRef,
+    {
+      ...staff,
+      id: docId,
+      updatedAt: staff.updatedAt || new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Menghapus akun staff dari Firestore.
+ */
+export async function deleteStaffAccountFromFirestore(staffId: string): Promise<void> {
+  const docId = staffId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, STAFF_ACCOUNTS_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed initial staff accounts jika koleksi masih kosong.
+ */
+export async function seedStaffAccountsIfEmpty(initialStaff: StaffAccount[]): Promise<void> {
+  try {
+    if (localStorage.getItem('eng_staff_accounts_seeded') === 'true') {
+      return;
+    }
+    const colRef = collection(db, STAFF_ACCOUNTS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    if (snapshot.empty && initialStaff.length > 0) {
+      const batch = writeBatch(db);
+      initialStaff.forEach((stf) => {
+        const docId = stf.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+        const docRef = doc(db, STAFF_ACCOUNTS_COLLECTION, docId);
+        batch.set(docRef, stf);
+      });
+      await batch.commit();
+      console.info(`Seeded ${initialStaff.length} initial Staff Accounts to Firestore.`);
+    }
+    localStorage.setItem('eng_staff_accounts_seeded', 'true');
+  } catch (err) {
+    console.warn('Could not seed initial Staff Accounts to Firestore:', err);
+  }
+}
+
+/**
+ * Real-time listener untuk Jejak Audit Global (Monitoring, Standart Part, KPI, Staff & PIN).
+ */
+export function subscribeToFirestoreAuditLogs(
+  onUpdate: (items: AuditLog[]) => void
+) {
+  const colRef = collection(db, AUDIT_LOGS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: AuditLog[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.timestamp && data.activity) {
+          list.push({
+            id: String(data.id || docSnap.id),
+            timestamp: String(data.timestamp),
+            user: String(data.user || 'Staff'),
+            staffId: data.staffId ? String(data.staffId) : undefined,
+            staffName: data.staffName ? String(data.staffName) : undefined,
+            staffRole: data.staffRole || undefined,
+            module: data.module || undefined,
+            actionType: data.actionType || undefined,
+            target: data.target ? String(data.target) : undefined,
+            activity: String(data.activity),
+            year: String(data.year || '-'),
+            month: String(data.month || '-'),
+            oldValue: data.oldValue ? String(data.oldValue) : undefined,
+            newValue: String(data.newValue || '-'),
+          });
+        }
+      });
+      list.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Audit Logs listener notice:', err.message);
+    }
+  );
+}
+
+/**
+ * Menyimpan 1 catatan audit log baru ke Firestore.
+ */
+export async function saveAuditLogToFirestore(log: AuditLog): Promise<void> {
+  const docId = (log.id || `log_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, AUDIT_LOGS_COLLECTION, docId);
+  await setDoc(docRef, {
+    ...log,
+    id: docId,
+  });
 }

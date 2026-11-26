@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { AuthGateModal } from './components/AuthGateModal';
 import { MonitoringView } from './components/MonitoringView';
@@ -13,6 +13,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { CustomerBarcodeView } from './components/CustomerBarcodeView';
 import { ThemeSettingsModal } from './components/ThemeSettingsModal';
+import { StaffPINAndAuditModal } from './components/StaffPINAndAuditModal';
 import {
   ThemeConfig,
   DEFAULT_THEME_CONFIG,
@@ -39,6 +40,7 @@ import {
   seedReviewErrorIfEmpty,
   subscribeToFirestoreStandartParts,
   saveStandartPartToFirestore,
+  deleteStandartPartFromFirestore,
   seedStandartPartsIfEmpty,
   subscribeToFirestoreDesignFeedback,
   saveDesignFeedbackToFirestore,
@@ -46,12 +48,19 @@ import {
   seedDesignFeedbackIfEmpty,
   subscribeToFirestoreApprovals,
   saveApprovalToFirestore,
-  deleteApprovalFromFirestore
+  deleteApprovalFromFirestore,
+  subscribeToFirestoreStaffAccounts,
+  saveStaffAccountToFirestore,
+  deleteStaffAccountFromFirestore,
+  seedStaffAccountsIfEmpty,
+  subscribeToFirestoreAuditLogs,
+  saveAuditLogToFirestore
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
   KPIItem, 
   UserRole, 
+  StaffAccount,
   ChecklistKey, 
   ReviewCostItem, 
   ReviewErrorItem, 
@@ -62,6 +71,7 @@ import {
 } from './types/engineering';
 import { 
   INITIAL_PROJECTS, 
+  INITIAL_STAFF_ACCOUNTS,
   getBaseKPITemplate, 
   INITIAL_REVIEW_COST, 
   INITIAL_REVIEW_ERROR, 
@@ -99,7 +109,24 @@ export default function App() {
   });
   const [monitoringSubTab, setMonitoringSubTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
   const [mobileRolePickerOpen, setMobileRolePickerOpen] = useState<boolean>(false);
-  const [userRole, setUserRole] = useState<UserRole>('Viewer');
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem('eng_staff_accounts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading staff accounts from localStorage:', e);
+    }
+    return INITIAL_STAFF_ACCOUNTS;
+  });
+  const [activeStaff, setActiveStaff] = useState<StaffAccount | null>(null);
+  const userRole: UserRole = activeStaff ? activeStaff.role : 'Viewer';
+  const [staffPinModalState, setStaffPinModalState] = useState<{ isOpen: boolean; tab: 'staff' | 'audit' }>({
+    isOpen: false,
+    tab: 'staff'
+  });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Database State (Projects)
@@ -286,6 +313,61 @@ export default function App() {
     saveThemeConfig(themeConfig);
   }, [themeConfig]);
 
+  // Refs for clean diffing outside React state setters
+  const standartPartListRef = useRef<SerahTerimaStandartPartItem[]>(standartPartList);
+  standartPartListRef.current = standartPartList;
+  const projectsRef = useRef<EngineeringProject[]>(projects);
+  projectsRef.current = projects;
+
+  // Real-time Firestore listener for Staff Accounts & Global Audit Logs
+  useEffect(() => {
+    let isMounted = true;
+    let unsubStaff: (() => void) | undefined;
+
+    seedStaffAccountsIfEmpty(INITIAL_STAFF_ACCOUNTS).finally(() => {
+      if (!isMounted) return;
+      unsubStaff = subscribeToFirestoreStaffAccounts((items) => {
+        if (items.length > 0) {
+          setStaffAccounts(items);
+        }
+      });
+    });
+
+    const unsubAuditLogs = subscribeToFirestoreAuditLogs((items) => {
+      if (items.length > 0) {
+        setAuditLogs(items);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (unsubStaff) unsubStaff();
+      unsubAuditLogs();
+    };
+  }, []);
+
+  // Persist Staff Accounts & guard active logged-in staff session
+  useEffect(() => {
+    try {
+      localStorage.setItem('eng_staff_accounts', JSON.stringify(staffAccounts));
+    } catch (e) {
+      console.error(e);
+    }
+    if (activeStaff) {
+      const matched = staffAccounts.find((s) => s.id === activeStaff.id);
+      if (!matched || !matched.isActive) {
+        setActiveStaff(null);
+        showToast('Akun staff Anda telah dinonaktifkan atau dihapus oleh Manager. Sesi kembali ke Viewer.', 'error');
+      } else if (
+        matched.pin !== activeStaff.pin ||
+        matched.role !== activeStaff.role ||
+        matched.name !== activeStaff.name
+      ) {
+        setActiveStaff(matched);
+      }
+    }
+  }, [staffAccounts]);
+
   // Real-time Google Firebase Firestore Integration
   useEffect(() => {
     // 1. Seed database jika Firestore masih kosong pada instalasi awal
@@ -461,18 +543,259 @@ export default function App() {
     }
   }, [userRole, currentView]);
 
+  // Formatting timestamp & active staff actor helpers
+  const formatNowTimestamp = (): string => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  const getActorLabel = (): string =>
+    activeStaff ? `${activeStaff.name} (${activeStaff.role})` : 'Viewer (Read-Only)';
+
+  const appendAuditLog = (entry: {
+    module: NonNullable<AuditLog['module']>;
+    actionType: NonNullable<AuditLog['actionType']>;
+    target?: string;
+    activity: string;
+    oldValue?: string;
+    newValue: string;
+    year?: string;
+    month?: string;
+    actorOverride?: string;
+  }) => {
+    const nowStr = formatNowTimestamp();
+    const d = new Date();
+    const monthKeys = Object.keys(MONTH_FULL_NAMES);
+    const currentMonthName = MONTH_FULL_NAMES[monthKeys[d.getMonth()]] || '-';
+    const newLog: AuditLog = {
+      id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: nowStr,
+      user: entry.actorOverride || getActorLabel(),
+      staffId: activeStaff?.id,
+      staffName: activeStaff?.name,
+      staffRole: activeStaff?.role || 'Viewer',
+      module: entry.module,
+      actionType: entry.actionType,
+      target: entry.target,
+      activity: entry.activity,
+      year: entry.year || String(d.getFullYear()),
+      month: entry.month || currentMonthName,
+      oldValue: entry.oldValue,
+      newValue: entry.newValue
+    };
+
+    setAuditLogs((prev) => [newLog, ...prev].slice(0, 500));
+    saveAuditLogToFirestore(newLog).catch((err) =>
+      console.warn('Firestore audit log save error:', err)
+    );
+  };
+
+  // Staff Login / Logout & Manager PIN Administration Handlers
+  const handleStaffLogin = (staff: StaffAccount) => {
+    setActiveStaff(staff);
+    showToast(`Login berhasil sebagai ${staff.name} (${staff.role}). Setiap perubahan tercatat atas nama Anda.`, 'success');
+  };
+
+  const handleLogoutToViewer = () => {
+    setActiveStaff(null);
+    showToast('Akses dikunci ke mode Viewer (Read-Only).', 'info');
+  };
+
+  const handleAddStaffAccount = (name: string, role: Exclude<UserRole, 'Viewer'>, pin: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menambahkan akun staff baru.', 'error');
+      return;
+    }
+    const cleanName = name.trim();
+    const cleanPin = pin.trim();
+    if (cleanName.length < 2 || cleanPin.length < 4) {
+      showToast('Nama staff minimal 2 karakter dan PIN minimal 4 karakter.', 'error');
+      return;
+    }
+    if (staffAccounts.some((s) => s.pin.toLowerCase() === cleanPin.toLowerCase())) {
+      showToast('PIN sudah digunakan oleh staff lain. Pilih PIN unik.', 'error');
+      return;
+    }
+    const nowStr = formatNowTimestamp();
+    const newStaff: StaffAccount = {
+      id: `stf_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      name: cleanName,
+      role,
+      pin: cleanPin,
+      isActive: true,
+      createdAt: nowStr,
+      updatedAt: nowStr
+    };
+    setStaffAccounts((prev) => [...prev, newStaff]);
+    saveStaffAccountToFirestore(newStaff).catch((err) =>
+      console.warn('Firestore add staff error:', err)
+    );
+    appendAuditLog({
+      module: 'Staff & PIN',
+      actionType: 'pin',
+      target: `${cleanName} (${role})`,
+      activity: `Menambahkan akun staff baru "${cleanName}" (${role})`,
+      newValue: 'Akun aktif & PIN pribadi dibuat'
+    });
+    showToast(`Akun staff ${cleanName} (${role}) berhasil dibuat dengan PIN ${cleanPin}!`, 'success');
+  };
+
+  const handleResetStaffPin = (staffId: string, newPin: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat membuat ulang PIN staff.', 'error');
+      return;
+    }
+    const target = staffAccounts.find((s) => s.id === staffId);
+    if (!target) return;
+    const cleanPin = newPin.trim();
+    if (cleanPin.length < 4) {
+      showToast('PIN baru minimal 4 karakter.', 'error');
+      return;
+    }
+    if (staffAccounts.some((s) => s.id !== staffId && s.pin.toLowerCase() === cleanPin.toLowerCase())) {
+      showToast('PIN baru bentrok dengan PIN staff lain.', 'error');
+      return;
+    }
+    const nowStr = formatNowTimestamp();
+    const updated: StaffAccount = {
+      ...target,
+      pin: cleanPin,
+      updatedAt: nowStr
+    };
+    setStaffAccounts((prev) => prev.map((s) => (s.id === staffId ? updated : s)));
+    saveStaffAccountToFirestore(updated).catch((err) =>
+      console.warn('Firestore reset PIN error:', err)
+    );
+    appendAuditLog({
+      module: 'Staff & PIN',
+      actionType: 'pin',
+      target: `${target.name} (${target.role})`,
+      activity: `Manager membuat ulang PIN pribadi untuk ${target.name}`,
+      oldValue: 'PIN sebelumnya',
+      newValue: 'PIN baru ditetapkan oleh Manager'
+    });
+    showToast(`PIN baru untuk ${target.name} berhasil disimpan (${cleanPin}).`, 'success');
+  };
+
+  const handleToggleStaffActive = (staffId: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat mengubah status akun staff.', 'error');
+      return;
+    }
+    const target = staffAccounts.find((s) => s.id === staffId);
+    if (!target) return;
+    if (target.id === activeStaff?.id) {
+      showToast('Tidak dapat menonaktifkan akun Manager yang sedang digunakan.', 'error');
+      return;
+    }
+    const activeManagers = staffAccounts.filter((s) => s.role === 'Manager' && s.isActive);
+    if (target.role === 'Manager' && target.isActive && activeManagers.length <= 1) {
+      showToast('Minimal harus ada 1 akun Manager yang aktif.', 'error');
+      return;
+    }
+    const nowStr = formatNowTimestamp();
+    const nextActive = !target.isActive;
+    const updated: StaffAccount = {
+      ...target,
+      isActive: nextActive,
+      updatedAt: nowStr
+    };
+    setStaffAccounts((prev) => prev.map((s) => (s.id === staffId ? updated : s)));
+    saveStaffAccountToFirestore(updated).catch((err) =>
+      console.warn('Firestore toggle staff error:', err)
+    );
+    appendAuditLog({
+      module: 'Staff & PIN',
+      actionType: 'update',
+      target: `${target.name} (${target.role})`,
+      activity: `${nextActive ? 'Mengaktifkan' : 'Menonaktifkan'} akun staff ${target.name}`,
+      oldValue: target.isActive ? 'Aktif' : 'Nonaktif',
+      newValue: nextActive ? 'Aktif' : 'Nonaktif'
+    });
+    showToast(`Akun ${target.name} sekarang ${nextActive ? 'Aktif' : 'Nonaktif'}.`, 'info');
+  };
+
+  const handleDeleteStaffAccount = (staffId: string) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menghapus akun staff.', 'error');
+      return;
+    }
+    const target = staffAccounts.find((s) => s.id === staffId);
+    if (!target) return;
+    if (target.id === activeStaff?.id) {
+      showToast('Tidak dapat menghapus akun yang sedang login.', 'error');
+      return;
+    }
+    const activeManagers = staffAccounts.filter((s) => s.role === 'Manager' && s.isActive);
+    if (target.role === 'Manager' && target.isActive && activeManagers.length <= 1) {
+      showToast('Minimal harus ada 1 akun Manager yang aktif.', 'error');
+      return;
+    }
+    if (!window.confirm(`Hapus permanen akun staff "${target.name}" (${target.role})?`)) return;
+    setStaffAccounts((prev) => prev.filter((s) => s.id !== staffId));
+    deleteStaffAccountFromFirestore(staffId).catch((err) =>
+      console.warn('Firestore delete staff error:', err)
+    );
+    appendAuditLog({
+      module: 'Staff & PIN',
+      actionType: 'delete',
+      target: `${target.name} (${target.role})`,
+      activity: `Menghapus akun staff "${target.name}"`,
+      oldValue: `${target.name} (${target.role})`,
+      newValue: 'Dihapus'
+    });
+    showToast(`Akun staff ${target.name} telah dihapus.`, 'info');
+  };
+
   // Project CRUD operations (Synchronized with Google Firebase Firestore)
   const handleSaveProject = (formData: Partial<EngineeringProject>, isEdit: boolean) => {
     if (userRole === 'Viewer') {
       showToast('Akses Dibatasi: Role Viewer hanya bisa melihat dan tidak bisa mengedit data.', 'error');
       return;
     }
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+
     if (isEdit && editingProject) {
-      const updatedProject = { ...editingProject, ...formData } as EngineeringProject;
+      const updatedProject: EngineeringProject = {
+        ...editingProject,
+        ...formData,
+        lastModifiedBy: actor,
+        lastModifiedAt: nowStr
+      };
       setProjects((prev) =>
         prev.map((p) => (p.SPK === editingProject.SPK ? updatedProject : p))
       );
       saveProjectToFirestore(updatedProject).catch((err) => console.warn('Firestore save error:', err));
+
+      // Detect modified fields for Audit Log
+      const trackedFields: Array<keyof EngineeringProject> = [
+        'Bulan', 'Nomor PO', 'Customer', 'Status', 'Delivery Time', 'Nama Project',
+        'PIC', 'Qty Drawing', 'Permintaan Drawing/Design', 'Target Design',
+        'Tanggal Penyelesaian', 'Aktual Engineering', 'keterangan'
+      ];
+      const oldChanges: string[] = [];
+      const newChanges: string[] = [];
+      trackedFields.forEach((field) => {
+        const prevVal = String(editingProject[field] ?? '');
+        const nextVal = String(updatedProject[field] ?? '');
+        if (prevVal !== nextVal) {
+          oldChanges.push(`${String(field)}: ${prevVal || '-'}`);
+          newChanges.push(`${String(field)}: ${nextVal || '-'}`);
+        }
+      });
+
+      appendAuditLog({
+        module: 'Monitoring',
+        actionType: 'update',
+        target: updatedProject.SPK,
+        activity: `Edit proyek ${updatedProject.SPK} (${updatedProject['Nama Project']})`,
+        oldValue: oldChanges.length > 0 ? oldChanges.join(' | ') : undefined,
+        newValue: newChanges.length > 0 ? newChanges.join(' | ') : 'Data disimpan ulang',
+        month: updatedProject.Bulan
+      });
+
       showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
     } else {
       const newProject: EngineeringProject = {
@@ -505,11 +828,21 @@ export default function App() {
         'drawing box pengiriman': '',
         simulation: '',
         penawaran: '',
-        keterangan: formData.keterangan || ''
+        keterangan: formData.keterangan || '',
+        lastModifiedBy: actor,
+        lastModifiedAt: nowStr
       };
 
       setProjects((prev) => [newProject, ...prev]);
       saveProjectToFirestore(newProject).catch((err) => console.warn('Firestore add error:', err));
+      appendAuditLog({
+        module: 'Monitoring',
+        actionType: 'create',
+        target: newProject.SPK,
+        activity: `Tambah proyek baru ${newProject.SPK} (${newProject['Nama Project']})`,
+        newValue: `${newProject.Customer} • PIC: ${newProject.PIC} • Qty: ${newProject['Qty Drawing']}`,
+        month: newProject.Bulan
+      });
       showToast(`Data proyek SPK ${newProject.SPK} tersimpan ke Google Firebase Firestore!`);
     }
 
@@ -522,9 +855,21 @@ export default function App() {
       showToast('Hanya Manager yang berhak menghapus data!', 'error');
       return;
     }
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
     if (window.confirm(`Hapus permanen proyek ${spk}?`)) {
       setProjects((prev) => prev.filter((p) => p.SPK !== spk));
       deleteProjectFromFirestore(spk).catch((err) => console.warn('Firestore delete error:', err));
+      appendAuditLog({
+        module: 'Monitoring',
+        actionType: 'delete',
+        target: spk,
+        activity: `Hapus permanen proyek ${spk}`,
+        oldValue: targetProject
+          ? `${targetProject['Nama Project']} (${targetProject.Customer})`
+          : spk,
+        newValue: 'Dihapus',
+        month: targetProject?.Bulan
+      });
       showToast(`Proyek ${spk} telah dihapus dari Firebase.`, 'info');
     }
   };
@@ -536,18 +881,34 @@ export default function App() {
     }
     const today = new Date().toISOString().split('T')[0];
     const val = isChecked ? today : '';
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+    const oldVal = targetProject ? targetProject[key] || '' : '';
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.SPK === spk) {
           return {
             ...p,
-            [key]: val
+            [key]: val,
+            lastModifiedBy: actor,
+            lastModifiedAt: nowStr
           };
         }
         return p;
       })
     );
-    updateChecklistInFirestore(spk, key, val).catch((err) => console.warn('Firestore checklist error:', err));
+    updateChecklistInFirestore(spk, key, val, actor).catch((err) => console.warn('Firestore checklist error:', err));
+    appendAuditLog({
+      module: 'Monitoring',
+      actionType: 'checklist',
+      target: spk,
+      activity: `Ubah checklist "${key}" pada ${spk}`,
+      oldValue: oldVal || 'Belum dicentang',
+      newValue: val || 'Dibatalkan',
+      month: targetProject?.Bulan
+    });
     showToast(`Checklist "${key}" pada ${spk} tersimpan ke Firebase.`);
   };
 
@@ -556,18 +917,34 @@ export default function App() {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah tanggal checklist.', 'error');
       return;
     }
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+    const oldVal = targetProject ? targetProject[key] || '' : '';
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.SPK === spk) {
           return {
             ...p,
-            [key]: date
+            [key]: date,
+            lastModifiedBy: actor,
+            lastModifiedAt: nowStr
           };
         }
         return p;
       })
     );
-    updateChecklistInFirestore(spk, key, date).catch((err) => console.warn('Firestore date error:', err));
+    updateChecklistInFirestore(spk, key, date, actor).catch((err) => console.warn('Firestore date error:', err));
+    appendAuditLog({
+      module: 'Monitoring',
+      actionType: 'checklist',
+      target: spk,
+      activity: `Ubah tanggal checklist "${key}" pada ${spk}`,
+      oldValue: oldVal || 'Kosong',
+      newValue: date || 'Dikosongkan',
+      month: targetProject?.Bulan
+    });
   };
 
   const handleUploadSuccess = (spk: string, fileUrl: string, fileName: string) => {
@@ -575,18 +952,33 @@ export default function App() {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengunggah file.', 'error');
       return;
     }
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+
     setProjects((prev) =>
       prev.map((p) => {
         if (p.SPK === spk) {
           return {
             ...p,
-            'File CAD Drive': fileUrl
+            'File CAD Drive': fileUrl,
+            lastModifiedBy: actor,
+            lastModifiedAt: nowStr
           };
         }
         return p;
       })
     );
-    updateChecklistInFirestore(spk, 'File CAD Drive', fileUrl).catch((err) => console.warn('Firestore CAD error:', err));
+    updateChecklistInFirestore(spk, 'File CAD Drive', fileUrl, actor).catch((err) => console.warn('Firestore CAD error:', err));
+    appendAuditLog({
+      module: 'Monitoring',
+      actionType: 'upload',
+      target: spk,
+      activity: `Upload file CAD/PDF "${fileName}" pada ${spk}`,
+      oldValue: targetProject?.['File CAD Drive'] ? 'File sebelumnya' : 'Belum ada file',
+      newValue: fileName,
+      month: targetProject?.Bulan
+    });
     showToast(`File CAD "${fileName}" tersimpan ke Drive & Firebase untuk ${spk}!`);
   };
 
@@ -605,6 +997,9 @@ export default function App() {
       showToast('Perubahan KPI oleh Supervisor harus melalui Persetujuan Manager.', 'error');
       return;
     }
+    const prevKpiItem = (allYearsData[year] || []).find((item) => item.id === kpiId);
+    const oldVal = prevKpiItem?.months?.[month];
+
     setAllYearsData((prev) => {
       const yearList = prev[year] || getBaseKPITemplate();
       const updatedList = yearList.map((item) => {
@@ -630,20 +1025,16 @@ export default function App() {
       };
     });
 
-    // Record in audit log
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    setAuditLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: nowStr,
-        user: `${userRole} (Session)`,
-        activity: `Perbarui nilai KPI ID #${kpiId}`,
-        year,
-        month,
-        newValue: val !== null ? `${val}` : 'Dihapus'
-      },
-      ...prev
-    ]);
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'update',
+      target: `KPI #${kpiId}`,
+      activity: `Perbarui nilai KPI ID #${kpiId} (${month} ${year})`,
+      year,
+      month,
+      oldValue: oldVal !== null && oldVal !== undefined ? String(oldVal) : 'Kosong',
+      newValue: val !== null ? `${val}` : 'Dihapus'
+    });
 
     showToast(`Nilai KPI ${month} ${year} berhasil disimpan ke Firebase Firestore!`);
   };
@@ -689,6 +1080,15 @@ export default function App() {
           console.warn('Firestore Review Cost delete error:', err)
         );
       }
+    });
+
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'update',
+      target: 'Review Cost Efficiency',
+      activity: 'Perbarui data Anggaran & Pengeluaran Design',
+      oldValue: `${prevSnapshot.length} record proyek`,
+      newValue: `${resolved.length} record proyek`
     });
 
     showToast('Data Anggaran & Pengeluaran Design berhasil disimpan ke Cloud & Local Storage!', 'success');
@@ -737,19 +1137,151 @@ export default function App() {
       }
     });
 
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'update',
+      target: 'Design Error Rate',
+      activity: 'Perbarui data Review Error Design',
+      oldValue: `${prevSnapshot.length} record proyek`,
+      newValue: `${resolved.length} record proyek`
+    });
+
     showToast('Data Design Error Rate berhasil disimpan ke Cloud & Local Storage!', 'success');
   };
 
   const handleUpdateStandartPartList = (
     updater: SerahTerimaStandartPartItem[] | ((prev: SerahTerimaStandartPartItem[]) => SerahTerimaStandartPartItem[])
   ) => {
-    setStandartPartList((prev) => {
-      const resolved = typeof updater === 'function' ? updater(prev) : updater;
-      resolved.forEach((item) => {
-        saveStandartPartToFirestore(item).catch((err) => console.warn('Firestore Standart Part save error:', err));
-      });
-      return resolved;
+    if (userRole === 'Viewer') {
+      showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah Serah Terima Standart Part.', 'error');
+      return;
+    }
+    const prev = standartPartListRef.current;
+    const resolved = typeof updater === 'function' ? updater(prev) : updater;
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+
+    const prevMap = new Map<string, SerahTerimaStandartPartItem>();
+    prev.forEach((p) => prevMap.set(p.id, p));
+
+    const resolvedIds = new Set(resolved.map((i) => i.id));
+    const stampedResolved = resolved.map((item) => {
+      const oldItem = prevMap.get(item.id);
+      if (!oldItem) {
+        const stampedNew: SerahTerimaStandartPartItem = {
+          ...item,
+          lastModifiedBy: actor,
+          lastModifiedAt: nowStr
+        };
+        saveStandartPartToFirestore(stampedNew).catch((err) =>
+          console.warn('Firestore Standart Part create error:', err)
+        );
+        appendAuditLog({
+          module: 'Standart Part',
+          actionType: 'create',
+          target: stampedNew.projectName || stampedNew.id,
+          activity: `Tambah data Serah Terima Standart Part "${stampedNew.projectName}"`,
+          newValue: `${stampedNew.customer || '-'} • ${stampedNew.partNames?.length || 0} part`,
+          month: stampedNew.month
+        });
+        return stampedNew;
+      }
+
+      const oldAttIds = (oldItem.partAttachments || []).map((a) => a.id).join(',');
+      const newAttIds = (item.partAttachments || []).map((a) => a.id).join(',');
+      const hasChanged =
+        oldItem.projectName !== item.projectName ||
+        oldItem.customer !== item.customer ||
+        oldItem.month !== item.month ||
+        oldItem.distributionDate !== item.distributionDate ||
+        oldItem.distributionTime !== item.distributionTime ||
+        oldItem.division !== item.division ||
+        oldItem.signature !== item.signature ||
+        (oldItem.notes || '') !== (item.notes || '') ||
+        JSON.stringify(oldItem.prepareStaff || []) !== JSON.stringify(item.prepareStaff || []) ||
+        JSON.stringify(oldItem.partNames || []) !== JSON.stringify(item.partNames || []) ||
+        oldAttIds !== newAttIds;
+
+      if (hasChanged) {
+        const stampedUpdated: SerahTerimaStandartPartItem = {
+          ...item,
+          lastModifiedBy: actor,
+          lastModifiedAt: nowStr
+        };
+        saveStandartPartToFirestore(stampedUpdated).catch((err) =>
+          console.warn('Firestore Standart Part update error:', err)
+        );
+
+        const oldDiffs: string[] = [];
+        const newDiffs: string[] = [];
+        if (JSON.stringify(oldItem.partNames || []) !== JSON.stringify(item.partNames || [])) {
+          oldDiffs.push(`Parts(${oldItem.partNames?.length || 0}): ${(oldItem.partNames || []).join('; ') || '-'}`);
+          newDiffs.push(`Parts(${item.partNames?.length || 0}): ${(item.partNames || []).join('; ') || '-'}`);
+        }
+        if (oldAttIds !== newAttIds) {
+          oldDiffs.push(`Lampiran: ${oldItem.partAttachments?.length || 0} file`);
+          newDiffs.push(`Lampiran: ${item.partAttachments?.length || 0} file`);
+        }
+        if (JSON.stringify(oldItem.prepareStaff || []) !== JSON.stringify(item.prepareStaff || [])) {
+          oldDiffs.push(`Prepare: ${(oldItem.prepareStaff || []).join(', ') || '-'}`);
+          newDiffs.push(`Prepare: ${(item.prepareStaff || []).join(', ') || '-'}`);
+        }
+        if (oldItem.distributionDate !== item.distributionDate) {
+          oldDiffs.push(`Tgl: ${oldItem.distributionDate || '-'}`);
+          newDiffs.push(`Tgl: ${item.distributionDate || '-'}`);
+        }
+        if (oldItem.distributionTime !== item.distributionTime) {
+          oldDiffs.push(`Jam: ${oldItem.distributionTime || '-'}`);
+          newDiffs.push(`Jam: ${item.distributionTime || '-'}`);
+        }
+        if (oldItem.division !== item.division) {
+          oldDiffs.push(`Divisi: ${oldItem.division || '-'}`);
+          newDiffs.push(`Divisi: ${item.division || '-'}`);
+        }
+        if (oldItem.signature !== item.signature) {
+          oldDiffs.push(`Penerima: ${oldItem.signature || '-'}`);
+          newDiffs.push(`Penerima: ${item.signature || '-'}`);
+        }
+        if (oldItem.projectName !== item.projectName || oldItem.customer !== item.customer) {
+          oldDiffs.push(`${oldItem.projectName} (${oldItem.customer})`);
+          newDiffs.push(`${item.projectName} (${item.customer})`);
+        }
+
+        appendAuditLog({
+          module: 'Standart Part',
+          actionType: oldAttIds !== newAttIds && oldDiffs.length === 1 ? 'upload' : 'update',
+          target: stampedUpdated.projectName || stampedUpdated.id,
+          activity: `Update Standart Part "${stampedUpdated.projectName}"`,
+          oldValue: oldDiffs.join(' | ') || undefined,
+          newValue: newDiffs.join(' | ') || 'Diperbarui',
+          month: stampedUpdated.month
+        });
+        return stampedUpdated;
+      }
+
+      return item;
     });
+
+    // Delete items removed from list
+    prev.forEach((oldItem) => {
+      if (!resolvedIds.has(oldItem.id)) {
+        deleteStandartPartFromFirestore(oldItem.id).catch((err) =>
+          console.warn('Firestore Standart Part delete error:', err)
+        );
+        appendAuditLog({
+          module: 'Standart Part',
+          actionType: 'delete',
+          target: oldItem.projectName || oldItem.id,
+          activity: `Hapus form Standart Part "${oldItem.projectName}"`,
+          oldValue: `${oldItem.projectName} (${oldItem.customer})`,
+          newValue: 'Dihapus',
+          month: oldItem.month
+        });
+      }
+    });
+
+    standartPartListRef.current = stampedResolved;
+    setStandartPartList(stampedResolved);
   };
 
   const handleUpdateFeedback = (
@@ -796,6 +1328,15 @@ export default function App() {
       }
     });
 
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'update',
+      target: 'Design Quality Feedback',
+      activity: 'Perbarui data Feedback Design Quality',
+      oldValue: `${prevSnapshot.length} record feedback`,
+      newValue: `${resolved.length} record feedback`
+    });
+
     showToast('Feedback Design Quality berhasil disimpan ke Cloud & Local Storage!', 'success');
   };
 
@@ -812,8 +1353,23 @@ export default function App() {
       showToast('Perubahan KPI proyek oleh Supervisor harus melalui Persetujuan Manager.', 'error');
       return;
     }
-    setProjects((prev) => prev.map((p) => (p.SPK === updated.SPK ? updated : p)));
-    saveProjectToFirestore(updated).catch((err) => console.warn('Firestore update error:', err));
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+    const stampedUpdated: EngineeringProject = {
+      ...updated,
+      lastModifiedBy: actor,
+      lastModifiedAt: nowStr
+    };
+    setProjects((prev) => prev.map((p) => (p.SPK === updated.SPK ? stampedUpdated : p)));
+    saveProjectToFirestore(stampedUpdated).catch((err) => console.warn('Firestore update error:', err));
+    appendAuditLog({
+      module: 'Monitoring',
+      actionType: 'update',
+      target: updated.SPK,
+      activity: `Update data KPI proyek ${updated.SPK} (${updated['Nama Project']})`,
+      newValue: `${updated.Status} • Aktual: ${updated['Aktual Engineering'] || '-'}`,
+      month: updated.Bulan
+    });
     showToast(`Data proyek ${updated.SPK} berhasil diperbarui di Firebase.`);
   };
 
@@ -821,11 +1377,12 @@ export default function App() {
   const handleSubmitApprovalRequest = (
     input: Omit<KPIApprovalRequest, 'id' | 'requestedBy' | 'requestedAt' | 'status'>
   ) => {
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = formatNowTimestamp();
+    const actor = getActorLabel();
     const newReq: KPIApprovalRequest = {
       ...input,
       id: `apr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      requestedBy: `${userRole} Engineering`,
+      requestedBy: actor,
       requestedAt: nowStr,
       status: 'pending'
     };
@@ -842,18 +1399,16 @@ export default function App() {
       console.warn('Firestore approval submit error:', err)
     );
 
-    setAuditLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: nowStr,
-        user: `${userRole} (Menunggu Persetujuan Manager)`,
-        activity: `[Pengajuan] ${input.categoryLabel}: ${input.targetLabel}`,
-        year: input.payload.year || activeYear,
-        month: input.payload.month || '-',
-        newValue: `${input.summaryNew} (Pending)`
-      },
-      ...prev
-    ]);
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'approval',
+      target: input.targetLabel,
+      activity: `[Pengajuan] ${input.categoryLabel}: ${input.targetLabel}`,
+      year: input.payload.year || activeYear,
+      month: input.payload.month || '-',
+      oldValue: input.summaryOld,
+      newValue: `${input.summaryNew} (Pending)`
+    });
 
     showToast('Pengajuan input data berhasil dikirim! Menunggu persetujuan Manager.', 'info');
   };
@@ -867,7 +1422,8 @@ export default function App() {
     const req = approvalRequests.find((r) => r.id === requestId);
     if (!req || req.status !== 'pending') return;
 
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = formatNowTimestamp();
+    const actor = getActorLabel();
     const { category, payload } = req;
 
     if (category === 'kpi_actual' && payload.year && payload.kpiId !== undefined && payload.month) {
@@ -953,9 +1509,9 @@ export default function App() {
     const updatedReq: KPIApprovalRequest = {
       ...req,
       status: 'approved',
-      reviewedBy: 'Manager Engineering',
+      reviewedBy: actor,
       reviewedAt: nowStr,
-      reviewNote: 'Disetujui & diterapkan oleh Manager'
+      reviewNote: `Disetujui & diterapkan oleh ${actor}`
     };
     const nextApprovals = approvalRequests.map((r) => (r.id === requestId ? updatedReq : r));
     setApprovalRequests(nextApprovals);
@@ -963,18 +1519,16 @@ export default function App() {
       console.warn('Firestore approval update error:', err)
     );
 
-    setAuditLogs((prev) => [
-      {
-        id: `log-${Date.now() + 1}`,
-        timestamp: nowStr,
-        user: 'Manager Engineering (Persetujuan)',
-        activity: `[Disetujui] ${req.categoryLabel}: ${req.targetLabel}`,
-        year: payload.year || activeYear,
-        month: payload.month || '-',
-        newValue: req.summaryNew
-      },
-      ...prev
-    ]);
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'approval',
+      target: req.targetLabel,
+      activity: `[Disetujui] ${req.categoryLabel}: ${req.targetLabel}`,
+      year: payload.year || activeYear,
+      month: payload.month || '-',
+      oldValue: req.summaryOld,
+      newValue: req.summaryNew
+    });
 
     showToast(`Pengajuan "${req.targetLabel}" telah disetujui & diterapkan!`, 'success');
   };
@@ -988,13 +1542,14 @@ export default function App() {
     const req = approvalRequests.find((r) => r.id === requestId);
     if (!req || req.status !== 'pending') return;
 
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = formatNowTimestamp();
+    const actor = getActorLabel();
     const updatedReq: KPIApprovalRequest = {
       ...req,
       status: 'rejected',
-      reviewedBy: 'Manager Engineering',
+      reviewedBy: actor,
       reviewedAt: nowStr,
-      reviewNote: note?.trim() || 'Ditolak oleh Manager'
+      reviewNote: note?.trim() || `Ditolak oleh ${actor}`
     };
     const nextApprovals = approvalRequests.map((r) => (r.id === requestId ? updatedReq : r));
     setApprovalRequests(nextApprovals);
@@ -1002,18 +1557,16 @@ export default function App() {
       console.warn('Firestore rejection update error:', err)
     );
 
-    setAuditLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: nowStr,
-        user: 'Manager Engineering (Penolakan)',
-        activity: `[Ditolak] ${req.categoryLabel}: ${req.targetLabel}`,
-        year: req.payload.year || activeYear,
-        month: req.payload.month || '-',
-        newValue: `Ditolak (${updatedReq.reviewNote})`
-      },
-      ...prev
-    ]);
+    appendAuditLog({
+      module: 'KPI',
+      actionType: 'approval',
+      target: req.targetLabel,
+      activity: `[Ditolak] ${req.categoryLabel}: ${req.targetLabel}`,
+      year: req.payload.year || activeYear,
+      month: req.payload.month || '-',
+      oldValue: req.summaryNew,
+      newValue: `Ditolak (${updatedReq.reviewNote})`
+    });
 
     showToast(`Pengajuan "${req.targetLabel}" ditolak.`, 'info');
   };
@@ -1052,12 +1605,16 @@ export default function App() {
         currentView={currentView}
         onViewChange={setCurrentView}
         userRole={userRole}
-        onRoleChange={setUserRole}
+        activeStaff={activeStaff}
+        staffAccounts={staffAccounts}
+        onStaffLogin={handleStaffLogin}
+        onLogoutToViewer={handleLogoutToViewer}
         logoUrl={logoUrl}
         onLogoChange={setLogoUrl}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenVercelModal={() => setIsVercelModalOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
+        onOpenStaffPinModal={(tab) => setStaffPinModalState({ isOpen: true, tab })}
         externalRolePickerOpen={mobileRolePickerOpen}
         onCloseExternalRolePicker={() => setMobileRolePickerOpen(false)}
       />
@@ -1234,11 +1791,28 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Staff Accounts, PIN Management (Manager) & Global Audit Log Modal */}
+      <StaffPINAndAuditModal
+        isOpen={staffPinModalState.isOpen}
+        initialTab={staffPinModalState.tab}
+        onClose={() => setStaffPinModalState((prev) => ({ ...prev, isOpen: false }))}
+        userRole={userRole}
+        activeStaff={activeStaff}
+        staffAccounts={staffAccounts}
+        auditLogs={auditLogs}
+        onAddStaff={handleAddStaffAccount}
+        onResetStaffPin={handleResetStaffPin}
+        onToggleStaffActive={handleToggleStaffActive}
+        onDeleteStaff={handleDeleteStaffAccount}
+        showToast={showToast}
+      />
+
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav
         currentView={currentView}
         monitoringSubTab={monitoringSubTab}
         userRole={userRole}
+        activeStaffName={activeStaff?.name}
         pendingApprovalCount={approvalRequests.filter((r) => r.status === 'pending').length}
         onSelectMonitoring={() => {
           setCurrentView('monitoring');

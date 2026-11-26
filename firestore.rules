@@ -48,6 +48,18 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(requestId);
     }
 
+    // Staff Accounts & Individual PIN Management Collection
+    match /staff_accounts/{staffId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(staffId);
+    }
+
+    // Global Activity Audit Trail Collection
+    match /activity_audit_logs/{logId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(logId);
+    }
+
     // Connection testing endpoint
     match /test/{docId} {
       allow read, write: if true;
