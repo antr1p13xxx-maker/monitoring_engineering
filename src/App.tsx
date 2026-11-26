@@ -54,7 +54,10 @@ import {
   deleteStaffAccountFromFirestore,
   seedStaffAccountsIfEmpty,
   subscribeToFirestoreAuditLogs,
-  saveAuditLogToFirestore
+  saveAuditLogToFirestore,
+  subscribeToFirestoreActiveSessions,
+  upsertActiveSessionToFirestore,
+  removeActiveSessionFromFirestore
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
@@ -67,7 +70,8 @@ import {
   DesignFeedbackItem, 
   AuditLog,
   SerahTerimaStandartPartItem,
-  KPIApprovalRequest
+  KPIApprovalRequest,
+  ActiveSessionPresence
 } from './types/engineering';
 import { 
   INITIAL_PROJECTS, 
@@ -123,11 +127,34 @@ export default function App() {
   });
   const [activeStaff, setActiveStaff] = useState<StaffAccount | null>(null);
   const userRole: UserRole = activeStaff ? activeStaff.role : 'Viewer';
-  const [staffPinModalState, setStaffPinModalState] = useState<{ isOpen: boolean; tab: 'staff' | 'audit' }>({
+  const [staffPinModalState, setStaffPinModalState] = useState<{ isOpen: boolean; tab: 'staff' | 'audit' | 'online' }>({
     isOpen: false,
     tab: 'staff'
   });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  // Real-Time Online & Editing Presence State
+  const [sessionId] = useState<string>(() => {
+    try {
+      const existing = sessionStorage.getItem('eng_presence_session_id');
+      if (existing) return existing;
+      const generated = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      sessionStorage.setItem('eng_presence_session_id', generated);
+      return generated;
+    } catch {
+      return `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+  });
+  const [deviceLabel] = useState<string>(() => {
+    if (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      return 'HP / Mobile';
+    }
+    return 'Desktop / PC';
+  });
+  const [sessionLoggedInAt, setSessionLoggedInAt] = useState<string>(() => new Date().toISOString());
+  const [childEditingTarget, setChildEditingTarget] = useState<string | null>(null);
+  const [rawOnlineSessions, setRawOnlineSessions] = useState<ActiveSessionPresence[]>([]);
+  const [presenceNowMs, setPresenceNowMs] = useState<number>(() => Date.now());
 
   // Database State (Projects)
   const [projects, setProjects] = useState<EngineeringProject[]>(() => {
@@ -339,12 +366,101 @@ export default function App() {
       }
     });
 
+    const unsubActiveSessions = subscribeToFirestoreActiveSessions((sessions) => {
+      setRawOnlineSessions(sessions);
+    });
+
+    const tickTimer = setInterval(() => {
+      setPresenceNowMs(Date.now());
+    }, 10000);
+
     return () => {
       isMounted = false;
       if (unsubStaff) unsubStaff();
       unsubAuditLogs();
+      unsubActiveSessions();
+      clearInterval(tickTimer);
     };
   }, []);
+
+  // Reset child editing target whenever switching top-level views
+  useEffect(() => {
+    setChildEditingTarget(null);
+  }, [currentView]);
+
+  const effectivePresenceView: ActiveSessionPresence['currentView'] =
+    currentView === 'monitoring' && monitoringSubTab === 'standartPartHandover'
+      ? 'standartPart'
+      : currentView;
+
+  const activeEditingTarget: string | null = isDataModalOpen
+    ? editingProject
+      ? `Edit Proyek ${editingProject.SPK} (${editingProject['Nama Project']})`
+      : 'Tambah Proyek Monitoring Baru'
+    : isUploadModalOpen
+    ? `Upload CAD/PDF (${uploadSpk || 'Proyek'})`
+    : childEditingTarget;
+
+  const activeOnlineSessions = rawOnlineSessions.filter((s) => {
+    const hb = Date.parse(s.lastHeartbeat);
+    return !Number.isNaN(hb) && presenceNowMs - hb <= 90_000;
+  });
+
+  // Real-time Heartbeat Publisher & Unload Cleanup
+  useEffect(() => {
+    const publishPresence = () => {
+      const payload: ActiveSessionPresence = {
+        sessionId,
+        staffId: activeStaff?.id || 'viewer',
+        staffName: activeStaff ? activeStaff.name : 'Tamu (Viewer)',
+        role: activeStaff ? activeStaff.role : 'Viewer',
+        status: activeEditingTarget ? 'editing' : 'online',
+        currentView: effectivePresenceView,
+        editingTarget: activeEditingTarget || undefined,
+        deviceLabel,
+        loggedInAt: sessionLoggedInAt,
+        lastHeartbeat: new Date().toISOString()
+      };
+      upsertActiveSessionToFirestore(payload).catch((err) =>
+        console.warn('Firestore presence upsert notice:', err)
+      );
+    };
+
+    publishPresence();
+    const hbInterval = setInterval(publishPresence, 20000);
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        publishPresence();
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(hbInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
+  }, [
+    sessionId,
+    activeStaff,
+    activeEditingTarget,
+    effectivePresenceView,
+    deviceLabel,
+    sessionLoggedInAt
+  ]);
+
+  useEffect(() => {
+    const handleLeave = () => {
+      removeActiveSessionFromFirestore(sessionId).catch(() => {});
+    };
+    window.addEventListener('pagehide', handleLeave);
+    window.addEventListener('beforeunload', handleLeave);
+    return () => {
+      window.removeEventListener('pagehide', handleLeave);
+      window.removeEventListener('beforeunload', handleLeave);
+    };
+  }, [sessionId]);
 
   // Persist Staff Accounts & guard active logged-in staff session
   useEffect(() => {
@@ -594,11 +710,13 @@ export default function App() {
   // Staff Login / Logout & Manager PIN Administration Handlers
   const handleStaffLogin = (staff: StaffAccount) => {
     setActiveStaff(staff);
+    setSessionLoggedInAt(new Date().toISOString());
     showToast(`Login berhasil sebagai ${staff.name} (${staff.role}). Setiap perubahan tercatat atas nama Anda.`, 'success');
   };
 
   const handleLogoutToViewer = () => {
     setActiveStaff(null);
+    setSessionLoggedInAt(new Date().toISOString());
     showToast('Akses dikunci ke mode Viewer (Read-Only).', 'info');
   };
 
@@ -1652,6 +1770,7 @@ export default function App() {
         onOpenVercelModal={() => setIsVercelModalOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenStaffPinModal={(tab) => setStaffPinModalState({ isOpen: true, tab })}
+        onlineSessions={activeOnlineSessions}
         externalRolePickerOpen={mobileRolePickerOpen}
         onCloseExternalRolePicker={() => setMobileRolePickerOpen(false)}
       />
@@ -1691,6 +1810,7 @@ export default function App() {
               setBarcodeLookupQuery(custName);
               setCurrentView('barcodes');
             }}
+            onEditingActivityChange={setChildEditingTarget}
           />
         )}
 
@@ -1739,6 +1859,7 @@ export default function App() {
             onApproveRequest={handleApproveRequest}
             onRejectRequest={handleRejectRequest}
             onClearReviewedApprovals={handleClearReviewedApprovals}
+            onEditingActivityChange={setChildEditingTarget}
           />
         )}
 
@@ -1837,6 +1958,8 @@ export default function App() {
         activeStaff={activeStaff}
         staffAccounts={staffAccounts}
         auditLogs={auditLogs}
+        onlineSessions={activeOnlineSessions}
+        currentSessionId={sessionId}
         onAddStaff={handleAddStaffAccount}
         onResetStaffPin={handleResetStaffPin}
         onUpdateStaffRole={handleUpdateStaffRole}

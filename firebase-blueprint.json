@@ -147,6 +147,24 @@
         "updatedAt": { "type": "string", "description": "Timestamp update" }
       },
       "required": ["id", "category", "status", "requestedBy"]
+    },
+    "active_sessions": {
+      "title": "Active Sessions Presence",
+      "description": "Status real-time staff yang sedang online, login, dan mengedit data.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "description": "ID unik sesi browser/perangkat" },
+        "staffId": { "type": "string", "description": "ID akun staff atau viewer" },
+        "staffName": { "type": "string", "description": "Nama staff yang sedang login" },
+        "role": { "type": "string", "description": "Role akses pengguna" },
+        "status": { "type": "string", "description": "online atau editing" },
+        "currentView": { "type": "string", "description": "Halaman yang sedang dibuka" },
+        "editingTarget": { "type": "string", "description": "Item/SPK yang sedang diedit" },
+        "deviceLabel": { "type": "string", "description": "Perangkat (HP/Mobile atau Desktop PC)" },
+        "loggedInAt": { "type": "string", "description": "Waktu mulai login/sesi" },
+        "lastHeartbeat": { "type": "string", "description": "Waktu detak aktivitas terakhir" }
+      },
+      "required": ["sessionId", "staffName", "role", "status", "lastHeartbeat"]
     }
   },
   "firestore": {
@@ -177,6 +195,10 @@
     "/kpi_approval_requests/{requestId}": {
       "schema": "#/entities/kpi_approval_requests",
       "description": "Dokumen antrean persetujuan Manager untuk pengajuan input data KPI oleh Supervisor."
+    },
+    "/active_sessions/{sessionId}": {
+      "schema": "#/entities/active_sessions",
+      "description": "Status kehadiran real-time staff yang sedang online, login, dan mengedit data."
     }
   }
 }

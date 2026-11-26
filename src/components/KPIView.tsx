@@ -86,6 +86,7 @@ interface KPIViewProps {
   onApproveRequest?: (requestId: string) => void;
   onRejectRequest?: (requestId: string, note?: string) => void;
   onClearReviewedApprovals?: () => void;
+  onEditingActivityChange?: (target: string | null) => void;
 }
 
 export const KPIView: React.FC<KPIViewProps> = ({
@@ -109,7 +110,8 @@ export const KPIView: React.FC<KPIViewProps> = ({
   onSubmitApprovalRequest,
   onApproveRequest,
   onRejectRequest,
-  onClearReviewedApprovals
+  onClearReviewedApprovals,
+  onEditingActivityChange
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'trends' | 'matrix' | 'monitoring' | 'designInput' | 'reviewCost' | 'reviewError' | 'quarterly' | 'approvals' | 'audit'>('dashboard');
   const [selectedChartKpi, setSelectedChartKpi] = useState<string>('all');
@@ -177,6 +179,49 @@ export const KPIView: React.FC<KPIViewProps> = ({
   useEffect(() => {
     setModalSubmitNotice(null);
   }, [costModalProject, errorModalProject]);
+
+  useEffect(() => {
+    if (!onEditingActivityChange) return;
+    if (editModalItem) {
+      onEditingActivityChange(
+        `Edit KPI: ${editModalItem.kpi} (${editModalMonth} ${activeYear})`
+      );
+    } else if (feedbackModalProject) {
+      onEditingActivityChange(
+        `Edit Feedback Design: ${feedbackModalProject.SPK} (${feedbackModalProject['Nama Project']})`
+      );
+    } else if (dateModalProject) {
+      onEditingActivityChange(
+        `Edit ${dateModalMode === 'distribusi' ? 'Tanggal Distribusi' : 'Tanggal On-Time'}: ${dateModalProject.SPK}`
+      );
+    } else if (costModalProject) {
+      onEditingActivityChange(
+        `Edit Review Cost: ${costModalProject.SPK} (${costModalProject['Nama Project']})`
+      );
+    } else if (errorModalProject) {
+      onEditingActivityChange(
+        `Edit Review Error: ${errorModalProject.SPK} (${errorModalProject['Nama Project']})`
+      );
+    } else {
+      onEditingActivityChange(null);
+    }
+  }, [
+    editModalItem,
+    editModalMonth,
+    activeYear,
+    feedbackModalProject,
+    dateModalProject,
+    dateModalMode,
+    costModalProject,
+    errorModalProject,
+    onEditingActivityChange
+  ]);
+
+  useEffect(() => {
+    return () => {
+      onEditingActivityChange?.(null);
+    };
+  }, [onEditingActivityChange]);
 
   // Email Modal state
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);

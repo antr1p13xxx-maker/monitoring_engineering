@@ -130,6 +130,7 @@ interface MonitoringViewProps {
   activeMonitoringTab?: 'drawingProjects' | 'standartPartHandover';
   onChangeMonitoringTab?: (tab: 'drawingProjects' | 'standartPartHandover') => void;
   onOpenCustomerBarcode?: (customerName: string) => void;
+  onEditingActivityChange?: (target: string | null) => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -148,7 +149,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   showToast,
   activeMonitoringTab: controlledSubTab,
   onChangeMonitoringTab,
-  onOpenCustomerBarcode
+  onOpenCustomerBarcode,
+  onEditingActivityChange
 }) => {
   // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
   const [internalMonitoringTab, setInternalMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
@@ -732,6 +734,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           projects={projects}
           userRole={userRole}
           showToast={showToast}
+          onEditingActivityChange={onEditingActivityChange}
         />
       ) : (
         <>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   SerahTerimaStandartPartItem, 
   StandartPartAttachment,
@@ -49,6 +49,7 @@ interface StandartPartHandoverViewProps {
   projects: EngineeringProject[];
   userRole: UserRole;
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
+  onEditingActivityChange?: (target: string | null) => void;
 }
 
 export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> = ({
@@ -56,7 +57,8 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
   onUpdateHandoverList,
   projects,
   userRole,
-  showToast
+  showToast,
+  onEditingActivityChange
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('Oktober');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -114,6 +116,44 @@ export const StandartPartHandoverView: React.FC<StandartPartHandoverViewProps> =
   } | null>(null);
 
   const isReadOnly = userRole === 'Viewer';
+
+  useEffect(() => {
+    if (!onEditingActivityChange) return;
+    if (isModalOpen) {
+      const label = editingItem
+        ? `Edit Standart Part: ${editingItem.projectName || editingItem.customer || 'Dokumen'}`
+        : `Tambah Standart Part${formData.projectName ? `: ${formData.projectName}` : ''}`;
+      onEditingActivityChange(label);
+    } else if (quickStaffInput || quickPartInput || editingPartQty || quickReceiverInput) {
+      const activeRowId =
+        quickStaffInput?.rowId ||
+        quickPartInput?.rowId ||
+        editingPartQty?.rowId ||
+        quickReceiverInput?.rowId;
+      const targetRow = handoverList.find((h) => h.id === activeRowId);
+      onEditingActivityChange(
+        `Edit Cepat Standart Part${targetRow?.projectName ? `: ${targetRow.projectName}` : ''}`
+      );
+    } else {
+      onEditingActivityChange(null);
+    }
+  }, [
+    isModalOpen,
+    editingItem,
+    formData.projectName,
+    quickStaffInput,
+    quickPartInput,
+    editingPartQty,
+    quickReceiverInput,
+    handoverList,
+    onEditingActivityChange
+  ]);
+
+  useEffect(() => {
+    return () => {
+      onEditingActivityChange?.(null);
+    };
+  }, [onEditingActivityChange]);
 
   // Helper parse & format Part Name + Qty (contoh: "Bolt M8 (Qty: 4)")
   const parsePartWithQty = (raw: string): { name: string; qty: string } => {

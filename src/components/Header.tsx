@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StaffAccount, UserRole } from '../types/engineering';
+import { ActiveSessionPresence, StaffAccount, UserRole } from '../types/engineering';
 import { MASTER_PIN } from '../data/initialData';
 import { 
   BarChart3, 
@@ -21,7 +21,8 @@ import {
   Eye,
   EyeOff,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
@@ -39,7 +40,8 @@ interface HeaderProps {
   onOpenFirebaseModal?: () => void;
   onOpenVercelModal?: () => void;
   onOpenThemeModal?: () => void;
-  onOpenStaffPinModal?: (tab: 'staff' | 'audit') => void;
+  onOpenStaffPinModal?: (tab: 'staff' | 'audit' | 'online') => void;
+  onlineSessions?: ActiveSessionPresence[];
   externalRolePickerOpen?: boolean;
   onCloseExternalRolePicker?: () => void;
 }
@@ -58,9 +60,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenVercelModal,
   onOpenThemeModal,
   onOpenStaffPinModal,
+  onlineSessions = [],
   externalRolePickerOpen = false,
   onCloseExternalRolePicker
 }) => {
+  const loggedInOnlineCount = onlineSessions.filter((s) => s.role !== 'Viewer').length;
+  const editingOnlineCount = onlineSessions.filter((s) => s.status === 'editing').length;
   const [timeString, setTimeString] = useState<string>('');
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   const [showMobileTools, setShowMobileTools] = useState<boolean>(false);
@@ -222,6 +227,19 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {userRole === 'Manager' && onOpenStaffPinModal && (
+            <button
+              type="button"
+              onClick={() => onOpenStaffPinModal('online')}
+              aria-label="Lihat Staff Online & Sedang Edit"
+              title={`Staff Login Online: ${loggedInOnlineCount}${editingOnlineCount > 0 ? ` (${editingOnlineCount} Sedang Edit)` : ''}`}
+              className="min-h-[38px] px-2 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition"
+            >
+              <span className={`w-2 h-2 rounded-full ${editingOnlineCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'} animate-pulse shrink-0`} />
+              <span className="tabular-nums">{loggedInOnlineCount}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={openAccountModal}
@@ -249,7 +267,27 @@ export const Header: React.FC<HeaderProps> = ({
                     className="fixed inset-0 z-40"
                     onClick={() => setShowMobileTools(false)}
                   />
-                  <div className="absolute right-0 top-11 z-50 w-56 bg-slate-900 border border-indigo-400/30 rounded-2xl shadow-2xl p-1.5 space-y-1">
+                  <div className="absolute right-0 top-11 z-50 w-60 bg-slate-900 border border-indigo-400/30 rounded-2xl shadow-2xl p-1.5 space-y-1">
+                    {userRole === 'Manager' && onOpenStaffPinModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileTools(false);
+                          onOpenStaffPinModal('online');
+                        }}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-200 hover:bg-white/10 flex items-center justify-between gap-2"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-emerald-400" />
+                          <span>Staff Online ({loggedInOnlineCount})</span>
+                        </span>
+                        {editingOnlineCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px]">
+                            {editingOnlineCount} Edit
+                          </span>
+                        )}
+                      </button>
+                    )}
                     {userRole === 'Manager' && onOpenStaffPinModal && (
                       <button
                         type="button"
@@ -379,6 +417,33 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Palette className="w-3.5 h-3.5" />
               <span>Tema</span>
+            </button>
+          )}
+
+          {/* Manager Staff Online & Editing Monitor Button */}
+          {userRole === 'Manager' && onOpenStaffPinModal && (
+            <button
+              type="button"
+              onClick={() => onOpenStaffPinModal('online')}
+              title={`Pantau staff yang sedang online (${loggedInOnlineCount} login, ${onlineSessions.length} total sesi${editingOnlineCount > 0 ? `, ${editingOnlineCount} sedang edit` : ''})`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all border shadow-sm cursor-pointer whitespace-nowrap ${
+                editingOnlineCount > 0
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 border-amber-400/45'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 border-emerald-400/40'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full animate-pulse ${
+                  editingOnlineCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'
+                }`}
+              />
+              <Activity className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Online ({loggedInOnlineCount})</span>
+              {editingOnlineCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[10px] font-extrabold">
+                  {editingOnlineCount} Edit
+                </span>
+              )}
             </button>
           )}
 

@@ -103,6 +103,19 @@ export interface StaffAccount {
   updatedAt: string;
 }
 
+export interface ActiveSessionPresence {
+  sessionId: string;
+  staffId: string;
+  staffName: string;
+  role: UserRole;
+  status: 'online' | 'editing';
+  currentView: 'monitoring' | 'standartPart' | 'barcodes' | 'kpi' | 'appsScript';
+  editingTarget?: string;
+  deviceLabel: string;
+  loggedInAt: string;
+  lastHeartbeat: string;
+}
+
 export interface AuditLog {
   id: string;
   timestamp: string;

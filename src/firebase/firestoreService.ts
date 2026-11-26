@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog, ActiveSessionPresence } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -19,6 +19,7 @@ const DESIGN_FEEDBACK_COLLECTION = 'design_feedback_records';
 const KPI_APPROVAL_COLLECTION = 'kpi_approval_requests';
 const STAFF_ACCOUNTS_COLLECTION = 'staff_accounts';
 const AUDIT_LOGS_COLLECTION = 'activity_audit_logs';
+const ACTIVE_SESSIONS_COLLECTION = 'active_sessions';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -905,4 +906,84 @@ export async function saveAuditLogToFirestore(log: AuditLog): Promise<void> {
     ...log,
     id: docId,
   });
+}
+
+/**
+ * Real-time listener untuk daftar sesi user yang sedang online, login, dan mengedit data.
+ */
+export function subscribeToFirestoreActiveSessions(
+  onUpdate: (sessions: ActiveSessionPresence[]) => void
+) {
+  const colRef = collection(db, ACTIVE_SESSIONS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: ActiveSessionPresence[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.lastHeartbeat && data.staffName) {
+          list.push({
+            sessionId: String(data.sessionId || docSnap.id),
+            staffId: String(data.staffId || 'viewer'),
+            staffName: String(data.staffName || 'Viewer'),
+            role: data.role || 'Viewer',
+            status: data.status === 'editing' ? 'editing' : 'online',
+            currentView: data.currentView || 'monitoring',
+            editingTarget: data.editingTarget ? String(data.editingTarget) : undefined,
+            deviceLabel: String(data.deviceLabel || 'Desktop / PC'),
+            loggedInAt: String(data.loggedInAt || data.lastHeartbeat),
+            lastHeartbeat: String(data.lastHeartbeat),
+          });
+        }
+      });
+
+      list.sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'editing' ? -1 : 1;
+        const aViewer = a.role === 'Viewer' ? 1 : 0;
+        const bViewer = b.role === 'Viewer' ? 1 : 0;
+        if (aViewer !== bViewer) return aViewer - bViewer;
+        return (b.lastHeartbeat || '').localeCompare(a.lastHeartbeat || '');
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Firestore Active Sessions listener notice:', err.message);
+    }
+  );
+}
+
+/**
+ * Menyimpan atau memperbarui heartbeat kehadiran & aktivitas edit user ke Firestore.
+ */
+export async function upsertActiveSessionToFirestore(
+  session: ActiveSessionPresence
+): Promise<void> {
+  const docId = (session.sessionId || `sess_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, ACTIVE_SESSIONS_COLLECTION, docId);
+  await setDoc(
+    docRef,
+    {
+      sessionId: docId,
+      staffId: session.staffId || 'viewer',
+      staffName: session.staffName || 'Viewer (Read-Only)',
+      role: session.role || 'Viewer',
+      status: session.status,
+      currentView: session.currentView,
+      editingTarget: session.editingTarget || '',
+      deviceLabel: session.deviceLabel || 'Desktop / PC',
+      loggedInAt: session.loggedInAt,
+      lastHeartbeat: session.lastHeartbeat,
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Menghapus dokumen sesi saat user menutup tab / logout.
+ */
+export async function removeActiveSessionFromFirestore(sessionId: string): Promise<void> {
+  const docId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  if (!docId) return;
+  const docRef = doc(db, ACTIVE_SESSIONS_COLLECTION, docId);
+  await deleteDoc(docRef);
 }
