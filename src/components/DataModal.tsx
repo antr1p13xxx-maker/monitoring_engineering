@@ -28,7 +28,6 @@ export const DataModal: React.FC<DataModalProps> = ({
     'Permintaan Drawing/Design': '',
     'Target Design': '',
     'Tanggal Penyelesaian': '',
-    'Aktual Engineering': '',
     keterangan: ''
   });
 
@@ -50,7 +49,6 @@ export const DataModal: React.FC<DataModalProps> = ({
         'Permintaan Drawing/Design': today,
         'Target Design': today,
         'Tanggal Penyelesaian': '',
-        'Aktual Engineering': '',
         'File CAD Drive': '',
         keterangan: ''
       });
@@ -241,38 +239,29 @@ export const DataModal: React.FC<DataModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Target Design *</label>
-              <input
-                type="date"
-                name="Target Design"
-                value={formData['Target Design'] || ''}
-                onChange={handleChange}
-                required
-                className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
+            <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Target Design *</label>
+                <input
+                  type="date"
+                  name="Target Design"
+                  value={formData['Target Design'] || ''}
+                  onChange={handleChange}
+                  required
+                  className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Penyelesaian</label>
-              <input
-                type="date"
-                name="Tanggal Penyelesaian"
-                value={formData['Tanggal Penyelesaian'] || ''}
-                onChange={handleChange}
-                className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Aktual Engineering Selesai</label>
-              <input
-                type="date"
-                name="Aktual Engineering"
-                value={formData['Aktual Engineering'] || ''}
-                onChange={handleChange}
-                className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Penyelesaian</label>
+                <input
+                  type="date"
+                  name="Tanggal Penyelesaian"
+                  value={formData['Tanggal Penyelesaian'] || ''}
+                  onChange={handleChange}
+                  className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div className="md:col-span-3">

@@ -646,13 +646,13 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         item.PIC || '',
         item['Qty Drawing'] || 0,
         item['Target Design'] || '',
-        item['Aktual Engineering'] || '',
+        item['Tanggal Penyelesaian'] || item['Aktual Engineering'] || '',
         item.keterangan || ''
       ]);
 
       autoTable(doc, {
         startY: 22,
-        head: [['No', 'Bulan', 'SPK', 'Customer', 'Nama Project', 'Status', 'PIC', 'Qty', 'Target Design', 'Aktual Eng', 'Keterangan']],
+        head: [['No', 'Bulan', 'SPK', 'Customer', 'Nama Project', 'Status', 'PIC', 'Qty', 'Target Design', 'Tgl Selesai', 'Keterangan']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
@@ -1461,7 +1461,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
               const isOverdue = deadlineInfo?.kind === 'overdue';
               const isDueSoon = deadlineInfo?.kind === 'soon';
-              const isLate = item['Aktual Engineering'] && item['Target Design'] && new Date(item['Aktual Engineering']) > new Date(item['Target Design']);
+              const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
+              const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
               const completedChecklists = CHECKLIST_KEYS.filter((ck) => Boolean(item[ck])).length;
               const checklistPercent = Math.round((completedChecklists / CHECKLIST_KEYS.length) * 100);
               const isChecklistOpen = expandedChecklistSpk === item.SPK;
@@ -1819,7 +1820,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
                   const isOverdue = deadlineInfo?.kind === 'overdue';
                   const isDueSoon = deadlineInfo?.kind === 'soon';
-                  const isLate = item['Aktual Engineering'] && item['Target Design'] && new Date(item['Aktual Engineering']) > new Date(item['Target Design']);
+                  const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
+                  const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
                   const rowBg =
                     isOverdue || isLate
                       ? 'bg-rose-50/70 hover:bg-rose-100/60'
