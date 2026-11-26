@@ -31,7 +31,8 @@ import {
   ChevronDown,
   ChevronUp,
   CheckSquare,
-  QrCode
+  QrCode,
+  X
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -97,9 +98,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const [filterMonth, setFilterMonth] = useState<string>('ALL');
   const [filterYear, setFilterYear] = useState<string>('2026');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [filterSpk, setFilterSpk] = useState<string>('');
-  const [filterCustomer, setFilterCustomer] = useState<string>('');
-  const [filterProject, setFilterProject] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortSpkAsc, setSortSpkAsc] = useState<boolean>(true);
 
   // Pagination state
@@ -148,24 +147,31 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       if (filterStatus && item.Status !== filterStatus) {
         return false;
       }
-      // SPK
-      if (filterSpk && !item.SPK.toLowerCase().includes(filterSpk.toLowerCase())) {
-        return false;
-      }
-      // Customer
-      if (filterCustomer && !item.Customer.toLowerCase().includes(filterCustomer.toLowerCase())) {
-        return false;
-      }
-      // Project Name
-      if (filterProject && !item['Nama Project'].toLowerCase().includes(filterProject.toLowerCase())) {
-        return false;
+      // Unified search: SPK, Customer, Nama Project, Nomor PO, PIC, Keterangan
+      const q = searchQuery.trim().toLowerCase();
+      if (q) {
+        const searchable = [
+          item.SPK,
+          item.Customer,
+          item['Nama Project'],
+          item['Nomor PO'],
+          item.PIC,
+          item.keterangan
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        const tokens = q.split(/\s+/).filter(Boolean);
+        if (!tokens.every((token) => searchable.includes(token))) {
+          return false;
+        }
       }
       return true;
     }).sort((a, b) => {
       const cmp = a.SPK.localeCompare(b.SPK, undefined, { numeric: true });
       return sortSpkAsc ? cmp : -cmp;
     });
-  }, [projects, filterMonth, filterYear, filterStatus, filterSpk, filterCustomer, filterProject, sortSpkAsc]);
+  }, [projects, filterMonth, filterYear, filterStatus, searchQuery, sortSpkAsc]);
 
   // Summary Metrics
   const stats = useMemo(() => {
@@ -995,20 +1001,33 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              value={filterProject}
+              value={searchQuery}
               onChange={(e) => {
-                setFilterProject(e.target.value);
+                setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Cari project..."
-              className="text-base bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Cari SPK, Customer, atau Nama Project..."
+              className="text-base bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-9 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                aria-label="Hapus pencarian"
+                className="absolute right-2.5 top-2.5 p-0.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setShowMobileFilters((v) => !v)}
             className={`min-h-[42px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition ${
-              showMobileFilters || filterSpk || filterCustomer || filterStatus || filterMonth !== 'ALL'
+              showMobileFilters || filterStatus || filterMonth !== 'ALL' || (filterYear && filterYear !== '2026')
                 ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
                 : 'bg-slate-50 border-slate-300 text-slate-700'
             }`}
@@ -1020,49 +1039,36 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
         {/* Search & Filter Inputs (Always visible sm+, toggleable on mobile) */}
         <div className={`${showMobileFilters ? 'grid' : 'hidden sm:grid'} grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-slate-100`}>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1">Cari SPK</label>
+          <div className="hidden sm:block sm:col-span-3">
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">
+              Pencarian (SPK, Customer, Nama Project)
+            </label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               <input
                 type="text"
-                value={filterSpk}
+                value={searchQuery}
                 onChange={(e) => {
-                  setFilterSpk(e.target.value);
+                  setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Cth: SPK-2026..."
-                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="Cari No. SPK, nama customer, nama project, No. PO, atau PIC..."
+                className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-8 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 top-1.5 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1">Cari Customer</label>
-            <input
-              type="text"
-              value={filterCustomer}
-              onChange={(e) => {
-                setFilterCustomer(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Nama customer..."
-              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1">Cari Nama Project</label>
-            <input
-              type="text"
-              value={filterProject}
-              onChange={(e) => {
-                setFilterProject(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Nama project..."
-              className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
           </div>
 
           <div>
