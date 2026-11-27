@@ -17,7 +17,11 @@ import {
   Save,
   RotateCcw,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  DownloadCloud,
+  UploadCloud,
+  FileJson,
+  Loader2
 } from 'lucide-react';
 import { 
   firebaseConfig, 
@@ -25,19 +29,38 @@ import {
   saveCustomFirebaseConfig, 
   resetToDefaultFirebaseConfig 
 } from '../firebase/firebaseConfig';
+import {
+  exportFirestoreBackupPayload,
+  bulkRestoreBackupToFirestore,
+  FirestoreCloudBackupPayload
+} from '../firebase/firestoreService';
+import { EngineeringProject, KPIItem } from '../types/engineering';
 
 interface FirebaseConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectsCount: number;
+  projects: EngineeringProject[];
+  allYearsData: Record<string, KPIItem[]>;
+  onRestoreComplete?: (result: {
+    restoredProjects: number;
+    restoredKpiRecords: number;
+    projects: EngineeringProject[];
+    kpiRecords: Array<{ year: string; kpiId: number; months: Record<string, number | null> }>;
+  }) => void;
   onRefreshSync?: () => void;
+  showToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
 export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
   isOpen,
   onClose,
   projectsCount,
-  onRefreshSync
+  projects,
+  allYearsData,
+  onRestoreComplete,
+  onRefreshSync,
+  showToast
 }) => {
   const [copied, setCopied] = useState(false);
   const [rulesCopied, setRulesCopied] = useState(false);
@@ -45,6 +68,20 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'checking'>('idle');
   const [isEditing, setIsEditing] = useState(false);
+
+  // Cloud Backup & Restore State
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{
+    fileName: string;
+    rawPayload: FirestoreCloudBackupPayload;
+    projectsCount: number;
+    kpiRecordsCount: number;
+    exportedAt: string;
+    sourceProjectId: string;
+  } | null>(null);
+  const restoreInputRef = React.useRef<HTMLInputElement>(null);
 
   // Edit form state
   const [formData, setFormData] = useState({
@@ -113,6 +150,105 @@ service cloud.firestore {
   const handleReset = () => {
     if (window.confirm('Reset konfigurasi Firebase kembali ke pengaturan awal bawaan file config?')) {
       resetToDefaultFirebaseConfig();
+    }
+  };
+
+  const handleCloudBackup = async () => {
+    if (isBackingUp) return;
+    setIsBackingUp(true);
+    setBackupMessage(null);
+    try {
+      const payload = await exportFirestoreBackupPayload({
+        firebaseProjectId: firebaseConfig.projectId || 'firestore',
+        fallbackProjects: projects,
+        allYearsData,
+      });
+
+      const jsonText = JSON.stringify(payload, null, 2);
+      const blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+      const fileName = `cloud-backup-${firebaseConfig.projectId || 'engineering'}-${stamp}.json`;
+
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
+      const msg = `Cloud Backup berhasil diunduh (${payload.projectsCount} proyek SPK & ${payload.kpiRecordsCount} record KPI).`;
+      setBackupMessage({ type: 'success', text: msg });
+      if (showToast) showToast(msg, 'success');
+    } catch (err) {
+      const msg = `Gagal membuat Cloud Backup: ${err instanceof Error ? err.message : String(err)}`;
+      setBackupMessage({ type: 'error', text: msg });
+      if (showToast) showToast(msg, 'error');
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleRestoreFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setBackupMessage(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as FirestoreCloudBackupPayload;
+      const projLen = Array.isArray(parsed.projects)
+        ? parsed.projects.filter((p) => p && p.SPK).length
+        : 0;
+      const kpiLen = Array.isArray(parsed.kpiRecordsRaw)
+        ? parsed.kpiRecordsRaw.length
+        : parsed.kpiYears
+        ? Object.values(parsed.kpiYears).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0)
+        : 0;
+
+      if (projLen === 0 && kpiLen === 0) {
+        throw new Error('File JSON tidak mengandung data proyek maupun record KPI yang valid.');
+      }
+
+      setPendingRestore({
+        fileName: file.name,
+        rawPayload: parsed,
+        projectsCount: projLen,
+        kpiRecordsCount: kpiLen,
+        exportedAt: parsed.exportedAt || '-',
+        sourceProjectId: parsed.firebaseProjectId || '-',
+      });
+    } catch (err) {
+      const msg = `File backup tidak valid: ${err instanceof Error ? err.message : String(err)}`;
+      setPendingRestore(null);
+      setBackupMessage({ type: 'error', text: msg });
+      if (showToast) showToast(msg, 'error');
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!pendingRestore || isRestoring) return;
+    setIsRestoring(true);
+    setBackupMessage(null);
+    try {
+      const res = await bulkRestoreBackupToFirestore(pendingRestore.rawPayload);
+      if (onRestoreComplete) {
+        onRestoreComplete(res);
+      }
+      const msg = `Restore selesai! ${res.restoredProjects} proyek SPK & ${res.restoredKpiRecords} record KPI di-upsert ke Firestore.`;
+      setBackupMessage({ type: 'success', text: msg });
+      setPendingRestore(null);
+      if (showToast) showToast(msg, 'success');
+    } catch (err) {
+      const msg = `Gagal restore ke Firestore: ${err instanceof Error ? err.message : String(err)}`;
+      setBackupMessage({ type: 'error', text: msg });
+      if (showToast) showToast(msg, 'error');
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -326,6 +462,130 @@ service cloud.firestore {
                   </div>
                 </div>
               </form>
+            )}
+          </div>
+
+          {/* Cloud Backup & Bulk Restore Panel */}
+          <div className="p-4 bg-gradient-to-br from-slate-950 via-indigo-950/35 to-slate-950 rounded-xl border border-cyan-500/35 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <FileJson className="w-4 h-4 text-cyan-400" />
+                <div>
+                  <h3 className="font-bold text-slate-100 text-xs">
+                    Cloud Backup & Restore Database (JSON)
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Unduh seluruh data proyek SPK & KPI Firestore ke file JSON atau bulk-upsert file backup ke cloud
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono text-cyan-300 bg-cyan-500/15 border border-cyan-400/30 px-2 py-0.5 rounded-full">
+                Projects + KPI
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleCloudBackup}
+                disabled={isBackingUp || isRestoring}
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center space-x-1.5 text-xs"
+              >
+                {isBackingUp ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <DownloadCloud className="w-4 h-4" />
+                )}
+                <span>{isBackingUp ? 'Mengambil Snapshot...' : 'Cloud Backup'}</span>
+              </button>
+
+              <input
+                ref={restoreInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleRestoreFilePicked}
+              />
+              <button
+                type="button"
+                onClick={() => restoreInputRef.current?.click()}
+                disabled={isBackingUp || isRestoring}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-cyan-200 font-bold rounded-xl border border-cyan-400/35 transition flex items-center space-x-1.5 text-xs"
+              >
+                <UploadCloud className="w-4 h-4 text-cyan-400" />
+                <span>Import & Restore JSON</span>
+              </button>
+            </div>
+
+            {pendingRestore && (
+              <div className="p-3 rounded-xl bg-slate-900/95 border border-amber-400/45 space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-extrabold text-amber-300 truncate">
+                      Siap Restore: {pendingRestore.fileName}
+                    </p>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Isi backup: <strong className="text-white">{pendingRestore.projectsCount} Proyek SPK</strong> &bull;{' '}
+                      <strong className="text-white">{pendingRestore.kpiRecordsCount} Record KPI</strong>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Sumber: <span className="font-mono">{pendingRestore.sourceProjectId}</span> &bull; Export:{' '}
+                      {pendingRestore.exportedAt !== '-'
+                        ? new Date(pendingRestore.exportedAt).toLocaleString('id-ID')
+                        : '-'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingRestore(null)}
+                    disabled={isRestoring}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingRestore(null)}
+                    disabled={isRestoring}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmRestore}
+                    disabled={isRestoring}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-[11px] font-extrabold flex items-center gap-1.5 shadow"
+                  >
+                    {isRestoring ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isRestoring ? 'Mengirim ke Firestore...' : 'Konfirmasi Bulk Upsert ke Firestore'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {backupMessage && (
+              <div
+                className={`p-2.5 rounded-xl border text-[11px] font-semibold flex items-center gap-2 ${
+                  backupMessage.type === 'success'
+                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                    : 'bg-rose-500/15 border-rose-400/40 text-rose-200'
+                }`}
+              >
+                {backupMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{backupMessage.text}</span>
+              </div>
             )}
           </div>
 

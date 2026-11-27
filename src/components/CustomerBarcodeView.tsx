@@ -11,7 +11,8 @@ import {
 } from '../types/engineering';
 import { PartAttachmentPreviewModal } from './PartAttachmentPreviewModal';
 import { formatFileSize } from '../utils/partAttachmentUtils';
-import { CHECKLIST_KEYS, getProjectChecklistProgress } from '../data/initialData';
+import { CHECKLIST_KEYS, MONTH_FULL_NAMES, getProjectChecklistProgress } from '../data/initialData';
+import { calculateProjectMilestoneOverdue } from '../utils/milestoneOverdue';
 import {
   CustomerRecordSummary,
   aggregateCustomerRecords,
@@ -53,7 +54,10 @@ import {
   ArrowUp,
   ArrowDown,
   ListChecks,
-  Clock
+  Clock,
+  Filter,
+  RotateCcw,
+  Calendar
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -98,7 +102,14 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [selectedSpkProjectSpk, setSelectedSpkProjectSpk] = useState<string | null>(null);
   const [spkStatusFilter, setSpkStatusFilter] = useState<'ALL' | 'In Progress' | 'Revisi' | 'Selesai'>('ALL');
+  const [spkMonthFilter, setSpkMonthFilter] = useState<string>('ALL');
+  const [spkYearFilter, setSpkYearFilter] = useState<string>('ALL');
+  const [spkPicFilter, setSpkPicFilter] = useState<string>('ALL');
+  const [spkCustomerFilter, setSpkCustomerFilter] = useState<string>('ALL');
+  const [spkProgressFilter, setSpkProgressFilter] = useState<'ALL' | 'overdue' | 'due_soon' | 'incomplete' | 'complete_100'>('ALL');
+  const [spkSortBy, setSpkSortBy] = useState<'spk' | 'progress' | 'target'>('spk');
   const [spkSortOrder, setSpkSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [showMobileSpkFilters, setShowMobileSpkFilters] = useState(false);
   const [dossierTab, setDossierTab] = useState<'projects' | 'standartPart' | 'kpiCostError' | 'label'>('projects');
   const [dossierSearch, setDossierSearch] = useState('');
   const [dossierSpkSort, setDossierSpkSort] = useState<'asc' | 'desc'>('asc');
@@ -188,10 +199,107 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     );
   }, [customerRecords, searchQuery]);
 
+  const getSpkMonthsForFilter = (val: string): string[] | null => {
+    if (!val || val === 'ALL') return null;
+    if (val === 'Q1') return ['Januari', 'Februari', 'Maret'];
+    if (val === 'Q2') return ['April', 'Mei', 'Juni'];
+    if (val === 'Q3') return ['Juli', 'Agustus', 'September'];
+    if (val === 'Q4') return ['Oktober', 'November', 'Desember'];
+    return [val];
+  };
+
+  const spkFilterOptions = useMemo(() => {
+    const yearSet = new Set<string>();
+    const picSet = new Set<string>();
+    const customerSet = new Set<string>();
+
+    projects.forEach((p) => {
+      const dateSources = [p['Delivery Time'], p['Target Design'], p['Permintaan Drawing/Design']];
+      dateSources.forEach((ds) => {
+        const m = /^(\d{4})/.exec(String(ds || '').trim());
+        if (m) yearSet.add(m[1]);
+      });
+      const spkYear = /(20\d{2})/.exec(String(p.SPK || ''));
+      if (spkYear) yearSet.add(spkYear[1]);
+
+      const pic = String(p.PIC || '').trim();
+      if (pic) picSet.add(pic);
+
+      const cust = String(p.Customer || '').trim();
+      if (cust) customerSet.add(cust);
+    });
+
+    return {
+      years: Array.from(yearSet).sort(),
+      pics: Array.from(picSet).sort((a, b) => a.localeCompare(b, 'id')),
+      customers: Array.from(customerSet).sort((a, b) => a.localeCompare(b, 'id'))
+    };
+  }, [projects]);
+
+  const activeSpkFilterCount = useMemo(() => {
+    let count = 0;
+    if (spkMonthFilter !== 'ALL') count++;
+    if (spkYearFilter !== 'ALL') count++;
+    if (spkPicFilter !== 'ALL') count++;
+    if (spkCustomerFilter !== 'ALL') count++;
+    if (spkProgressFilter !== 'ALL') count++;
+    if (spkStatusFilter !== 'ALL') count++;
+    return count;
+  }, [spkMonthFilter, spkYearFilter, spkPicFilter, spkCustomerFilter, spkProgressFilter, spkStatusFilter]);
+
+  const resetAllSpkFilters = () => {
+    setSearchQuery('');
+    setSpkStatusFilter('ALL');
+    setSpkMonthFilter('ALL');
+    setSpkYearFilter('ALL');
+    setSpkPicFilter('ALL');
+    setSpkCustomerFilter('ALL');
+    setSpkProgressFilter('ALL');
+    setSpkSortBy('spk');
+    setSpkSortOrder('asc');
+  };
+
   const filteredSpkProjects = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const allowedMonths = getSpkMonthsForFilter(spkMonthFilter);
+
     const list = projects.filter((p) => {
       if (spkStatusFilter !== 'ALL' && p.Status !== spkStatusFilter) return false;
+
+      if (allowedMonths && !allowedMonths.includes(String(p.Bulan || '').trim())) {
+        return false;
+      }
+
+      if (spkYearFilter !== 'ALL') {
+        const dateStr = p['Delivery Time'] || p['Target Design'] || p['Permintaan Drawing/Design'] || '';
+        const matchYear =
+          (dateStr && String(dateStr).startsWith(spkYearFilter)) ||
+          (p.SPK && p.SPK.includes(spkYearFilter));
+        if (!matchYear) return false;
+      }
+
+      if (spkPicFilter !== 'ALL' && String(p.PIC || '').trim() !== spkPicFilter) {
+        return false;
+      }
+
+      if (spkCustomerFilter !== 'ALL' && String(p.Customer || '').trim() !== spkCustomerFilter) {
+        return false;
+      }
+
+      if (spkProgressFilter !== 'ALL') {
+        if (spkProgressFilter === 'overdue') {
+          if (!calculateProjectMilestoneOverdue(p['Target Design'], p.Status).isOverdue) return false;
+        } else if (spkProgressFilter === 'due_soon') {
+          if (!calculateProjectMilestoneOverdue(p['Target Design'], p.Status).isDueSoon) return false;
+        } else if (spkProgressFilter === 'incomplete') {
+          const prog = getProjectChecklistProgress(p);
+          if (prog.totalRequired === 0 || prog.percent >= 100) return false;
+        } else if (spkProgressFilter === 'complete_100') {
+          const prog = getProjectChecklistProgress(p);
+          if (prog.totalRequired === 0 || prog.percent < 100) return false;
+        }
+      }
+
       if (!q) return true;
       return (
         (p.SPK || '').toLowerCase().includes(q) ||
@@ -203,22 +311,48 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         (p.Status || '').toLowerCase().includes(q)
       );
     });
+
     return list.slice().sort((a, b) => {
-      const cmp = (a.SPK || '').localeCompare(b.SPK || '', undefined, { numeric: true, sensitivity: 'base' });
+      let cmp = 0;
+      if (spkSortBy === 'progress') {
+        cmp = getProjectChecklistProgress(a).percent - getProjectChecklistProgress(b).percent;
+      } else if (spkSortBy === 'target') {
+        const ta = a['Target Design'] || '9999-99-99';
+        const tb = b['Target Design'] || '9999-99-99';
+        cmp = ta.localeCompare(tb);
+      }
+      if (cmp === 0) {
+        cmp = (a.SPK || '').localeCompare(b.SPK || '', undefined, { numeric: true, sensitivity: 'base' });
+      }
       return spkSortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [projects, searchQuery, spkStatusFilter, spkSortOrder]);
+  }, [
+    projects,
+    searchQuery,
+    spkStatusFilter,
+    spkMonthFilter,
+    spkYearFilter,
+    spkPicFilter,
+    spkCustomerFilter,
+    spkProgressFilter,
+    spkSortBy,
+    spkSortOrder
+  ]);
 
   const spkStats = useMemo(() => {
-    const total = projects.length;
-    const done = projects.filter((p) => p.Status === 'Selesai').length;
-    const active = projects.filter((p) => p.Status === 'In Progress' || p.Status === 'Revisi').length;
+    const total = filteredSpkProjects.length;
+    const allTotal = projects.length;
+    const done = filteredSpkProjects.filter((p) => p.Status === 'Selesai').length;
+    const active = filteredSpkProjects.filter((p) => p.Status === 'In Progress' || p.Status === 'Revisi').length;
+    const overdue = filteredSpkProjects.filter(
+      (p) => calculateProjectMilestoneOverdue(p['Target Design'], p.Status).isOverdue
+    ).length;
     const avgPct =
       total > 0
-        ? Math.round(projects.reduce((sum, p) => sum + getProjectChecklistProgress(p).percent, 0) / total)
+        ? Math.round(filteredSpkProjects.reduce((sum, p) => sum + getProjectChecklistProgress(p).percent, 0) / total)
         : 0;
-    return { total, done, active, avgPct };
-  }, [projects]);
+    return { total, allTotal, done, active, overdue, avgPct };
+  }, [filteredSpkProjects, projects.length]);
 
   const selectedCustomer = useMemo(
     () => customerRecords.find((c) => c.key === selectedCustomerKey) || null,
@@ -903,8 +1037,16 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
+        const activeFilterParts = [
+          spkMonthFilter !== 'ALL' ? `Bulan: ${spkMonthFilter}` : null,
+          spkYearFilter !== 'ALL' ? `Tahun: ${spkYearFilter}` : null,
+          spkStatusFilter !== 'ALL' ? `Status: ${spkStatusFilter}` : null,
+          spkPicFilter !== 'ALL' ? `PIC: ${spkPicFilter}` : null,
+          spkCustomerFilter !== 'ALL' ? `Kastamer: ${spkCustomerFilter}` : null
+        ].filter(Boolean);
+        const filterSummary = activeFilterParts.length > 0 ? ` [${activeFilterParts.join(' · ')}]` : '';
         doc.text(
-          `Total ${filteredSpkProjects.length} SPK · Scan QR atau Code-128 untuk cek & update checklist SPK`,
+          `Total ${filteredSpkProjects.length} SPK${filterSummary} · Scan QR atau Code-128 untuk cek & update checklist SPK`,
           margin,
           16.5
         );
@@ -1052,7 +1194,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               }`}
             >
               <ListChecks className="w-3.5 h-3.5 shrink-0" />
-              <span>Barcode per SPK / Progress ({projects.length})</span>
+              <span>
+                Barcode per SPK / Progress (
+                {barcodeViewMode === 'spk' && activeSpkFilterCount > 0
+                  ? `${filteredSpkProjects.length}/${projects.length}`
+                  : projects.length}
+                )
+              </span>
             </button>
           </div>
 
@@ -1072,17 +1220,28 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   {st === 'ALL' ? 'Semua Status' : st}
                 </button>
               ))}
+              <select
+                value={spkSortBy}
+                onChange={(e) => setSpkSortBy(e.target.value as 'spk' | 'progress' | 'target')}
+                aria-label="Urutkan SPK berdasarkan"
+                className="min-h-[34px] px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+              >
+                <option value="spk">Urut: No. SPK</option>
+                <option value="progress">Urut: Progress %</option>
+                <option value="target">Urut: Target Design</option>
+              </select>
               <button
                 type="button"
                 onClick={() => setSpkSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                className="min-h-[34px] px-3 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 flex items-center gap-1"
+                className="min-h-[34px] px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 flex items-center gap-1"
+                title="Ubah arah urutan"
               >
                 {spkSortOrder === 'asc' ? (
                   <ArrowUp className="w-3 h-3 text-blue-600" />
                 ) : (
                   <ArrowDown className="w-3 h-3 text-blue-600" />
                 )}
-                <span>SPK {spkSortOrder === 'asc' ? 'A→Z' : 'Z→A'}</span>
+                <span>{spkSortOrder === 'asc' ? 'Naik' : 'Turun'}</span>
               </button>
             </div>
           )}
@@ -1116,27 +1275,175 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setQrMode('url')}
-              className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
-                qrMode === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {barcodeViewMode === 'spk' ? 'QR Link Progress SPK' : 'QR Link Dossier'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setQrMode('offline')}
-              className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
-                qrMode === 'offline' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              QR Teks Ringkas
-            </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {barcodeViewMode === 'spk' && (
+              <button
+                type="button"
+                onClick={() => setShowMobileSpkFilters((v) => !v)}
+                className={`sm:hidden min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition ${
+                  showMobileSpkFilters || activeSpkFilterCount > 0
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-300'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filter{activeSpkFilterCount > 0 ? ` (${activeSpkFilterCount})` : ''}</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setQrMode('url')}
+                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                  qrMode === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {barcodeViewMode === 'spk' ? 'QR Link Progress SPK' : 'QR Link Dossier'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setQrMode('offline')}
+                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                  qrMode === 'offline' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                QR Teks Ringkas
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Filter Bulan, Tahun, PIC, Kastamer & Kondisi Progress khusus Barcode per SPK */}
+        {barcodeViewMode === 'spk' && (
+          <div className={`${showMobileSpkFilters ? 'block' : 'hidden sm:block'} pt-3 border-t border-slate-100 space-y-2.5`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <span>Filter SPK (Bulan, Tahun, PIC, Kastamer &amp; Progres)</span>
+                {activeSpkFilterCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-slate-900 text-white text-[10px] font-bold tabular-nums">
+                    {activeSpkFilterCount} aktif
+                  </span>
+                )}
+              </div>
+
+              {(activeSpkFilterCount > 0 || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={resetAllSpkFilters}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset Semua Filter</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                  Bulan / Kuartal
+                </label>
+                <select
+                  value={spkMonthFilter}
+                  onChange={(e) => setSpkMonthFilter(e.target.value)}
+                  className="w-full min-h-[38px] text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                >
+                  <option value="ALL">Semua Bulan</option>
+                  <optgroup label="Kuartal">
+                    <option value="Q1">Q1 (Jan - Mar)</option>
+                    <option value="Q2">Q2 (Apr - Jun)</option>
+                    <option value="Q3">Q3 (Jul - Sep)</option>
+                    <option value="Q4">Q4 (Okt - Des)</option>
+                  </optgroup>
+                  <optgroup label="Bulan">
+                    {Object.values(MONTH_FULL_NAMES).map((fullMonth) => (
+                      <option key={fullMonth} value={fullMonth}>
+                        {fullMonth}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                  Tahun
+                </label>
+                <select
+                  value={spkYearFilter}
+                  onChange={(e) => setSpkYearFilter(e.target.value)}
+                  className="w-full min-h-[38px] text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                >
+                  <option value="ALL">Semua Tahun</option>
+                  {spkFilterOptions.years.map((yr) => (
+                    <option key={yr} value={yr}>
+                      Tahun {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                  PIC Engineering
+                </label>
+                <select
+                  value={spkPicFilter}
+                  onChange={(e) => setSpkPicFilter(e.target.value)}
+                  className="w-full min-h-[38px] text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                >
+                  <option value="ALL">Semua PIC ({spkFilterOptions.pics.length})</option>
+                  {spkFilterOptions.pics.map((pic) => (
+                    <option key={pic} value={pic}>
+                      {pic}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                  Kastamer
+                </label>
+                <select
+                  value={spkCustomerFilter}
+                  onChange={(e) => setSpkCustomerFilter(e.target.value)}
+                  className="w-full min-h-[38px] text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                >
+                  <option value="ALL">Semua Kastamer ({spkFilterOptions.customers.length})</option>
+                  {spkFilterOptions.customers.map((cust) => (
+                    <option key={cust} value={cust}>
+                      {cust}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                  Progres &amp; Target Design
+                </label>
+                <select
+                  value={spkProgressFilter}
+                  onChange={(e) =>
+                    setSpkProgressFilter(
+                      e.target.value as 'ALL' | 'overdue' | 'due_soon' | 'incomplete' | 'complete_100'
+                    )
+                  }
+                  className="w-full min-h-[38px] text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                >
+                  <option value="ALL">Semua Kondisi</option>
+                  <option value="overdue">Overdue (Lewat Target)</option>
+                  <option value="due_soon">Mendekati Target (≤3 Hari)</option>
+                  <option value="incomplete">Checklist Belum 100%</option>
+                  <option value="complete_100">Checklist Sudah 100%</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4 Summary Metrics Strip */}
@@ -1178,8 +1485,15 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">Total Barcode SPK</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.total}</p>
+              <p className="text-xs font-medium text-slate-500">
+                {activeSpkFilterCount > 0 || searchQuery ? 'SPK Terfilter' : 'Total Barcode SPK'}
+              </p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                {spkStats.total}
+                {(activeSpkFilterCount > 0 || searchQuery) && (
+                  <span className="text-xs font-semibold text-slate-400 ml-1">/ {spkStats.allTotal}</span>
+                )}
+              </p>
             </div>
             <QrCode className="w-6 h-6 text-slate-400 shrink-0" />
           </div>
@@ -1202,8 +1516,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
 
           <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">In Progress / Revisi</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.active}</p>
+              <p className="text-xs font-medium text-slate-500">Aktif / Overdue</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                {spkStats.active}
+                {spkStats.overdue > 0 && (
+                  <span className="text-xs font-bold text-rose-600 ml-1.5">({spkStats.overdue} telat)</span>
+                )}
+              </p>
             </div>
             <Clock className="w-6 h-6 text-amber-600 shrink-0" />
           </div>
@@ -1343,14 +1662,11 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2">
             <ListChecks className="w-10 h-10 text-slate-300 mx-auto" />
             <p className="text-sm font-semibold text-slate-700">Tidak ada SPK yang cocok dengan filter atau pencarian</p>
-            <p className="text-xs text-slate-500">Ubah kata kunci pencarian atau pilih status "Semua Status".</p>
-            {(searchQuery || spkStatusFilter !== 'ALL') && (
+            <p className="text-xs text-slate-500">Ubah filter bulan, tahun, PIC, kastamer, status, atau kata kunci pencarian.</p>
+            {(searchQuery || activeSpkFilterCount > 0) && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSpkStatusFilter('ALL');
-                }}
+                onClick={resetAllSpkFilters}
                 className="mt-2 min-h-[40px] px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
               >
                 Reset Filter SPK
@@ -1362,12 +1678,19 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
             {filteredSpkProjects.map((p) => {
               const spkId = getSpkBarcodeId(p);
               const { completedCount, totalRequired, percent, isCustom } = getProjectChecklistProgress(p);
+              const milestoneStatus = calculateProjectMilestoneOverdue(p['Target Design'], p.Status);
               const qrValue = qrMode === 'url' ? buildSpkBarcodeUrl(spkId) : buildSpkOfflinePayload(p);
 
               return (
                 <div
                   key={`${p.SPK}-${p.No}`}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition flex flex-col justify-between p-4 space-y-3.5"
+                  className={`bg-white rounded-2xl border shadow-sm hover:border-slate-300 transition flex flex-col justify-between p-4 space-y-3.5 ${
+                    milestoneStatus.isOverdue
+                      ? 'border-rose-300 border-l-4 border-l-rose-600'
+                      : milestoneStatus.isDueSoon
+                      ? 'border-amber-200 border-l-4 border-l-amber-500'
+                      : 'border-slate-200'
+                  }`}
                 >
                   <div className="space-y-3">
                     {/* Header: SPK + Status */}
@@ -1384,17 +1707,36 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                           </h3>
                         </div>
 
-                        <span
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 border ${
-                            p.Status === 'Selesai'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : p.Status === 'Revisi'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}
-                        >
-                          {p.Status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                              p.Status === 'Selesai'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : p.Status === 'Revisi'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                          >
+                            {p.Status}
+                          </span>
+                          {milestoneStatus.isOverdue && (
+                            <span
+                              title={milestoneStatus.warningMessage}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-bold"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                              <span>{milestoneStatus.shortLabel}</span>
+                            </span>
+                          )}
+                          {milestoneStatus.isDueSoon && (
+                            <span
+                              title={milestoneStatus.warningMessage}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[9px] font-bold"
+                            >
+                              <span>{milestoneStatus.shortLabel}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-1">
@@ -1440,9 +1782,11 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                           style={{ width: `${percent}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                        <span>Target: {p['Target Design'] || '-'}</span>
-                        <span>Qty: {p['Qty Drawing'] || 0} pcs</span>
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span className={milestoneStatus.isOverdue ? 'text-rose-700 font-bold' : 'text-slate-500'}>
+                          Target: {p['Target Design'] || '-'}
+                        </span>
+                        <span className="text-slate-500">Qty: {p['Qty Drawing'] || 0} pcs</span>
                       </div>
                     </div>
                   </div>

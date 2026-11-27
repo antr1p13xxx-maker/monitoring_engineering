@@ -47,6 +47,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { chartValueLabelsPlugin } from '../utils/chartPlugin';
+import { calculateProjectMilestoneOverdue, MilestoneOverdueResult } from '../utils/milestoneOverdue';
 import { AIInsightsSection } from './AIInsightsSection';
 import { ThreeDChart } from './ThreeDChart';
 
@@ -57,62 +58,30 @@ interface DeadlineAlertInfo {
   diffDays: number;
   label: string;
   title: string;
+  overdueDays: number;
+  severity: MilestoneOverdueResult['severity'];
 }
 
-const parseLocalMidnight = (dateStr?: string): Date | null => {
-  if (!dateStr) return null;
-  const trimmed = dateStr.trim();
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
-  if (isoMatch) {
-    const year = Number(isoMatch[1]);
-    const month = Number(isoMatch[2]) - 1;
-    const day = Number(isoMatch[3]);
-    const d = new Date(year, month, day);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-};
-
 const getTargetDesignDeadlineInfo = (targetDateStr?: string, status?: string): DeadlineAlertInfo | null => {
-  if (!targetDateStr || status === 'Selesai') return null;
-  const target = parseLocalMidnight(targetDateStr);
-  if (!target) return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) {
-    const overdueDays = Math.abs(diffDays);
+  const result = calculateProjectMilestoneOverdue(targetDateStr, status);
+  if (result.isOverdue) {
     return {
       kind: 'overdue',
-      diffDays,
-      label: 'Overdue',
-      title: `Target Design terlewat ${overdueDays} hari (${targetDateStr})`
+      diffDays: result.diffDays,
+      label: result.badgeLabel,
+      title: result.warningMessage,
+      overdueDays: result.daysOverdue,
+      severity: result.severity
     };
   }
-  if (diffDays === 0) {
+  if (result.isDueSoon) {
     return {
       kind: 'soon',
-      diffDays,
-      label: 'Target Hari Ini',
-      title: `Target Design jatuh tempo hari ini (${targetDateStr})`
-    };
-  }
-  if (diffDays === 1) {
-    return {
-      kind: 'soon',
-      diffDays,
-      label: 'Target Besok',
-      title: `Target Design besok / H-1 (${targetDateStr})`
-    };
-  }
-  if (diffDays <= 3) {
-    return {
-      kind: 'soon',
-      diffDays,
-      label: `H-${diffDays}`,
-      title: `Target Design dalam ${diffDays} hari lagi (${targetDateStr})`
+      diffDays: result.diffDays,
+      label: result.badgeLabel,
+      title: result.warningMessage,
+      overdueDays: 0,
+      severity: result.severity
     };
   }
   return null;
@@ -227,6 +196,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterDueSoonOnly, setFilterDueSoonOnly] = useState<boolean>(false);
+  const [filterOverdueOnly, setFilterOverdueOnly] = useState<boolean>(false);
   const [sortSpkAsc, setSortSpkAsc] = useState<boolean>(true);
   const [deadlineNotifEnabled, setDeadlineNotifEnabled] = useState<boolean>(() => {
     try {
@@ -309,12 +279,30 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           return false;
         }
       }
+      // Filter khusus milestone overdue
+      if (filterOverdueOnly) {
+        const milestoneStatus = calculateProjectMilestoneOverdue(item['Target Design'], item.Status);
+        if (!milestoneStatus.isOverdue) {
+          return false;
+        }
+      }
       return true;
     }).sort((a, b) => {
       const cmp = a.SPK.localeCompare(b.SPK, undefined, { numeric: true });
       return sortSpkAsc ? cmp : -cmp;
     });
-  }, [projects, filterMonth, filterYear, filterStatus, searchQuery, filterDueSoonOnly, sortSpkAsc]);
+  }, [projects, filterMonth, filterYear, filterStatus, searchQuery, filterDueSoonOnly, filterOverdueOnly, sortSpkAsc]);
+
+  // Projects whose Target Design milestone is overdue compared to current date (excluding Selesai)
+  const overdueProjects = useMemo(() => {
+    return projects
+      .map((project) => ({
+        project,
+        milestone: calculateProjectMilestoneOverdue(project['Target Design'], project.Status)
+      }))
+      .filter((entry) => entry.milestone.isOverdue)
+      .sort((a, b) => b.milestone.daysOverdue - a.milestone.daysOverdue);
+  }, [projects]);
 
   // Projects with Target Design within 3 days (0..3 days from today) and not Selesai
   const dueSoonProjects = useMemo(() => {
@@ -842,19 +830,37 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white/95 rounded-2xl shadow-sm border border-rose-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+        <button
+          type="button"
+          onClick={() => {
+            setFilterOverdueOnly((prev) => {
+              const next = !prev;
+              if (next) setFilterDueSoonOnly(false);
+              return next;
+            });
+            setCurrentPage(1);
+          }}
+          title="Klik untuk memfilter proyek yang melewati Target Design (Overdue)"
+          className={`text-left bg-white/95 rounded-2xl shadow-sm border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all ${
+            filterOverdueOnly
+              ? 'border-rose-500 ring-2 ring-rose-300'
+              : 'border-rose-100'
+          }`}
+        >
           <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 via-pink-500 to-fuchsia-600" />
           <div className="p-4 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Overdue</p>
               <h3 className="text-2xl font-extrabold text-rose-600 mt-1 tabular-nums">{stats.overdue}</h3>
-              <p className="text-[11px] text-rose-700 font-semibold mt-1">Lewat Target</p>
+              <p className="text-[11px] text-rose-700 font-semibold mt-1">
+                {filterOverdueOnly ? 'Filter Aktif' : 'Lewat Target'}
+              </p>
             </div>
-            <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-xl shadow-md shadow-rose-500/20">
+            <div className={`p-3 bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-xl shadow-md shadow-rose-500/20 ${stats.overdue > 0 ? 'animate-pulse' : ''}`}>
               <AlertTriangle className="w-5 h-5" />
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="bg-white/95 rounded-2xl shadow-sm border border-violet-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all col-span-2 sm:col-span-1">
           <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600" />
@@ -1415,6 +1421,62 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           </div>
         </div>
 
+        {/* Visual Warning Banner for Overdue Target Design Milestones */}
+        {overdueProjects.length > 0 && (
+          <div className="pt-2.5 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2 text-rose-950 bg-rose-50/95 border border-rose-300 rounded-xl px-3 py-2 text-xs shadow-xs">
+              <div className="p-1.5 rounded-lg bg-rose-600 text-white shrink-0 animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </div>
+              <span className="font-semibold">
+                Peringatan Milestone: <strong className="tabular-nums text-rose-700">{overdueProjects.length}</strong> proyek melewati <strong>Target Design</strong>:
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {overdueProjects.slice(0, 4).map(({ project, milestone }) => (
+                  <button
+                    key={project.SPK}
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery(project.SPK);
+                      setFilterOverdueOnly(false);
+                      setFilterDueSoonOnly(false);
+                      setCurrentPage(1);
+                    }}
+                    title={`${project['Nama Project']} • ${milestone.warningMessage}`}
+                    className="px-2 py-0.5 rounded-md bg-white hover:bg-rose-100/70 border border-rose-300 text-[11px] font-mono font-bold text-rose-900 transition"
+                  >
+                    {project.SPK}{' '}
+                    <span className="text-rose-600 font-sans">({milestone.shortLabel})</span>
+                  </button>
+                ))}
+                {overdueProjects.length > 4 && (
+                  <span className="text-[11px] font-semibold text-rose-700">
+                    +{overdueProjects.length - 4} lainnya
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterOverdueOnly((v) => {
+                    const next = !v;
+                    if (next) setFilterDueSoonOnly(false);
+                    return next;
+                  });
+                  setCurrentPage(1);
+                }}
+                className={`ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold border transition shrink-0 ${
+                  filterOverdueOnly
+                    ? 'bg-rose-600 text-white border-rose-600'
+                    : 'bg-white text-rose-700 border-rose-300 hover:bg-rose-100'
+                }`}
+              >
+                {filterOverdueOnly ? 'Tampilkan Semua' : 'Filter Overdue'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Subtle Target Design <= 3 Days Reminder Bar */}
         {(dueSoonProjects.length > 0 || notifFeedback) && (
           <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -1432,6 +1494,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       onClick={() => {
                         setSearchQuery(project.SPK);
                         setFilterDueSoonOnly(false);
+                        setFilterOverdueOnly(false);
                         setCurrentPage(1);
                       }}
                       title={`${project['Nama Project']} • ${deadline.title}`}
@@ -1449,7 +1512,11 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setFilterDueSoonOnly((v) => !v);
+                    setFilterDueSoonOnly((v) => {
+                      const next = !v;
+                      if (next) setFilterOverdueOnly(false);
+                      return next;
+                    });
                     setCurrentPage(1);
                   }}
                   className={`ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold border transition shrink-0 ${
@@ -1642,9 +1709,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           ) : (
             paginatedData.map((item, idx) => {
               const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+              const milestoneStatus = calculateProjectMilestoneOverdue(item['Target Design'], item.Status);
               const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
-              const isOverdue = deadlineInfo?.kind === 'overdue';
-              const isDueSoon = deadlineInfo?.kind === 'soon';
+              const isOverdue = milestoneStatus.isOverdue;
+              const isDueSoon = milestoneStatus.isDueSoon;
               const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
               const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
               const {
@@ -1667,9 +1735,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   key={item.SPK}
                   className={`rounded-2xl shadow-sm border overflow-hidden transition-all ${
                     isOverdue || isLate
-                      ? 'bg-rose-50/60 border-rose-200'
+                      ? 'bg-rose-50/70 border-rose-300 border-l-4 border-l-rose-600'
                       : isDueSoon
-                      ? 'bg-amber-50/35 border-amber-200'
+                      ? 'bg-amber-50/35 border-amber-200 border-l-4 border-l-amber-500'
                       : 'bg-white border-indigo-100'
                   }`}
                 >
@@ -1690,8 +1758,14 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
                       <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                         {(isOverdue || isLate) && (
-                          <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold">
-                            {isOverdue ? 'Overdue' : 'Late'}
+                          <span
+                            title={isOverdue ? milestoneStatus.warningMessage : 'Selesai melewati Target Design'}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold ${
+                              milestoneStatus.severity === 'critical' ? 'animate-pulse' : ''
+                            }`}
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                            <span>{isOverdue ? milestoneStatus.badgeLabel : 'Late'}</span>
                           </span>
                         )}
                         {isDueSoon && deadlineInfo && (
@@ -1759,9 +1833,18 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <div>
                         <span className="text-[10px] text-slate-500 block">Target Design</span>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
+                          <span className={`font-mono font-bold tabular-nums ${isOverdue ? 'text-rose-700' : 'text-slate-800'}`}>
                             {item['Target Design'] || '-'}
                           </span>
+                          {isOverdue && (
+                            <span
+                              title={milestoneStatus.warningMessage}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                              <span>{milestoneStatus.shortLabel}</span>
+                            </span>
+                          )}
                           {isDueSoon && deadlineInfo && (
                             <span
                               title={deadlineInfo.title}
@@ -2043,9 +2126,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               ) : (
                 paginatedData.map((item, idx) => {
                   const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+                  const milestoneStatus = calculateProjectMilestoneOverdue(item['Target Design'], item.Status);
                   const deadlineInfo = getTargetDesignDeadlineInfo(item['Target Design'], item.Status);
-                  const isOverdue = deadlineInfo?.kind === 'overdue';
-                  const isDueSoon = deadlineInfo?.kind === 'soon';
+                  const isOverdue = milestoneStatus.isOverdue;
+                  const isDueSoon = milestoneStatus.isDueSoon;
                   const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
                   const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
                   const {
@@ -2057,16 +2141,43 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   } = getProjectChecklistProgress(item);
                   const rowBg =
                     isOverdue || isLate
-                      ? 'bg-rose-50/70 hover:bg-rose-100/60'
+                      ? 'overdue-row bg-rose-50/70 hover:bg-rose-100/60'
                       : isDueSoon
-                      ? 'bg-amber-50/45 hover:bg-amber-50/80'
+                      ? 'due-soon-row bg-amber-50/45 hover:bg-amber-50/80'
                       : 'hover:bg-slate-50';
 
                   return (
                     <tr key={item.SPK} className={`${rowBg} transition-colors border-b border-slate-200`}>
-                      <td className="p-3 sticky-col-1 text-center font-medium text-slate-600">{globalIdx}</td>
+                      <td
+                        className={`p-3 sticky-col-1 text-center font-medium text-slate-600 ${
+                          isOverdue || isLate
+                            ? 'border-l-4 border-l-rose-600'
+                            : isDueSoon
+                            ? 'border-l-4 border-l-amber-500'
+                            : ''
+                        }`}
+                      >
+                        {globalIdx}
+                      </td>
                       <td className="p-3 sticky-col-2 text-center font-semibold text-indigo-700">{item.Bulan}</td>
-                      <td className="p-3 sticky-col-3 font-bold text-blue-600 font-mono">{item.SPK}</td>
+                      <td className="p-3 sticky-col-3 font-bold text-blue-600 font-mono">
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span>{item.SPK}</span>
+                          {isOverdue && (
+                            <span
+                              title={milestoneStatus.warningMessage}
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-sans text-[9px] font-extrabold ${
+                                milestoneStatus.severity === 'critical'
+                                  ? 'bg-rose-600 text-white animate-pulse'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              }`}
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                              <span>{milestoneStatus.shortLabel}</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 sticky-col-4 font-mono text-slate-700 truncate" title={item['Nomor PO']}>{item['Nomor PO']}</td>
                       <td className="p-3 sticky-col-5 font-medium text-slate-800" title={item.Customer}>
                         <div className="flex items-center justify-between gap-1.5 max-w-[170px]">
@@ -2105,7 +2216,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 text-center font-mono text-slate-600">{item['Permintaan Drawing/Design'] || '-'}</td>
                       <td className="p-3 text-center font-mono font-medium text-slate-700">
                         <div className="inline-flex items-center justify-center gap-1.5">
-                          <span>{item['Target Design'] || '-'}</span>
+                          <span className={isOverdue ? 'text-rose-700 font-bold' : ''}>
+                            {item['Target Design'] || '-'}
+                          </span>
                           {isDueSoon && deadlineInfo && (
                             <span
                               title={deadlineInfo.title}
@@ -2119,12 +2232,17 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                               <span>{deadlineInfo.label}</span>
                             </span>
                           )}
-                          {isOverdue && deadlineInfo && (
+                          {isOverdue && (
                             <span
-                              title={deadlineInfo.title}
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-sans text-[10px] font-bold"
+                              title={milestoneStatus.warningMessage}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-sans text-[10px] font-bold border ${
+                                milestoneStatus.severity === 'critical'
+                                  ? 'bg-rose-600 text-white border-rose-700 shadow-xs animate-pulse'
+                                  : 'bg-rose-100 text-rose-800 border-rose-300'
+                              }`}
                             >
-                              Overdue
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                              <span>{milestoneStatus.badgeLabel}</span>
                             </span>
                           )}
                         </div>

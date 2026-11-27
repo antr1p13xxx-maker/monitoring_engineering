@@ -11,7 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'sw-bg-sync.js'],
         manifest: {
           id: '/',
           name: 'Monitoring Design & Drawing Engineering & KPI',
@@ -46,6 +46,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          importScripts: ['/sw-bg-sync.js'],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
           navigateFallbackDenylist: [/^\/api\//],

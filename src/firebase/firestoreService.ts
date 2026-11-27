@@ -9,6 +9,13 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog, ActiveSessionPresence, TeamChatMessage } from '../types/engineering';
+import {
+  enqueueOfflineMutation,
+  isNetworkOfflineError,
+  OfflineMutationItem,
+  OfflineMutationType,
+  registerOfflineSyncExecutor
+} from '../utils/offlineSyncQueue';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -21,6 +28,40 @@ const STAFF_ACCOUNTS_COLLECTION = 'staff_accounts';
 const AUDIT_LOGS_COLLECTION = 'activity_audit_logs';
 const ACTIVE_SESSIONS_COLLECTION = 'active_sessions';
 const TEAM_CHAT_COLLECTION = 'team_chat_messages';
+
+async function executeOrQueueOffline(params: {
+  type: OfflineMutationType;
+  coalesceKey: string;
+  label: string;
+  payload: Record<string, any>;
+  bypassQueue?: boolean;
+  runDirect: () => Promise<void>;
+}): Promise<void> {
+  if (!params.bypassQueue && typeof navigator !== 'undefined' && !navigator.onLine) {
+    await enqueueOfflineMutation({
+      type: params.type,
+      coalesceKey: params.coalesceKey,
+      label: params.label,
+      payload: params.payload,
+    });
+    return;
+  }
+
+  try {
+    await params.runDirect();
+  } catch (err) {
+    if (!params.bypassQueue && isNetworkOfflineError(err)) {
+      await enqueueOfflineMutation({
+        type: params.type,
+        coalesceKey: params.coalesceKey,
+        label: params.label,
+        payload: params.payload,
+      });
+      return;
+    }
+    throw err;
+  }
+}
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -52,13 +93,25 @@ export function subscribeToFirestoreProjects(
 /**
  * Menyimpan atau memperbarui data proyek ke Firestore.
  */
-export async function saveProjectToFirestore(project: EngineeringProject): Promise<void> {
+export async function saveProjectToFirestore(
+  project: EngineeringProject,
+  options?: { bypassQueue?: boolean }
+): Promise<void> {
   const docId = (project.SPK || `PROJ_${Date.now()}`).replace(/\//g, '_');
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
-  await setDoc(docRef, {
-    ...project,
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
+  await executeOrQueueOffline({
+    type: 'project_save',
+    coalesceKey: `project_save:${docId}`,
+    label: `Simpan Proyek ${project.SPK} (${project['Nama Project']})`,
+    payload: { project },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, {
+        ...project,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    },
+  });
 }
 
 /**
@@ -68,24 +121,46 @@ export async function updateChecklistInFirestore(
   spk: string, 
   checklistKey: string, 
   value: string,
-  lastModifiedBy?: string
+  lastModifiedBy?: string,
+  options?: { bypassQueue?: boolean }
 ): Promise<void> {
   const docId = spk.replace(/\//g, '_');
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
-  await setDoc(docRef, {
-    [checklistKey]: value,
-    ...(lastModifiedBy ? { lastModifiedBy, lastModifiedAt: new Date().toISOString() } : {}),
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
+  await executeOrQueueOffline({
+    type: 'checklist_update',
+    coalesceKey: `checklist:${docId}:${checklistKey}`,
+    label: `Checklist "${checklistKey}" (${spk})`,
+    payload: { spk, checklistKey, value, lastModifiedBy },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, {
+        [checklistKey]: value,
+        ...(lastModifiedBy ? { lastModifiedBy, lastModifiedAt: new Date().toISOString() } : {}),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    },
+  });
 }
 
 /**
  * Menghapus proyek dari Firestore berdasarkan nomor SPK.
  */
-export async function deleteProjectFromFirestore(spk: string): Promise<void> {
+export async function deleteProjectFromFirestore(
+  spk: string,
+  options?: { bypassQueue?: boolean }
+): Promise<void> {
   const docId = spk.replace(/\//g, '_');
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
-  await deleteDoc(docRef);
+  await executeOrQueueOffline({
+    type: 'project_delete',
+    coalesceKey: `project_delete:${docId}`,
+    label: `Hapus Proyek ${spk}`,
+    payload: { spk },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await deleteDoc(docRef);
+    },
+  });
 }
 
 /**
@@ -143,16 +218,26 @@ export function subscribeToFirestoreKPIs(
 export async function saveKPIMonthToFirestore(
   year: string,
   kpiId: number,
-  allMonths: Record<string, number | null>
+  allMonths: Record<string, number | null>,
+  options?: { bypassQueue?: boolean }
 ): Promise<void> {
   const docId = `${year}_KPI_${kpiId}`;
   const docRef = doc(db, KPI_COLLECTION, docId);
-  await setDoc(docRef, {
-    year,
-    kpiId,
-    months: JSON.stringify(allMonths),
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
+  await executeOrQueueOffline({
+    type: 'kpi_save',
+    coalesceKey: `kpi:${docId}`,
+    label: `Update KPI #${kpiId} (${year})`,
+    payload: { year, kpiId, allMonths },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, {
+        year,
+        kpiId,
+        months: JSON.stringify(allMonths),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    },
+  });
 }
 
 /**
@@ -499,17 +584,27 @@ export function subscribeToFirestoreStandartParts(
  * Menyimpan data Serah Terima Standart Part ke Firestore.
  */
 export async function saveStandartPartToFirestore(
-  item: SerahTerimaStandartPartItem
+  item: SerahTerimaStandartPartItem,
+  options?: { bypassQueue?: boolean }
 ): Promise<void> {
   const docId = (item.id || `stp_${Date.now()}`).replace(/[\/\\#\s]/g, '_');
   const docRef = doc(db, STANDART_PART_COLLECTION, docId);
-  await setDoc(docRef, {
-    ...item,
-    prepareStaff: JSON.stringify(item.prepareStaff),
-    partNames: JSON.stringify(item.partNames),
-    partAttachments: JSON.stringify(item.partAttachments || []),
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
+  await executeOrQueueOffline({
+    type: 'standart_part_save',
+    coalesceKey: `standart_part:${docId}`,
+    label: `Standart Part (${item.projectName})`,
+    payload: { item },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, {
+        ...item,
+        prepareStaff: JSON.stringify(item.prepareStaff),
+        partNames: JSON.stringify(item.partNames),
+        partAttachments: JSON.stringify(item.partAttachments || []),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    },
+  });
 }
 
 /**
@@ -731,30 +826,40 @@ export function subscribeToFirestoreApprovals(
  * Menyimpan / memperbarui KPI Approval Request ke Firestore.
  */
 export async function saveApprovalToFirestore(
-  req: KPIApprovalRequest
+  req: KPIApprovalRequest,
+  options?: { bypassQueue?: boolean }
 ): Promise<void> {
   const docId = (req.id || `apr_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const docRef = doc(db, KPI_APPROVAL_COLLECTION, docId);
-  await setDoc(
-    docRef,
-    {
-      id: docId,
-      category: req.category,
-      categoryLabel: req.categoryLabel,
-      targetLabel: req.targetLabel,
-      summaryOld: req.summaryOld,
-      summaryNew: req.summaryNew,
-      requestedBy: req.requestedBy,
-      requestedAt: req.requestedAt,
-      status: req.status,
-      reviewedBy: req.reviewedBy || '',
-      reviewedAt: req.reviewedAt || '',
-      reviewNote: req.reviewNote || '',
-      payload: JSON.stringify(req.payload || {}),
-      updatedAt: new Date().toISOString(),
+  await executeOrQueueOffline({
+    type: 'approval_save',
+    coalesceKey: `approval:${docId}`,
+    label: `Pengajuan ACC (${req.targetLabel})`,
+    payload: { req },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(
+        docRef,
+        {
+          id: docId,
+          category: req.category,
+          categoryLabel: req.categoryLabel,
+          targetLabel: req.targetLabel,
+          summaryOld: req.summaryOld,
+          summaryNew: req.summaryNew,
+          requestedBy: req.requestedBy,
+          requestedAt: req.requestedAt,
+          status: req.status,
+          reviewedBy: req.reviewedBy || '',
+          reviewedAt: req.reviewedAt || '',
+          reviewNote: req.reviewNote || '',
+          payload: JSON.stringify(req.payload || {}),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     },
-    { merge: true }
-  );
+  });
 }
 
 /**
@@ -900,12 +1005,24 @@ export function subscribeToFirestoreAuditLogs(
 /**
  * Menyimpan 1 catatan audit log baru ke Firestore.
  */
-export async function saveAuditLogToFirestore(log: AuditLog): Promise<void> {
+export async function saveAuditLogToFirestore(
+  log: AuditLog,
+  options?: { bypassQueue?: boolean }
+): Promise<void> {
   const docId = (log.id || `log_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const docRef = doc(db, AUDIT_LOGS_COLLECTION, docId);
-  await setDoc(docRef, {
-    ...log,
-    id: docId,
+  await executeOrQueueOffline({
+    type: 'audit_log_save',
+    coalesceKey: `audit:${docId}`,
+    label: `Audit Log (${log.target || log.module || 'Aktivitas'})`,
+    payload: { log },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, {
+        ...log,
+        id: docId,
+      });
+    },
   });
 }
 
@@ -1037,7 +1154,8 @@ export function subscribeToFirestoreTeamChat(
  * Mengirim 1 pesan chat baru secara real-time ke Firestore.
  */
 export async function sendTeamChatMessageToFirestore(
-  message: TeamChatMessage
+  message: TeamChatMessage,
+  options?: { bypassQueue?: boolean }
 ): Promise<void> {
   const docId = (message.id || `msg_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const docRef = doc(db, TEAM_CHAT_COLLECTION, docId);
@@ -1071,7 +1189,16 @@ export async function sendTeamChatMessageToFirestore(
     payload.replyToPreview = String(message.replyToPreview).slice(0, 240);
   }
 
-  await setDoc(docRef, payload);
+  await executeOrQueueOffline({
+    type: 'chat_send',
+    coalesceKey: `chat:${docId}`,
+    label: `Pesan Chat (${message.senderName})`,
+    payload: { message },
+    bypassQueue: options?.bypassQueue,
+    runDirect: async () => {
+      await setDoc(docRef, payload);
+    },
+  });
 }
 
 /**
@@ -1083,3 +1210,255 @@ export async function deleteTeamChatMessageFromFirestore(messageId: string): Pro
   const docRef = doc(db, TEAM_CHAT_COLLECTION, docId);
   await deleteDoc(docRef);
 }
+
+// Register background/online replay executor for IndexedDB offline queue
+registerOfflineSyncExecutor(async (item: OfflineMutationItem) => {
+  switch (item.type) {
+    case 'checklist_update':
+      await updateChecklistInFirestore(
+        item.payload.spk,
+        item.payload.checklistKey,
+        item.payload.value,
+        item.payload.lastModifiedBy,
+        { bypassQueue: true }
+      );
+      break;
+    case 'project_save':
+      await saveProjectToFirestore(item.payload.project, { bypassQueue: true });
+      break;
+    case 'project_delete':
+      await deleteProjectFromFirestore(item.payload.spk, { bypassQueue: true });
+      break;
+    case 'kpi_save':
+      await saveKPIMonthToFirestore(
+        item.payload.year,
+        item.payload.kpiId,
+        item.payload.allMonths,
+        { bypassQueue: true }
+      );
+      break;
+    case 'standart_part_save':
+      await saveStandartPartToFirestore(item.payload.item, { bypassQueue: true });
+      break;
+    case 'approval_save':
+      await saveApprovalToFirestore(item.payload.req, { bypassQueue: true });
+      break;
+    case 'audit_log_save':
+      await saveAuditLogToFirestore(item.payload.log, { bypassQueue: true });
+      break;
+    case 'chat_send':
+      await sendTeamChatMessageToFirestore(item.payload.message, { bypassQueue: true });
+      break;
+    default:
+      break;
+  }
+});
+
+export interface FirestoreCloudBackupPayload {
+  backupVersion: 1;
+  exportedAt: string;
+  firebaseProjectId: string;
+  projectsCount: number;
+  kpiRecordsCount: number;
+  projects: EngineeringProject[];
+  kpiRecordsRaw: Array<{
+    docId: string;
+    year: string;
+    kpiId: number;
+    months: Record<string, number | null>;
+  }>;
+  kpiYears?: Record<string, KPIItem[]>;
+}
+
+/**
+ * Mengambil snapshot terbaru projects & KPI langsung dari Firestore untuk Cloud Backup JSON.
+ */
+export async function exportFirestoreBackupPayload(params: {
+  firebaseProjectId: string;
+  fallbackProjects: EngineeringProject[];
+  allYearsData: Record<string, KPIItem[]>;
+}): Promise<FirestoreCloudBackupPayload> {
+  let projects: EngineeringProject[] = [...params.fallbackProjects];
+  const kpiRecordsRaw: FirestoreCloudBackupPayload['kpiRecordsRaw'] = [];
+
+  try {
+    const [projSnap, kpiSnap] = await Promise.all([
+      getDocs(collection(db, PROJECTS_COLLECTION)),
+      getDocs(collection(db, KPI_COLLECTION)),
+    ]);
+
+    if (!projSnap.empty) {
+      const fetchedProjects: EngineeringProject[] = [];
+      projSnap.forEach((docSnap) => {
+        fetchedProjects.push(docSnap.data() as EngineeringProject);
+      });
+      fetchedProjects.sort((a, b) => (Number(a.No) || 0) - (Number(b.No) || 0));
+      projects = fetchedProjects;
+    }
+
+    if (!kpiSnap.empty) {
+      kpiSnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.year && data.kpiId !== undefined) {
+          let parsedMonths: Record<string, number | null> = {};
+          try {
+            parsedMonths =
+              typeof data.months === 'string'
+                ? JSON.parse(data.months)
+                : (data.months || {});
+          } catch {
+            parsedMonths = {};
+          }
+          kpiRecordsRaw.push({
+            docId: docSnap.id,
+            year: String(data.year),
+            kpiId: Number(data.kpiId),
+            months: parsedMonths,
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Firestore backup read fallback to local state:', err);
+  }
+
+  // Fallback jika kpi_records Firestore kosong -> ambil dari state allYearsData
+  if (kpiRecordsRaw.length === 0) {
+    Object.entries(params.allYearsData || {}).forEach(([year, items]) => {
+      (items || []).forEach((kpi) => {
+        kpiRecordsRaw.push({
+          docId: `${year}_KPI_${kpi.id}`,
+          year,
+          kpiId: kpi.id,
+          months: kpi.months || {},
+        });
+      });
+    });
+  }
+
+  kpiRecordsRaw.sort((a, b) =>
+    a.year !== b.year ? a.year.localeCompare(b.year) : a.kpiId - b.kpiId
+  );
+
+  return {
+    backupVersion: 1,
+    exportedAt: new Date().toISOString(),
+    firebaseProjectId: params.firebaseProjectId,
+    projectsCount: projects.length,
+    kpiRecordsCount: kpiRecordsRaw.length,
+    projects,
+    kpiRecordsRaw,
+    kpiYears: params.allYearsData,
+  };
+}
+
+/**
+ * Validasi & bulk-upsert data backup JSON (projects & KPI records) ke Firestore menggunakan chunked writeBatch.
+ */
+export async function bulkRestoreBackupToFirestore(
+  rawBackup: unknown
+): Promise<{
+  restoredProjects: number;
+  restoredKpiRecords: number;
+  projects: EngineeringProject[];
+  kpiRecords: Array<{ year: string; kpiId: number; months: Record<string, number | null> }>;
+}> {
+  if (!rawBackup || typeof rawBackup !== 'object') {
+    throw new Error('Format file JSON tidak valid.');
+  }
+
+  const parsed = rawBackup as Partial<FirestoreCloudBackupPayload>;
+  const projects: EngineeringProject[] = Array.isArray(parsed.projects)
+    ? parsed.projects.filter(
+        (p): p is EngineeringProject => Boolean(p && typeof p === 'object' && p.SPK)
+      )
+    : [];
+
+  const kpiMap = new Map<string, { year: string; kpiId: number; months: Record<string, number | null> }>();
+
+  if (Array.isArray(parsed.kpiRecordsRaw)) {
+    parsed.kpiRecordsRaw.forEach((rec) => {
+      if (rec && rec.year && rec.kpiId !== undefined) {
+        const key = `${rec.year}_KPI_${Number(rec.kpiId)}`;
+        kpiMap.set(key, {
+          year: String(rec.year),
+          kpiId: Number(rec.kpiId),
+          months: rec.months && typeof rec.months === 'object' ? rec.months : {},
+        });
+      }
+    });
+  }
+
+  if (kpiMap.size === 0 && parsed.kpiYears && typeof parsed.kpiYears === 'object') {
+    Object.entries(parsed.kpiYears).forEach(([year, items]) => {
+      if (Array.isArray(items)) {
+        items.forEach((item) => {
+          if (item && item.id !== undefined) {
+            const key = `${year}_KPI_${Number(item.id)}`;
+            kpiMap.set(key, {
+              year: String(year),
+              kpiId: Number(item.id),
+              months: item.months && typeof item.months === 'object' ? item.months : {},
+            });
+          }
+        });
+      }
+    });
+  }
+
+  const kpiRecords = Array.from(kpiMap.values());
+
+  if (projects.length === 0 && kpiRecords.length === 0) {
+    throw new Error('File backup tidak memiliki data proyek atau KPI yang valid untuk di-restore.');
+  }
+
+  const nowIso = new Date().toISOString();
+  const operations: Array<{
+    ref: ReturnType<typeof doc>;
+    data: Record<string, any>;
+  }> = [];
+
+  projects.forEach((proj) => {
+    const docId = String(proj.SPK || `PROJ_${Date.now()}`)
+      .replace(/\//g, '_')
+      .slice(0, 120);
+    operations.push({
+      ref: doc(db, PROJECTS_COLLECTION, docId),
+      data: {
+        ...proj,
+        updatedAt: nowIso,
+      },
+    });
+  });
+
+  kpiRecords.forEach((rec) => {
+    const docId = `${rec.year}_KPI_${rec.kpiId}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+    operations.push({
+      ref: doc(db, KPI_COLLECTION, docId),
+      data: {
+        year: rec.year,
+        kpiId: rec.kpiId,
+        months: JSON.stringify(rec.months || {}),
+        updatedAt: nowIso,
+      },
+    });
+  });
+
+  const BATCH_LIMIT = 400;
+  for (let i = 0; i < operations.length; i += BATCH_LIMIT) {
+    const chunk = operations.slice(i, i + BATCH_LIMIT);
+    const batch = writeBatch(db);
+    chunk.forEach((op) => {
+      batch.set(op.ref, op.data, { merge: true });
+    });
+    await batch.commit();
+  }
+
+  return {
+    restoredProjects: projects.length,
+    restoredKpiRecords: kpiRecords.length,
+    projects,
+    kpiRecords,
+  };
+}
+

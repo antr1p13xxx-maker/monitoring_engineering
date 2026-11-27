@@ -1,5 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  doc,
+  getDocFromServer,
+  Firestore
+} from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import configData from '../../firebase-applet-config.json';
 
@@ -24,13 +32,28 @@ export const firebaseConfig = getActiveConfig();
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with specific database ID if specified and not '(default)'
-export const db = 
-  firebaseConfig.firestoreDatabaseId && 
-  firebaseConfig.firestoreDatabaseId.trim() !== '' && 
-  firebaseConfig.firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-    : getFirestore(app);
+// Initialize Firestore with IndexedDB persistent local cache (multi-tab safe)
+const hasNamedDatabase =
+  Boolean(firebaseConfig.firestoreDatabaseId) &&
+  firebaseConfig.firestoreDatabaseId.trim() !== '' &&
+  firebaseConfig.firestoreDatabaseId !== '(default)';
+
+function createFirestoreInstance(): Firestore {
+  const localCache = persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  });
+  try {
+    return hasNamedDatabase
+      ? initializeFirestore(app, { localCache }, firebaseConfig.firestoreDatabaseId)
+      : initializeFirestore(app, { localCache });
+  } catch {
+    return hasNamedDatabase
+      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
+  }
+}
+
+export const db = createFirestoreInstance();
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);

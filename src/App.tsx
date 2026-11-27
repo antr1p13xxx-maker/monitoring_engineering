@@ -22,6 +22,12 @@ import {
   saveThemeConfig,
   applyThemeToDocument
 } from './utils/themeSettings';
+import {
+  initOfflineSyncRuntime,
+  cacheDataInIndexedDB,
+  readCachedDataFromIndexedDB,
+  getAllPendingMutations
+} from './utils/offlineSyncQueue';
 import { 
   subscribeToFirestoreProjects, 
   saveProjectToFirestore, 
@@ -396,6 +402,19 @@ export default function App() {
   const seenChatIdsRef = useRef<Set<string>>(new Set());
   const chatInitializedRef = useRef<boolean>(false);
 
+  // Initialize Service Worker & IndexedDB Offline Sync Queue Runtime
+  useEffect(() => {
+    const cleanup = initOfflineSyncRuntime();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      readCachedDataFromIndexedDB<EngineeringProject[]>('eng_projects').then((cached) => {
+        if (Array.isArray(cached) && cached.length > 0) {
+          setProjects(cached);
+        }
+      });
+    }
+    return cleanup;
+  }, []);
+
   // Real-time Firestore listener for Staff Accounts, Audit Logs, Presence & Team Chat
   useEffect(() => {
     let isMounted = true;
@@ -713,10 +732,37 @@ export default function App() {
     seedFirestoreIfEmpty(INITIAL_PROJECTS);
     seedKPIsIfEmpty(activeYear, getBaseKPITemplate());
 
-    // 2. Real-time Project Listener dari Firestore
-    const unsubProjects = subscribeToFirestoreProjects((firestoreProjects) => {
+    // 2. Real-time Project Listener dari Firestore (overlay pending offline IndexedDB mutations agar tidak tertimpa)
+    const unsubProjects = subscribeToFirestoreProjects(async (firestoreProjects) => {
       if (firestoreProjects && firestoreProjects.length > 0) {
-        setProjects(firestoreProjects);
+        const pending = await getAllPendingMutations();
+        if (pending.length === 0) {
+          setProjects(firestoreProjects);
+          return;
+        }
+        const merged = [...firestoreProjects];
+        pending.forEach((mut) => {
+          if (mut.type === 'project_save' && mut.payload?.project) {
+            const p = mut.payload.project as EngineeringProject;
+            const idx = merged.findIndex((x) => x.SPK === p.SPK);
+            if (idx >= 0) merged[idx] = p;
+            else merged.unshift(p);
+          } else if (mut.type === 'checklist_update' && mut.payload?.spk) {
+            const { spk, checklistKey, value, lastModifiedBy } = mut.payload;
+            const idx = merged.findIndex((x) => x.SPK === spk);
+            if (idx >= 0) {
+              merged[idx] = {
+                ...merged[idx],
+                [checklistKey]: value,
+                ...(lastModifiedBy ? { lastModifiedBy } : {}),
+              };
+            }
+          } else if (mut.type === 'project_delete' && mut.payload?.spk) {
+            const idx = merged.findIndex((x) => x.SPK === mut.payload.spk);
+            if (idx >= 0) merged.splice(idx, 1);
+          }
+        });
+        setProjects(merged);
       }
     });
 
@@ -815,13 +861,14 @@ export default function App() {
     };
   }, [activeYear]);
 
-  // Persist projects to localStorage as offline backup cache
+  // Persist projects to localStorage and IndexedDB as durable offline cache
   useEffect(() => {
     try {
       localStorage.setItem('eng_projects', JSON.stringify(projects));
     } catch (e) {
       console.error(e);
     }
+    cacheDataInIndexedDB('eng_projects', projects);
   }, [projects]);
 
   // Persist Serah Terima Standart Part to localStorage
@@ -1412,7 +1459,11 @@ export default function App() {
       newValue: val || 'Dibatalkan',
       month: targetProject?.Bulan
     });
-    showToast(`Checklist "${key}" pada ${spk} tersimpan ke Firebase.`);
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      showToast(`Mode Offline: Checklist "${key}" (${spk}) masuk antrean IndexedDB & akan otomatis dikirim saat online.`, 'info');
+    } else {
+      showToast(`Checklist "${key}" pada ${spk} tersimpan ke Firebase.`);
+    }
   };
 
   const handleChecklistDateChange = (spk: string, key: ChecklistKey, date: string) => {
@@ -2248,6 +2299,40 @@ export default function App() {
         isOpen={isFirebaseModalOpen}
         onClose={() => setIsFirebaseModalOpen(false)}
         projectsCount={projects.length}
+        projects={projects}
+        allYearsData={allYearsData}
+        showToast={showToast}
+        onRestoreComplete={(res) => {
+          if (res.projects.length > 0) {
+            setProjects((prev) => {
+              const map = new Map<string, EngineeringProject>();
+              prev.forEach((p) => map.set(p.SPK, p));
+              res.projects.forEach((p) => map.set(p.SPK, p));
+              return Array.from(map.values()).sort((a, b) => (Number(a.No) || 0) - (Number(b.No) || 0));
+            });
+          }
+          if (res.kpiRecords.length > 0) {
+            setAllYearsData((prev) => {
+              const next = { ...prev };
+              res.kpiRecords.forEach((rec) => {
+                const yearList = next[rec.year] || getBaseKPITemplate();
+                next[rec.year] = yearList.map((item) =>
+                  item.id === rec.kpiId
+                    ? { ...item, months: { ...item.months, ...rec.months } }
+                    : item
+                );
+              });
+              return next;
+            });
+          }
+          appendAuditLog({
+            module: 'Monitoring',
+            actionType: 'update',
+            target: 'Cloud Backup & Restore',
+            activity: `Restore Cloud Backup JSON ke Firestore`,
+            newValue: `${res.restoredProjects} proyek SPK & ${res.restoredKpiRecords} record KPI di-upsert`
+          });
+        }}
         onRefreshSync={() => showToast('Sinkronisasi Google Firebase Firestore aktif & termutakhir!', 'success')}
       />
 

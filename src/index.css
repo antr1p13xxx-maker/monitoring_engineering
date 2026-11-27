@@ -246,6 +246,20 @@
       background: linear-gradient(180deg, var(--theme-table-head-from) 0%, var(--theme-table-head-to) 100%) !important;
       color: #ffffff !important;
     }
+
+    tr.overdue-row td[class*="sticky-col-"] {
+      background-color: #fff1f2;
+    }
+    tr.overdue-row:hover td[class*="sticky-col-"] {
+      background-color: #ffe4e6;
+    }
+
+    tr.due-soon-row td[class*="sticky-col-"] {
+      background-color: #fffbeb;
+    }
+    tr.due-soon-row:hover td[class*="sticky-col-"] {
+      background-color: #fef3c7;
+    }
   }
 }
 
