@@ -241,14 +241,22 @@ export const Header: React.FC<HeaderProps> = ({
               title={`Chat Tim Online (${totalOnlineCount} online${unreadChatCount > 0 ? `, ${unreadChatCount} pesan baru` : ''})`}
               className={`relative min-h-[38px] px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-1 active:scale-95 transition ${
                 unreadChatCount > 0
-                  ? 'bg-rose-500/25 hover:bg-rose-500/35 border-rose-400/60 text-white shadow-sm'
+                  ? 'animate-chat-blink text-white shadow-lg'
                   : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-100'
               }`}
             >
-              <MessageCircle className="w-3.5 h-3.5 shrink-0 text-cyan-300" />
+              <span className="relative flex items-center justify-center shrink-0">
+                <MessageCircle className={`w-3.5 h-3.5 ${unreadChatCount > 0 ? 'text-white' : 'text-cyan-300'}`} />
+                {unreadChatCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-300 opacity-90" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300" />
+                  </span>
+                )}
+              </span>
               <span className="tabular-nums">{totalOnlineCount}</span>
               {unreadChatCount > 0 && (
-                <span className="px-1.5 min-w-[16px] h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center leading-none shadow animate-pulse">
+                <span className="px-1.5 min-w-[16px] h-4 rounded-full bg-white text-rose-700 text-[9px] font-black flex items-center justify-center leading-none shadow">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}
@@ -456,17 +464,25 @@ export const Header: React.FC<HeaderProps> = ({
               title={`Buka Chat Tim Online (${totalOnlineCount} pengguna sedang aktif)`}
               className={`relative px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all border shadow-sm cursor-pointer whitespace-nowrap ${
                 unreadChatCount > 0
-                  ? 'bg-rose-500/25 hover:bg-rose-500/35 text-white border-rose-400/60'
+                  ? 'animate-chat-blink text-white shadow-lg'
                   : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 border-cyan-400/40'
               }`}
             >
-              <MessageCircle className="w-3.5 h-3.5 text-cyan-300" />
-              <span>Chat Tim</span>
+              <span className="relative flex items-center justify-center shrink-0">
+                <MessageCircle className={`w-3.5 h-3.5 ${unreadChatCount > 0 ? 'text-white' : 'text-cyan-300'}`} />
+                {unreadChatCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-300 opacity-90" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300" />
+                  </span>
+                )}
+              </span>
+              <span>{unreadChatCount > 0 ? 'Chat Masuk!' : 'Chat Tim'}</span>
               <span className="px-1.5 py-0.2 rounded bg-white/15 text-[10px] font-extrabold tabular-nums">
                 {totalOnlineCount}
               </span>
               {unreadChatCount > 0 && (
-                <span className="px-1.5 min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center leading-none shadow animate-pulse">
+                <span className="px-1.5 min-w-[18px] h-[18px] rounded-full bg-white text-rose-700 text-[10px] font-black flex items-center justify-center leading-none shadow">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}

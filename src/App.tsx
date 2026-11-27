@@ -90,7 +90,7 @@ import {
   INITIAL_STANDART_PART_HANDOVERS,
   MONTH_FULL_NAMES 
 } from './data/initialData';
-import { CheckCircle2, AlertCircle, Info, Sparkles, Flame } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Sparkles, Flame, MessageCircle, X } from 'lucide-react';
 
 export default function App() {
   // Authentication Gate State
@@ -180,6 +180,8 @@ export default function App() {
   const [activeChatRoomId, setActiveChatRoomId] = useState<string>('global');
   const [chatMessages, setChatMessages] = useState<TeamChatMessage[]>([]);
   const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({});
+  const [latestUnreadChat, setLatestUnreadChat] = useState<TeamChatMessage | null>(null);
+  const [isChatBannerDismissed, setIsChatBannerDismissed] = useState<boolean>(false);
   const [viewerNickname, setViewerNickname] = useState<string>(() => {
     try {
       return sessionStorage.getItem('eng_viewer_chat_name') || '';
@@ -466,11 +468,8 @@ export default function App() {
 
         if (latestIncoming && !isChatOpenRef.current) {
           const incomingMsg: TeamChatMessage = latestIncoming;
-          const preview =
-            incomingMsg.text.length > 55
-              ? `${incomingMsg.text.slice(0, 55)}...`
-              : incomingMsg.text;
-          showToast(`Pesan baru dari ${incomingMsg.senderName}: "${preview}"`, 'info');
+          setLatestUnreadChat(incomingMsg);
+          setIsChatBannerDismissed(false);
         }
       }
     });
@@ -506,6 +505,38 @@ export default function App() {
   }, [isChatOpen, activeChatRoomId]);
 
   const totalUnreadChatCount = Object.values(unreadByRoom).reduce((acc, n) => acc + n, 0);
+
+  // Clear latest unread chat preview when all unread messages are cleared
+  useEffect(() => {
+    if (totalUnreadChatCount === 0) {
+      setLatestUnreadChat(null);
+      setIsChatBannerDismissed(false);
+    }
+  }, [totalUnreadChatCount]);
+
+  // Blink browser tab title while unread incoming chat messages exist
+  useEffect(() => {
+    const defaultTitle = 'Monitoring Design & Drawing Engineering & KPI';
+    if (typeof document === 'undefined') return;
+    if (totalUnreadChatCount <= 0) {
+      document.title = defaultTitle;
+      return;
+    }
+
+    let toggle = false;
+    document.title = `(${totalUnreadChatCount}) Chat Masuk! • EngMonitor`;
+    const timer = setInterval(() => {
+      toggle = !toggle;
+      document.title = toggle
+        ? defaultTitle
+        : `🔔 (${totalUnreadChatCount}) Pesan Baru! • Chat Tim`;
+    }, 950);
+
+    return () => {
+      clearInterval(timer);
+      document.title = defaultTitle;
+    };
+  }, [totalUnreadChatCount]);
 
   const visibleChatMessages = chatMessages.filter(
     (m) =>
@@ -2273,9 +2304,81 @@ export default function App() {
         customerName={cadModalData.customer}
       />
 
+      {/* Blinking Incoming Chat Floating Alert Banner */}
+      {!isChatOpen && totalUnreadChatCount > 0 && latestUnreadChat && !isChatBannerDismissed && (
+        <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-5 md:bottom-5 z-[160] sm:w-[340px] animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              setActiveChatRoomId(latestUnreadChat.roomId || 'global');
+              setIsChatOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveChatRoomId(latestUnreadChat.roomId || 'global');
+                setIsChatOpen(true);
+              }
+            }}
+            className="w-full cursor-pointer rounded-2xl bg-slate-950/95 text-white border-2 animate-chat-card-blink p-3 flex items-start gap-3 backdrop-blur-md transition hover:scale-[1.01]"
+          >
+            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shrink-0 shadow-lg">
+              <MessageCircle className="w-5 h-5 text-white" />
+              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-300 opacity-95" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-yellow-300 border-2 border-slate-950" />
+              </span>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                  Chat Masuk ({totalUnreadChatCount})
+                </span>
+                <span className="text-[10px] font-bold text-cyan-300 shrink-0">
+                  {latestUnreadChat.roomId === 'global' ? 'Grup Online' : 'Pesan Pribadi'}
+                </span>
+              </div>
+              <p className="text-xs font-extrabold text-white truncate mt-0.5">
+                {latestUnreadChat.senderName}{' '}
+                <span className="text-[10px] font-semibold text-slate-400">
+                  ({latestUnreadChat.senderRole})
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-200 line-clamp-2 mt-0.5 leading-snug">
+                {latestUnreadChat.text}
+              </p>
+              <p className="text-[10px] font-bold text-emerald-300 mt-1">
+                Klik di sini untuk buka & balas →
+              </p>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Tutup notifikasi chat"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsChatBannerDismissed(true);
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification Container */}
       {toast && (
-        <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-5 md:bottom-5 z-[250] flex flex-col gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div
+          className={`fixed left-3 right-3 sm:left-auto sm:right-5 z-[250] flex flex-col gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            !isChatOpen && totalUnreadChatCount > 0 && latestUnreadChat && !isChatBannerDismissed
+              ? 'bottom-44 md:bottom-32'
+              : 'bottom-20 md:bottom-5'
+          }`}
+        >
           <div
             className={`px-4 py-3 rounded-xl shadow-2xl text-white text-xs font-semibold flex items-center space-x-2.5 border pointer-events-auto ${
               toast.type === 'error'
