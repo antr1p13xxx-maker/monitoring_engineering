@@ -19,6 +19,8 @@ export const DataModal: React.FC<DataModalProps> = ({
   userRole = 'Viewer'
 }) => {
   const isManager = userRole === 'Manager';
+  const isSupervisor = userRole === 'Supervisor';
+  const canConfigureChecklist = isManager || isSupervisor;
   const [formData, setFormData] = useState<Partial<EngineeringProject>>({
     Bulan: 'Oktober',
     SPK: '',
@@ -71,7 +73,7 @@ export const DataModal: React.FC<DataModalProps> = ({
     : [...CHECKLIST_KEYS];
 
   const toggleRequiredChecklist = (key: ChecklistKey) => {
-    if (!isManager) return;
+    if (!canConfigureChecklist) return;
     setFormData((prev) => {
       const current = Array.isArray(prev.requiredChecklists)
         ? prev.requiredChecklists
@@ -88,7 +90,7 @@ export const DataModal: React.FC<DataModalProps> = ({
   };
 
   const applyChecklistPreset = (keys: ChecklistKey[]) => {
-    if (!isManager) return;
+    if (!canConfigureChecklist) return;
     setFormData((prev) => ({
       ...prev,
       requiredChecklists: [...keys]
@@ -333,6 +335,8 @@ export const DataModal: React.FC<DataModalProps> = ({
                     <p className="text-[11px] text-slate-600">
                       {isManager
                         ? 'Tentukan tahapan checklist yang wajib dikerjakan. Item yang tidak dipilih otomatis ditandai N/A.'
+                        : isSupervisor
+                        ? 'Atur usulan tahapan checklist untuk project ini (memerlukan persetujuan Manager agar aktif).'
                         : 'Daftar tahapan checklist yang ditetapkan oleh Manager untuk project ini.'}
                     </p>
                   </div>
@@ -342,7 +346,13 @@ export const DataModal: React.FC<DataModalProps> = ({
                 </span>
               </div>
 
-              {isManager ? (
+              {isSupervisor && (
+                <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-medium">
+                  <strong>Persetujuan Manager Diperlukan:</strong> Perubahan pada item checklist wajib oleh Supervisor akan diajukan terlebih dahulu ke Manager sebelum diterapkan.
+                </div>
+              )}
+
+              {canConfigureChecklist ? (
                 <>
                   {/* Quick Presets */}
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -430,7 +440,7 @@ export const DataModal: React.FC<DataModalProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-500 flex items-center gap-1 font-medium">
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span>Hanya Manager yang dapat mengubah pengaturan item checklist wajib.</span>
+                    <span>Hanya Manager atau Supervisor (dengan persetujuan Manager) yang dapat mengatur checklist wajib.</span>
                   </p>
                 </div>
               )}

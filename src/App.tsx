@@ -961,11 +961,11 @@ export default function App() {
         }
       });
 
-      const prevReq = getProjectRequiredChecklists(editingProject).join(', ');
-      const nextReq = getProjectRequiredChecklists(updatedProject).join(', ');
-      if (prevReq !== nextReq) {
-        oldChanges.push(`Checklist Wajib: ${getProjectRequiredChecklists(editingProject).length} item`);
-        newChanges.push(`Checklist Wajib: ${getProjectRequiredChecklists(updatedProject).length} item`);
+      const prevReqList = getProjectRequiredChecklists(editingProject);
+      const nextReqList = getProjectRequiredChecklists(updatedProject);
+      if (prevReqList.join(', ') !== nextReqList.join(', ')) {
+        oldChanges.push(`Checklist Wajib: ${prevReqList.length} item`);
+        newChanges.push(`Checklist Wajib: ${nextReqList.length} item`);
       }
 
       appendAuditLog({
@@ -978,7 +978,28 @@ export default function App() {
         month: updatedProject.Bulan
       });
 
-      showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
+      // If Supervisor modified requiredChecklists inside DataModal, submit Manager approval request
+      if (userRole === 'Supervisor' && Array.isArray(formData.requiredChecklists)) {
+        const proposedList = getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists });
+        if (proposedList.join(', ') !== prevReqList.join(', ')) {
+          handleSubmitApprovalRequest({
+            category: 'checklist_scope',
+            categoryLabel: 'Pengaturan Checklist Wajib SPK',
+            targetLabel: `${updatedProject.SPK} (${updatedProject['Nama Project']})`,
+            summaryOld: `${prevReqList.length}/14 item (${prevReqList.join(', ') || 'Tanpa Checklist'})`,
+            summaryNew: `${proposedList.length}/14 item (${proposedList.join(', ') || 'Tanpa Checklist'})`,
+            payload: {
+              projectSpk: updatedProject.SPK,
+              month: updatedProject.Bulan,
+              requiredChecklists: proposedList
+            }
+          });
+        } else {
+          showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
+        }
+      } else {
+        showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
+      }
     } else {
       const initialRequired =
         userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
@@ -1031,7 +1052,28 @@ export default function App() {
         newValue: `${newProject.Customer} • PIC: ${newProject.PIC} • Qty: ${newProject['Qty Drawing']} • Checklist: ${initialRequired.length}/14`,
         month: newProject.Bulan
       });
-      showToast(`Data proyek SPK ${newProject.SPK} tersimpan ke Google Firebase Firestore!`);
+
+      if (userRole === 'Supervisor' && Array.isArray(formData.requiredChecklists)) {
+        const proposedList = getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists });
+        if (proposedList.length !== CHECKLIST_KEYS.length) {
+          handleSubmitApprovalRequest({
+            category: 'checklist_scope',
+            categoryLabel: 'Pengaturan Checklist Wajib SPK',
+            targetLabel: `${newProject.SPK} (${newProject['Nama Project']})`,
+            summaryOld: `14/14 item (Semua Checklist Default)`,
+            summaryNew: `${proposedList.length}/14 item (${proposedList.join(', ') || 'Tanpa Checklist'})`,
+            payload: {
+              projectSpk: newProject.SPK,
+              month: newProject.Bulan,
+              requiredChecklists: proposedList
+            }
+          });
+        } else {
+          showToast(`Data proyek SPK ${newProject.SPK} tersimpan ke Google Firebase Firestore!`);
+        }
+      } else {
+        showToast(`Data proyek SPK ${newProject.SPK} tersimpan ke Google Firebase Firestore!`);
+      }
     }
 
     setIsDataModalOpen(false);
@@ -1063,15 +1105,37 @@ export default function App() {
   };
 
   const handleUpdateRequiredChecklists = (spk: string, requiredKeys: ChecklistKey[]) => {
-    if (userRole !== 'Manager') {
-      showToast('Hanya Manager yang dapat menentukan item checklist wajib per project!', 'error');
-      return;
-    }
     const targetProject = projectsRef.current.find((p) => p.SPK === spk);
     if (!targetProject) return;
 
     const cleanKeys = getProjectRequiredChecklists({ requiredChecklists: requiredKeys });
     const oldKeys = getProjectRequiredChecklists(targetProject);
+
+    if (userRole === 'Supervisor') {
+      if (cleanKeys.join(', ') === oldKeys.join(', ')) {
+        showToast('Tidak ada perubahan item checklist yang diajukan.', 'info');
+        return;
+      }
+      handleSubmitApprovalRequest({
+        category: 'checklist_scope',
+        categoryLabel: 'Pengaturan Checklist Wajib SPK',
+        targetLabel: `${spk} (${targetProject['Nama Project']})`,
+        summaryOld: `${oldKeys.length}/14 item (${oldKeys.join(', ') || 'Tanpa Checklist'})`,
+        summaryNew: `${cleanKeys.length}/14 item (${cleanKeys.join(', ') || 'Tanpa Checklist'})`,
+        payload: {
+          projectSpk: spk,
+          month: targetProject.Bulan,
+          requiredChecklists: cleanKeys
+        }
+      });
+      return;
+    }
+
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager atau Supervisor (dengan persetujuan Manager) yang dapat mengatur checklist wajib!', 'error');
+      return;
+    }
+
     const actor = getActorLabel();
     const nowStr = formatNowTimestamp();
 
@@ -1634,7 +1698,7 @@ export default function App() {
     );
 
     appendAuditLog({
-      module: 'KPI',
+      module: input.category === 'checklist_scope' ? 'Monitoring' : 'KPI',
       actionType: 'approval',
       target: input.targetLabel,
       activity: `[Pengajuan] ${input.categoryLabel}: ${input.targetLabel}`,
@@ -1644,7 +1708,7 @@ export default function App() {
       newValue: `${input.summaryNew} (Pending)`
     });
 
-    showToast('Pengajuan input data berhasil dikirim! Menunggu persetujuan Manager.', 'info');
+    showToast('Pengajuan berhasil dikirim! Menunggu persetujuan Manager.', 'info');
   };
 
   // Manager Approves Supervisor Request -> applies live change + saves to Firestore
@@ -1660,7 +1724,22 @@ export default function App() {
     const actor = getActorLabel();
     const { category, payload } = req;
 
-    if (category === 'kpi_actual' && payload.year && payload.kpiId !== undefined && payload.month) {
+    if (category === 'checklist_scope' && payload.projectSpk && Array.isArray(payload.requiredChecklists)) {
+      const targetProj = projectsRef.current.find((p) => p.SPK === payload.projectSpk);
+      if (targetProj) {
+        const cleanKeys = getProjectRequiredChecklists({ requiredChecklists: payload.requiredChecklists });
+        const updatedProj: EngineeringProject = {
+          ...targetProj,
+          requiredChecklists: cleanKeys,
+          lastModifiedBy: `${req.requestedBy} (ACC: ${actor})`,
+          lastModifiedAt: nowStr
+        };
+        setProjects((prev) => prev.map((p) => (p.SPK === targetProj.SPK ? updatedProj : p)));
+        saveProjectToFirestore(updatedProj).catch((err) =>
+          console.warn('Firestore approved checklist scope save error:', err)
+        );
+      }
+    } else if (category === 'kpi_actual' && payload.year && payload.kpiId !== undefined && payload.month) {
       handleUpdateActual(
         payload.year,
         payload.kpiId,
@@ -1754,7 +1833,7 @@ export default function App() {
     );
 
     appendAuditLog({
-      module: 'KPI',
+      module: category === 'checklist_scope' ? 'Monitoring' : 'KPI',
       actionType: 'approval',
       target: req.targetLabel,
       activity: `[Disetujui] ${req.categoryLabel}: ${req.targetLabel}`,
@@ -1792,7 +1871,7 @@ export default function App() {
     );
 
     appendAuditLog({
-      module: 'KPI',
+      module: req.category === 'checklist_scope' ? 'Monitoring' : 'KPI',
       actionType: 'approval',
       target: req.targetLabel,
       activity: `[Ditolak] ${req.categoryLabel}: ${req.targetLabel}`,
@@ -1891,6 +1970,9 @@ export default function App() {
             }}
             onEditingActivityChange={setChildEditingTarget}
             onUpdateRequiredChecklists={handleUpdateRequiredChecklists}
+            approvalRequests={approvalRequests}
+            onApproveRequest={handleApproveRequest}
+            onRejectRequest={handleRejectRequest}
           />
         )}
 

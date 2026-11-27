@@ -171,7 +171,8 @@ export type KPIApprovalCategory =
   | 'on_time_design'
   | 'distribusi_drawing'
   | 'cost_efficiency'
-  | 'design_error_rate';
+  | 'design_error_rate'
+  | 'checklist_scope';
 
 export interface KPIApprovalRequest {
   id: string;
@@ -195,6 +196,7 @@ export interface KPIApprovalRequest {
     feedbackItem?: DesignFeedbackItem;
     projectSpk?: string;
     projectPatch?: Partial<EngineeringProject>;
+    requiredChecklists?: ChecklistKey[];
     costTarget?: { month: string; customer: string; projectName: string };
     updatedAnggaran?: number;
     addedExpense?: { id: string; desc: string; amount: number };

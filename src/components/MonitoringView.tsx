@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { EngineeringProject, ChecklistKey, UserRole, SerahTerimaStandartPartItem } from '../types/engineering';
+import { EngineeringProject, ChecklistKey, UserRole, SerahTerimaStandartPartItem, KPIApprovalRequest } from '../types/engineering';
 import { CHECKLIST_KEYS, CHECKLIST_PRESETS, getProjectChecklistProgress, getProjectRequiredChecklists, MONTH_NAMES } from '../data/initialData';
 import { StandartPartHandoverView } from './StandartPartHandoverView';
 import { 
@@ -38,7 +38,9 @@ import {
   BellOff,
   SlidersHorizontal,
   Check,
-  ListChecks
+  ListChecks,
+  ShieldCheck,
+  XCircle
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -135,6 +137,9 @@ interface MonitoringViewProps {
   onOpenCustomerBarcode?: (customerName: string) => void;
   onEditingActivityChange?: (target: string | null) => void;
   onUpdateRequiredChecklists?: (spk: string, requiredKeys: ChecklistKey[]) => void;
+  approvalRequests?: KPIApprovalRequest[];
+  onApproveRequest?: (requestId: string) => void;
+  onRejectRequest?: (requestId: string, note?: string) => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -155,7 +160,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   onChangeMonitoringTab,
   onOpenCustomerBarcode,
   onEditingActivityChange,
-  onUpdateRequiredChecklists
+  onUpdateRequiredChecklists,
+  approvalRequests = [],
+  onApproveRequest,
+  onRejectRequest
 }) => {
   // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
   const [internalMonitoringTab, setInternalMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
@@ -170,14 +178,38 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const [expandedChecklistSpk, setExpandedChecklistSpk] = useState<string | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false);
 
-  // Quick Manager Required Checklist Scope Modal
+  const canConfigureChecklist = userRole === 'Manager' || userRole === 'Supervisor';
+  const [rejectingApprovalId, setRejectingApprovalId] = useState<string | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
+
+  const pendingChecklistApprovals = useMemo(
+    () => approvalRequests.filter((r) => r.status === 'pending' && r.category === 'checklist_scope'),
+    [approvalRequests]
+  );
+
+  const pendingSpkApprovalMap = useMemo(() => {
+    const map = new Map<string, KPIApprovalRequest>();
+    pendingChecklistApprovals.forEach((req) => {
+      if (req.payload.projectSpk && !map.has(req.payload.projectSpk)) {
+        map.set(req.payload.projectSpk, req);
+      }
+    });
+    return map;
+  }, [pendingChecklistApprovals]);
+
+  // Quick Manager / Supervisor Required Checklist Scope Modal
   const [checklistScopeProject, setChecklistScopeProject] = useState<EngineeringProject | null>(null);
   const [scopeDraftKeys, setScopeDraftKeys] = useState<ChecklistKey[]>([...CHECKLIST_KEYS]);
 
   const openChecklistScopeModal = (project: EngineeringProject) => {
-    if (userRole !== 'Manager') return;
+    if (!canConfigureChecklist) return;
     setChecklistScopeProject(project);
-    setScopeDraftKeys(getProjectRequiredChecklists(project));
+    const pendingReq = pendingSpkApprovalMap.get(project.SPK);
+    if (userRole === 'Supervisor' && pendingReq && Array.isArray(pendingReq.payload.requiredChecklists)) {
+      setScopeDraftKeys(getProjectRequiredChecklists({ requiredChecklists: pendingReq.payload.requiredChecklists }));
+    } else {
+      setScopeDraftKeys(getProjectRequiredChecklists(project));
+    }
   };
 
   useEffect(() => {
@@ -1451,6 +1483,126 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         )}
       </div>
 
+      {/* Pending Checklist Scope Approval Queue (Supervisor -> Manager) */}
+      {(userRole === 'Manager' || userRole === 'Supervisor') && pendingChecklistApprovals.length > 0 && (
+        <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500 text-white shadow-xs shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-extrabold text-amber-950">
+                  Pengajuan Pengaturan Checklist Wajib Menunggu Persetujuan Manager ({pendingChecklistApprovals.length})
+                </h3>
+                <p className="text-[11px] text-amber-800">
+                  {userRole === 'Manager'
+                    ? 'Supervisor mengajukan perubahan item checklist wajib. Setujui untuk menerapkan atau tolak jika perlu revisi.'
+                    : 'Pengajuan pengaturan checklist Anda sedang menunggu peninjauan dan persetujuan dari Manager.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {pendingChecklistApprovals.map((req) => (
+              <div
+                key={req.id}
+                className="bg-white rounded-xl border border-amber-200 p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+              >
+                <div className="space-y-1 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+                      Checklist Wajib SPK
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 truncate">{req.targetLabel}</span>
+                    <span className="text-[11px] text-slate-500">
+                      • oleh <strong className="text-slate-700">{req.requestedBy}</strong> ({req.requestedAt})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1">
+                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
+                      <span className="font-semibold text-slate-400 block text-[10px]">Saat Ini:</span>
+                      <span className="break-words">{req.summaryOld}</span>
+                    </div>
+                    <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200 text-emerald-950 font-semibold">
+                      <span className="font-semibold text-emerald-700 block text-[10px]">Usulan Baru Supervisor:</span>
+                      <span className="break-words">{req.summaryNew}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                  {userRole === 'Manager' ? (
+                    rejectingApprovalId === req.id ? (
+                      <div className="flex flex-wrap items-center gap-1.5 bg-rose-50 border border-rose-200 p-2 rounded-xl">
+                        <input
+                          type="text"
+                          value={rejectReasonInput}
+                          onChange={(e) => setRejectReasonInput(e.target.value)}
+                          placeholder="Alasan penolakan (opsional)..."
+                          className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 w-44 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onRejectRequest) {
+                              onRejectRequest(req.id, rejectReasonInput.trim() || 'Perlu revisi cakupan checklist');
+                            }
+                            setRejectingApprovalId(null);
+                            setRejectReasonInput('');
+                          }}
+                          className="min-h-[36px] px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold"
+                        >
+                          Konfirmasi Tolak
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingApprovalId(null);
+                            setRejectReasonInput('');
+                          }}
+                          className="min-h-[36px] px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onApproveRequest && onApproveRequest(req.id)}
+                          className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Setujui & Terapkan</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingApprovalId(req.id);
+                            setRejectReasonInput('');
+                          }}
+                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Tolak</span>
+                        </button>
+                      </>
+                    )
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-bold text-center">
+                      Menunggu ACC Manager
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mobile View Switcher (Kartu Mobile vs Tabel Lengkap) */}
       <div className="flex md:hidden items-center justify-between gap-2 bg-white/95 rounded-2xl px-3.5 py-2.5 border border-indigo-100 shadow-xs">
         <div className="text-xs font-bold text-slate-700">
@@ -1662,6 +1814,11 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                                 Custom
                               </span>
                             )}
+                            {pendingSpkApprovalMap.has(item.SPK) && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[9px] font-extrabold shrink-0">
+                                Pending ACC
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span className="text-[11px] font-mono text-blue-700 tabular-nums">
@@ -1671,11 +1828,15 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                           </div>
                         </button>
 
-                        {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                        {canConfigureChecklist && onUpdateRequiredChecklists && (
                           <button
                             type="button"
                             onClick={() => openChecklistScopeModal(item)}
-                            title="Atur item checklist yang wajib dikerjakan (Manager)"
+                            title={
+                              userRole === 'Manager'
+                                ? 'Atur item checklist yang wajib dikerjakan (Manager)'
+                                : 'Ajukan perubahan item checklist wajib (Butuh ACC Manager)'
+                            }
                             className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition"
                           >
                             <SlidersHorizontal className="w-3 h-3" />
@@ -2040,6 +2201,14 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                                 Custom
                               </span>
                             )}
+                            {pendingSpkApprovalMap.has(item.SPK) && (
+                              <span
+                                title="Ada pengajuan perubahan checklist dari Supervisor menunggu ACC Manager"
+                                className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[9px] font-extrabold"
+                              >
+                                Pending ACC
+                              </span>
+                            )}
                           </div>
                           <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                             <div
@@ -2047,11 +2216,15 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                               style={{ width: `${checklistPercent}%` }}
                             />
                           </div>
-                          {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                          {canConfigureChecklist && onUpdateRequiredChecklists && (
                             <button
                               type="button"
                               onClick={() => openChecklistScopeModal(item)}
-                              title="Atur item checklist wajib untuk project ini"
+                              title={
+                                userRole === 'Manager'
+                                  ? 'Atur item checklist wajib untuk project ini'
+                                  : 'Atur usulan checklist wajib (memerlukan persetujuan Manager)'
+                              }
                               className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold inline-flex items-center gap-1 transition"
                             >
                               <SlidersHorizontal className="w-2.5 h-2.5" />
@@ -2116,12 +2289,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 sticky-col-action text-center space-x-1">
                         {!isReadOnly ? (
                           <div className="inline-flex items-center gap-1">
-                            {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                            {canConfigureChecklist && onUpdateRequiredChecklists && (
                               <button
                                 type="button"
                                 onClick={() => openChecklistScopeModal(item)}
                                 className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow text-xs transition"
-                                title="Atur Checklist Wajib (Manager Only)"
+                                title={
+                                  userRole === 'Manager'
+                                    ? 'Atur Checklist Wajib (Manager)'
+                                    : 'Atur Usulan Checklist Wajib (Persetujuan Manager)'
+                                }
                               >
                                 <SlidersHorizontal className="w-3.5 h-3.5" />
                               </button>
@@ -2185,8 +2362,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       </>
       )}
 
-      {/* Manager Quick Modal: Atur Item Checklist Wajib per Project */}
-      {checklistScopeProject && userRole === 'Manager' && onUpdateRequiredChecklists && (
+      {/* Manager / Supervisor Quick Modal: Atur Item Checklist Wajib per Project */}
+      {checklistScopeProject && canConfigureChecklist && onUpdateRequiredChecklists && (
         <div
           className="fixed inset-0 bg-slate-950/80 z-[155] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setChecklistScopeProject(null)}
@@ -2202,7 +2379,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-extrabold truncate">
-                    Atur Checklist Wajib — {checklistScopeProject.SPK}
+                    {userRole === 'Manager'
+                      ? `Atur Checklist Wajib — ${checklistScopeProject.SPK}`
+                      : `Ajukan Pengaturan Checklist — ${checklistScopeProject.SPK}`}
                   </h3>
                   <p className="text-[11px] text-indigo-100 truncate">
                     {checklistScopeProject['Nama Project']} • {checklistScopeProject.Customer}
@@ -2219,6 +2398,15 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              {userRole === 'Supervisor' && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Memerlukan Persetujuan Manager:</strong> Pengaturan checklist yang Anda ajukan akan masuk ke daftar persetujuan dan baru diterapkan setelah disetujui Manager.
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-slate-600">
                   Pilih item checklist yang berlaku untuk project ini. Item yang tidak dipilih otomatis ditandai <strong className="text-slate-800">N/A</strong>.
@@ -2325,7 +2513,11 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 className="min-h-[42px] px-5 py-2 rounded-xl theme-btn-primary text-xs font-bold flex items-center gap-1.5 shadow transition"
               >
                 <Check className="w-4 h-4" />
-                <span>Simpan Pengaturan Checklist</span>
+                <span>
+                  {userRole === 'Manager'
+                    ? 'Simpan Pengaturan Checklist'
+                    : 'Ajukan Persetujuan ke Manager'}
+                </span>
               </button>
             </div>
           </div>
