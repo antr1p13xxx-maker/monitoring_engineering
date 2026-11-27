@@ -31,6 +31,7 @@ export interface EngineeringProject {
   simulation: string;
   penawaran: string;
   keterangan: string;
+  requiredChecklists?: ChecklistKey[];
   lastModifiedBy?: string;
   lastModifiedAt?: string;
 }

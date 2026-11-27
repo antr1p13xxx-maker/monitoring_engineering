@@ -10,7 +10,7 @@ import {
 } from '../types/engineering';
 import { PartAttachmentPreviewModal } from './PartAttachmentPreviewModal';
 import { formatFileSize } from '../utils/partAttachmentUtils';
-import { CHECKLIST_KEYS } from '../data/initialData';
+import { CHECKLIST_KEYS, getProjectChecklistProgress } from '../data/initialData';
 import {
   CustomerRecordSummary,
   aggregateCustomerRecords,
@@ -204,7 +204,8 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               (p.keterangan || '').toLowerCase().includes(q) ||
               (p['Target Design'] || '').toLowerCase().includes(q);
             if (hitMeta) return true;
-            return CHECKLIST_KEYS.some(
+            const { requiredKeys } = getProjectChecklistProgress(p);
+            return requiredKeys.some(
               (ck) => ck.toLowerCase().includes(q) && Boolean(p[ck] && String(p[ck]).trim() !== '')
             );
           })
@@ -551,7 +552,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         body:
           rec.projects.length > 0
             ? rec.projects.map((p) => {
-                const doneChecks = CHECKLIST_KEYS.filter((k) => Boolean(p[k] && String(p[k]).trim() !== '')).length;
+                const { completedCount, totalRequired } = getProjectChecklistProgress(p);
                 return [
                   p.SPK,
                   p['Nomor PO'] || '-',
@@ -561,7 +562,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   p['Target Design'] || '-',
                   p['Tanggal Penyelesaian'] || p['Aktual Engineering'] || '-',
                   p.Status,
-                  `${doneChecks}/${CHECKLIST_KEYS.length}`
+                  `${completedCount}/${totalRequired}`
                 ];
               })
             : [['-', '-', 'Belum ada data proyek', '-', '-', '-', '-', '-', '-']],
@@ -1264,8 +1265,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                   ) : (
                     <div className="space-y-3">
                       {filteredDossier.projects.map((p) => {
-                        const completedChecklist = CHECKLIST_KEYS.filter((k) => Boolean(p[k] && String(p[k]).trim() !== ''));
-                        const pct = Math.round((completedChecklist.length / CHECKLIST_KEYS.length) * 100);
+                        const {
+                          requiredKeys,
+                          completedCount,
+                          totalRequired,
+                          percent: pct,
+                          isCustom
+                        } = getProjectChecklistProgress(p);
                         const isExpanded = expandedProjectSpk === p.SPK;
 
                         return (
@@ -1319,11 +1325,22 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                             {/* Checklist Progress Bar */}
                             <div className="space-y-1">
                               <div className="flex justify-between items-center text-[11px]">
-                                <span className="font-semibold text-slate-600">
-                                  Progres 14 Item Checklist Engineering
+                                <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+                                  <span>
+                                    {isCustom
+                                      ? `Progres Checklist Wajib (${totalRequired} Item)`
+                                      : 'Progres 14 Item Checklist Engineering'}
+                                  </span>
+                                  {isCustom && (
+                                    <span className="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold">
+                                      Custom Manager
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="font-mono font-bold text-slate-900 tabular-nums">
-                                  {completedChecklist.length}/{CHECKLIST_KEYS.length} ({pct}%)
+                                  {totalRequired > 0
+                                    ? `${completedCount}/${totalRequired} (${pct}%)`
+                                    : 'Tanpa Checklist'}
                                 </span>
                               </div>
                               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -1342,7 +1359,13 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                                 className="min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition"
                               >
                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                <span>{isExpanded ? 'Tutup Checklist' : 'Lihat 14 Checklist'}</span>
+                                <span>
+                                  {isExpanded
+                                    ? 'Tutup Checklist'
+                                    : isCustom
+                                    ? `Lihat Checklist (${totalRequired} Wajib)`
+                                    : 'Lihat 14 Checklist'}
+                                </span>
                               </button>
 
                               <button
@@ -1378,24 +1401,29 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                               )}
                             </div>
 
-                            {/* Expanded 14-Item Checklist Grid */}
+                            {/* Expanded Checklist Grid */}
                             {isExpanded && (
                               <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                 {CHECKLIST_KEYS.map((key) => {
+                                  const isRequired = requiredKeys.includes(key);
                                   const dateVal = p[key];
-                                  const done = Boolean(dateVal && String(dateVal).trim() !== '');
+                                  const done = isRequired && Boolean(dateVal && String(dateVal).trim() !== '');
                                   return (
                                     <div
                                       key={key}
                                       className={`px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-                                        done
+                                        !isRequired
+                                          ? 'bg-slate-100/70 border-slate-200 text-slate-400'
+                                          : done
                                           ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
                                           : 'bg-slate-50 border-slate-200 text-slate-500'
                                       }`}
                                     >
-                                      <span className="font-medium truncate">{key}</span>
+                                      <span className={`font-medium truncate ${!isRequired ? 'line-through' : ''}`}>
+                                        {key}
+                                      </span>
                                       <span className="font-mono text-[11px] shrink-0">
-                                        {done ? String(dateVal) : 'Belum'}
+                                        {!isRequired ? 'N/A' : done ? String(dateVal) : 'Belum'}
                                       </span>
                                     </div>
                                   );

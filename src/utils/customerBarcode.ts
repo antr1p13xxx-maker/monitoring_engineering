@@ -5,7 +5,7 @@ import {
   ReviewCostItem,
   ReviewErrorItem
 } from '../types/engineering';
-import { CHECKLIST_KEYS } from '../data/initialData';
+import { CHECKLIST_KEYS, getProjectChecklistProgress } from '../data/initialData';
 
 export interface CustomerRecordSummary {
   key: string;
@@ -183,8 +183,8 @@ export function aggregateCustomerRecords(params: {
 
     let checklistSumPct = 0;
     bucket.projects.forEach((p) => {
-      const checkedCount = CHECKLIST_KEYS.filter((k) => Boolean(p[k] && String(p[k]).trim() !== '')).length;
-      checklistSumPct += (checkedCount / CHECKLIST_KEYS.length) * 100;
+      const { percent } = getProjectChecklistProgress(p);
+      checklistSumPct += percent;
     });
     const avgChecklistPct = totalProjects > 0 ? Math.round(checklistSumPct / totalProjects) : 0;
 

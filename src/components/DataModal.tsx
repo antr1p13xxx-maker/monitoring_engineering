@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { EngineeringProject } from '../types/engineering';
-import { PenSquare, Plus, X, Save, Building, Calendar, User, FileText, Hash } from 'lucide-react';
+import { ChecklistKey, EngineeringProject, UserRole } from '../types/engineering';
+import { CHECKLIST_KEYS, CHECKLIST_PRESETS, getProjectRequiredChecklists } from '../data/initialData';
+import { PenSquare, Plus, X, Save, ListChecks, Check, Lock } from 'lucide-react';
 
 interface DataModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<EngineeringProject>, isEdit: boolean) => void;
   initialData?: EngineeringProject | null;
+  userRole?: UserRole;
 }
 
 export const DataModal: React.FC<DataModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  initialData
+  initialData,
+  userRole = 'Viewer'
 }) => {
+  const isManager = userRole === 'Manager';
   const [formData, setFormData] = useState<Partial<EngineeringProject>>({
     Bulan: 'Oktober',
     SPK: '',
@@ -28,12 +32,16 @@ export const DataModal: React.FC<DataModalProps> = ({
     'Permintaan Drawing/Design': '',
     'Target Design': '',
     'Tanggal Penyelesaian': '',
-    keterangan: ''
+    keterangan: '',
+    requiredChecklists: [...CHECKLIST_KEYS]
   });
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        ...initialData,
+        requiredChecklists: getProjectRequiredChecklists(initialData)
+      });
     } else {
       const today = new Date().toISOString().split('T')[0];
       setFormData({
@@ -50,16 +58,52 @@ export const DataModal: React.FC<DataModalProps> = ({
         'Target Design': today,
         'Tanggal Penyelesaian': '',
         'File CAD Drive': '',
-        keterangan: ''
+        keterangan: '',
+        requiredChecklists: [...CHECKLIST_KEYS]
       });
     }
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
+  const activeRequiredChecklists: ChecklistKey[] = Array.isArray(formData.requiredChecklists)
+    ? formData.requiredChecklists
+    : [...CHECKLIST_KEYS];
+
+  const toggleRequiredChecklist = (key: ChecklistKey) => {
+    if (!isManager) return;
+    setFormData((prev) => {
+      const current = Array.isArray(prev.requiredChecklists)
+        ? prev.requiredChecklists
+        : [...CHECKLIST_KEYS];
+      const exists = current.includes(key);
+      const next = exists
+        ? current.filter((k) => k !== key)
+        : CHECKLIST_KEYS.filter((k) => k === key || current.includes(k));
+      return {
+        ...prev,
+        requiredChecklists: next
+      };
+    });
+  };
+
+  const applyChecklistPreset = (keys: ChecklistKey[]) => {
+    if (!isManager) return;
+    setFormData((prev) => ({
+      ...prev,
+      requiredChecklists: [...keys]
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData, !!initialData);
+    onSave(
+      {
+        ...formData,
+        requiredChecklists: activeRequiredChecklists
+      },
+      !!initialData
+    );
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -276,6 +320,120 @@ export const DataModal: React.FC<DataModalProps> = ({
                 placeholder="https://drive.google.com/file/d/... atau upload file PDF/CAD langsung di tabel monitoring"
                 className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
+            </div>
+
+            <div className="md:col-span-3 rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-3.5 sm:p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900">
+                      Item Checklist Wajib untuk Project Ini
+                    </h4>
+                    <p className="text-[11px] text-slate-600">
+                      {isManager
+                        ? 'Tentukan tahapan checklist yang wajib dikerjakan. Item yang tidak dipilih otomatis ditandai N/A.'
+                        : 'Daftar tahapan checklist yang ditetapkan oleh Manager untuk project ini.'}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-extrabold tabular-nums">
+                  {activeRequiredChecklists.length} / {CHECKLIST_KEYS.length} Item Aktif
+                </span>
+              </div>
+
+              {isManager ? (
+                <>
+                  {/* Quick Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {CHECKLIST_PRESETS.map((preset) => {
+                      const isSame =
+                        preset.keys.length === activeRequiredChecklists.length &&
+                        preset.keys.every((k) => activeRequiredChecklists.includes(k));
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyChecklistPreset(preset.keys)}
+                          title={preset.description}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                            isSame
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-indigo-50 hover:border-indigo-300'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => applyChecklistPreset([])}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                        activeRequiredChecklists.length === 0
+                          ? 'bg-slate-800 text-white border-slate-800'
+                          : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      Tanpa Checklist
+                    </button>
+                  </div>
+
+                  {/* 14 Toggle Items */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {CHECKLIST_KEYS.map((ck) => {
+                      const active = activeRequiredChecklists.includes(ck);
+                      return (
+                        <button
+                          key={ck}
+                          type="button"
+                          onClick={() => toggleRequiredChecklist(ck)}
+                          className={`px-2.5 py-2 rounded-xl border text-left text-[11px] font-bold flex items-center justify-between gap-1.5 transition ${
+                            active
+                              ? 'bg-white border-emerald-400 text-slate-900 shadow-xs ring-1 ring-emerald-200'
+                              : 'bg-slate-100/80 border-slate-200 text-slate-400 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="truncate">{ck}</span>
+                          {active ? (
+                            <span className="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          ) : (
+                            <span className="px-1 py-0.2 rounded bg-slate-200 text-slate-500 text-[9px] font-extrabold shrink-0">
+                              N/A
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {CHECKLIST_KEYS.map((ck) => {
+                      const active = activeRequiredChecklists.includes(ck);
+                      return (
+                        <span
+                          key={ck}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
+                            active
+                              ? 'bg-white border-emerald-300 text-emerald-800'
+                              : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
+                          }`}
+                        >
+                          {ck} {!active && '(N/A)'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-500 flex items-center gap-1 font-medium">
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>Hanya Manager yang dapat mengubah pengaturan item checklist wajib.</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-3">

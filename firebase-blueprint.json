@@ -36,6 +36,7 @@
         "simulation": { "type": "string", "description": "Tanggal checklist simulation" },
         "penawaran": { "type": "string", "description": "Tanggal penawaran" },
         "keterangan": { "type": "string", "description": "Catatan tambahan project" },
+        "requiredChecklists": { "type": "array", "description": "Daftar item checklist yang diwajibkan Manager untuk project ini" },
         "updatedAt": { "type": "string", "description": "Timestamp update data" }
       },
       "required": ["SPK", "Customer", "Nama_Project"]

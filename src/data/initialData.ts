@@ -1,4 +1,4 @@
-import { EngineeringProject, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, SerahTerimaStandartPartItem, StaffAccount } from '../types/engineering';
+import { EngineeringProject, ChecklistKey, KPIItem, ReviewCostItem, ReviewErrorItem, DesignFeedbackItem, SerahTerimaStandartPartItem, StaffAccount } from '../types/engineering';
 
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nop', 'Des'] as const;
 
@@ -33,6 +33,75 @@ export const CHECKLIST_KEYS = [
   'simulation',
   'penawaran'
 ] as const;
+
+export const CHECKLIST_PRESETS: Array<{
+  id: string;
+  label: string;
+  description: string;
+  keys: ChecklistKey[];
+}> = [
+  {
+    id: 'full',
+    label: 'Full 14 Item',
+    description: 'Seluruh 14 tahapan checklist aktif',
+    keys: [...CHECKLIST_KEYS]
+  },
+  {
+    id: 'production',
+    label: 'Drawing Produksi',
+    description: 'Konsep, Approval, 3D, 2D, Std Part, Material',
+    keys: ['Konsep 3D/2D', 'APPROVAL', '3D', '2D', 'LIST STANDARD PART', 'list material']
+  },
+  {
+    id: 'concept_quote',
+    label: 'Konsep & Penawaran',
+    description: 'Konsep 3D/2D, 3D, dan Penawaran',
+    keys: ['Konsep 3D/2D', '3D', 'penawaran']
+  },
+  {
+    id: 'doc_delivery',
+    label: 'Dokumentasi & Kirim',
+    description: 'IRD, Squence, Animation, Dokumentasi, Layout & Box Kirim',
+    keys: ['IRD', 'Squence', 'animation', 'dokumentasi', 'layout pengiriman', 'drawing box pengiriman']
+  }
+];
+
+export function getProjectRequiredChecklists(
+  project?: Pick<EngineeringProject, 'requiredChecklists'> | null
+): ChecklistKey[] {
+  if (project && Array.isArray(project.requiredChecklists)) {
+    const allowed = new Set<string>(project.requiredChecklists);
+    return CHECKLIST_KEYS.filter((ck) => allowed.has(ck));
+  }
+  return [...CHECKLIST_KEYS];
+}
+
+export function getProjectChecklistProgress(project: EngineeringProject): {
+  requiredKeys: ChecklistKey[];
+  completedKeys: ChecklistKey[];
+  completedCount: number;
+  totalRequired: number;
+  percent: number;
+  isCustom: boolean;
+} {
+  const isCustom = Array.isArray(project.requiredChecklists);
+  const requiredKeys = getProjectRequiredChecklists(project);
+  const completedKeys = requiredKeys.filter((ck) => {
+    const val = project[ck];
+    return Boolean(val && String(val).trim() !== '');
+  });
+  const totalRequired = requiredKeys.length;
+  const completedCount = completedKeys.length;
+  const percent = totalRequired > 0 ? Math.round((completedCount / totalRequired) * 100) : 0;
+  return {
+    requiredKeys,
+    completedKeys,
+    completedCount,
+    totalRequired,
+    percent,
+    isCustom
+  };
+}
 
 export const MASTER_PIN = 'ENG2026';
 export const ROLE_PINS: Record<string, string> = {

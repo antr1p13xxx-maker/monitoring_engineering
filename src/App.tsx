@@ -76,6 +76,8 @@ import {
 import { 
   INITIAL_PROJECTS, 
   INITIAL_STAFF_ACCOUNTS,
+  CHECKLIST_KEYS,
+  getProjectRequiredChecklists,
   getBaseKPITemplate, 
   INITIAL_REVIEW_COST, 
   INITIAL_REVIEW_ERROR, 
@@ -913,9 +915,15 @@ export default function App() {
     const nowStr = formatNowTimestamp();
 
     if (isEdit && editingProject) {
+      const nextRequiredChecklists =
+        userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
+          ? getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists })
+          : editingProject.requiredChecklists;
+
       const updatedProject: EngineeringProject = {
         ...editingProject,
         ...formData,
+        ...(nextRequiredChecklists !== undefined ? { requiredChecklists: nextRequiredChecklists } : {}),
         lastModifiedBy: actor,
         lastModifiedAt: nowStr
       };
@@ -941,6 +949,13 @@ export default function App() {
         }
       });
 
+      const prevReq = getProjectRequiredChecklists(editingProject).join(', ');
+      const nextReq = getProjectRequiredChecklists(updatedProject).join(', ');
+      if (prevReq !== nextReq) {
+        oldChanges.push(`Checklist Wajib: ${getProjectRequiredChecklists(editingProject).length} item`);
+        newChanges.push(`Checklist Wajib: ${getProjectRequiredChecklists(updatedProject).length} item`);
+      }
+
       appendAuditLog({
         module: 'Monitoring',
         actionType: 'update',
@@ -953,6 +968,11 @@ export default function App() {
 
       showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
     } else {
+      const initialRequired =
+        userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
+          ? getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists })
+          : [...CHECKLIST_KEYS];
+
       const newProject: EngineeringProject = {
         No: projects.length + 1,
         Bulan: formData.Bulan || 'Oktober',
@@ -984,6 +1004,7 @@ export default function App() {
         simulation: '',
         penawaran: '',
         keterangan: formData.keterangan || '',
+        requiredChecklists: initialRequired,
         lastModifiedBy: actor,
         lastModifiedAt: nowStr
       };
@@ -995,7 +1016,7 @@ export default function App() {
         actionType: 'create',
         target: newProject.SPK,
         activity: `Tambah proyek baru ${newProject.SPK} (${newProject['Nama Project']})`,
-        newValue: `${newProject.Customer} • PIC: ${newProject.PIC} • Qty: ${newProject['Qty Drawing']}`,
+        newValue: `${newProject.Customer} • PIC: ${newProject.PIC} • Qty: ${newProject['Qty Drawing']} • Checklist: ${initialRequired.length}/14`,
         month: newProject.Bulan
       });
       showToast(`Data proyek SPK ${newProject.SPK} tersimpan ke Google Firebase Firestore!`);
@@ -1029,16 +1050,58 @@ export default function App() {
     }
   };
 
+  const handleUpdateRequiredChecklists = (spk: string, requiredKeys: ChecklistKey[]) => {
+    if (userRole !== 'Manager') {
+      showToast('Hanya Manager yang dapat menentukan item checklist wajib per project!', 'error');
+      return;
+    }
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+    if (!targetProject) return;
+
+    const cleanKeys = getProjectRequiredChecklists({ requiredChecklists: requiredKeys });
+    const oldKeys = getProjectRequiredChecklists(targetProject);
+    const actor = getActorLabel();
+    const nowStr = formatNowTimestamp();
+
+    const updatedProject: EngineeringProject = {
+      ...targetProject,
+      requiredChecklists: cleanKeys,
+      lastModifiedBy: actor,
+      lastModifiedAt: nowStr
+    };
+
+    setProjects((prev) => prev.map((p) => (p.SPK === spk ? updatedProject : p)));
+    saveProjectToFirestore(updatedProject).catch((err) =>
+      console.warn('Firestore checklist scope save error:', err)
+    );
+
+    appendAuditLog({
+      module: 'Monitoring',
+      actionType: 'checklist',
+      target: spk,
+      activity: `Atur checklist wajib proyek ${spk} (${targetProject['Nama Project']})`,
+      oldValue: `${oldKeys.length}/14 item wajib`,
+      newValue: `${cleanKeys.length}/14 item wajib (${cleanKeys.join(', ') || 'Tanpa checklist'})`,
+      month: targetProject.Bulan
+    });
+
+    showToast(`Checklist wajib ${spk} diperbarui: ${cleanKeys.length} dari ${CHECKLIST_KEYS.length} item aktif.`);
+  };
+
   const handleChecklistToggle = (spk: string, key: ChecklistKey, isChecked: boolean) => {
     if (userRole === 'Viewer') {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah status checklist.', 'error');
+      return;
+    }
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+    if (targetProject && !getProjectRequiredChecklists(targetProject).includes(key)) {
+      showToast(`Item "${key}" ditandai N/A (tidak diwajibkan oleh Manager untuk ${spk}).`, 'error');
       return;
     }
     const today = new Date().toISOString().split('T')[0];
     const val = isChecked ? today : '';
     const actor = getActorLabel();
     const nowStr = formatNowTimestamp();
-    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
     const oldVal = targetProject ? targetProject[key] || '' : '';
 
     setProjects((prev) =>
@@ -1072,9 +1135,13 @@ export default function App() {
       showToast('Akses Dibatasi: Role Viewer tidak dapat mengubah tanggal checklist.', 'error');
       return;
     }
+    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
+    if (targetProject && !getProjectRequiredChecklists(targetProject).includes(key)) {
+      showToast(`Item "${key}" ditandai N/A (tidak diwajibkan oleh Manager untuk ${spk}).`, 'error');
+      return;
+    }
     const actor = getActorLabel();
     const nowStr = formatNowTimestamp();
-    const targetProject = projectsRef.current.find((p) => p.SPK === spk);
     const oldVal = targetProject ? targetProject[key] || '' : '';
 
     setProjects((prev) =>
@@ -1811,6 +1878,7 @@ export default function App() {
               setCurrentView('barcodes');
             }}
             onEditingActivityChange={setChildEditingTarget}
+            onUpdateRequiredChecklists={handleUpdateRequiredChecklists}
           />
         )}
 
@@ -1904,6 +1972,7 @@ export default function App() {
         }}
         onSave={handleSaveProject}
         initialData={editingProject}
+        userRole={userRole}
       />
 
       {/* CAD File Upload Modal */}

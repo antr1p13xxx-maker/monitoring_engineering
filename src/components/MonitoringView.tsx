@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { EngineeringProject, ChecklistKey, UserRole, SerahTerimaStandartPartItem } from '../types/engineering';
-import { CHECKLIST_KEYS, MONTH_NAMES } from '../data/initialData';
+import { CHECKLIST_KEYS, CHECKLIST_PRESETS, getProjectChecklistProgress, getProjectRequiredChecklists, MONTH_NAMES } from '../data/initialData';
 import { StandartPartHandoverView } from './StandartPartHandoverView';
 import { 
   FolderOpen, 
@@ -35,7 +35,10 @@ import {
   X,
   Bell,
   BellRing,
-  BellOff
+  BellOff,
+  SlidersHorizontal,
+  Check,
+  ListChecks
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement, BarController, LineController } from 'chart.js';
 import { jsPDF } from 'jspdf';
@@ -131,6 +134,7 @@ interface MonitoringViewProps {
   onChangeMonitoringTab?: (tab: 'drawingProjects' | 'standartPartHandover') => void;
   onOpenCustomerBarcode?: (customerName: string) => void;
   onEditingActivityChange?: (target: string | null) => void;
+  onUpdateRequiredChecklists?: (spk: string, requiredKeys: ChecklistKey[]) => void;
 }
 
 export const MonitoringView: React.FC<MonitoringViewProps> = ({
@@ -150,7 +154,8 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   activeMonitoringTab: controlledSubTab,
   onChangeMonitoringTab,
   onOpenCustomerBarcode,
-  onEditingActivityChange
+  onEditingActivityChange,
+  onUpdateRequiredChecklists
 }) => {
   // Sub-tab state: Monitoring Drawing SPK vs Serah Terima Standart Part
   const [internalMonitoringTab, setInternalMonitoringTab] = useState<'drawingProjects' | 'standartPartHandover'>('drawingProjects');
@@ -164,6 +169,25 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   const [mobileDisplayMode, setMobileDisplayMode] = useState<'cards' | 'table'>('cards');
   const [expandedChecklistSpk, setExpandedChecklistSpk] = useState<string | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false);
+
+  // Quick Manager Required Checklist Scope Modal
+  const [checklistScopeProject, setChecklistScopeProject] = useState<EngineeringProject | null>(null);
+  const [scopeDraftKeys, setScopeDraftKeys] = useState<ChecklistKey[]>([...CHECKLIST_KEYS]);
+
+  const openChecklistScopeModal = (project: EngineeringProject) => {
+    if (userRole !== 'Manager') return;
+    setChecklistScopeProject(project);
+    setScopeDraftKeys(getProjectRequiredChecklists(project));
+  };
+
+  useEffect(() => {
+    if (activeMonitoringTab !== 'drawingProjects' || !onEditingActivityChange) return;
+    if (checklistScopeProject) {
+      onEditingActivityChange(`Atur Checklist Wajib: ${checklistScopeProject.SPK}`);
+    } else {
+      onEditingActivityChange(null);
+    }
+  }, [checklistScopeProject, activeMonitoringTab, onEditingActivityChange]);
 
   // Filters state
   const [filterMonth, setFilterMonth] = useState<string>('ALL');
@@ -638,23 +662,27 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       doc.setFont('helvetica', 'normal');
       doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Role: ${userRole}`, 14, 18);
 
-      const tableRows = filteredProjects.map((item, idx) => [
-        idx + 1,
-        item.Bulan || '',
-        item.SPK || '',
-        item.Customer || '',
-        item['Nama Project'] || '',
-        item.Status || '',
-        item.PIC || '',
-        item['Qty Drawing'] || 0,
-        item['Target Design'] || '',
-        item['Tanggal Penyelesaian'] || item['Aktual Engineering'] || '',
-        item.keterangan || ''
-      ]);
+      const tableRows = filteredProjects.map((item, idx) => {
+        const { completedCount, totalRequired, percent } = getProjectChecklistProgress(item);
+        return [
+          idx + 1,
+          item.Bulan || '',
+          item.SPK || '',
+          item.Customer || '',
+          item['Nama Project'] || '',
+          item.Status || '',
+          item.PIC || '',
+          item['Qty Drawing'] || 0,
+          item['Target Design'] || '',
+          item['Tanggal Penyelesaian'] || item['Aktual Engineering'] || '',
+          totalRequired > 0 ? `${completedCount}/${totalRequired} (${percent}%)` : 'N/A',
+          item.keterangan || ''
+        ];
+      });
 
       autoTable(doc, {
         startY: 22,
-        head: [['No', 'Bulan', 'SPK', 'Customer', 'Nama Project', 'Status', 'PIC', 'Qty', 'Target Design', 'Tgl Selesai', 'Keterangan']],
+        head: [['No', 'Bulan', 'SPK', 'Customer', 'Nama Project', 'Status', 'PIC', 'Qty', 'Target Design', 'Tgl Selesai', 'Checklist', 'Keterangan']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
@@ -1467,8 +1495,13 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               const isDueSoon = deadlineInfo?.kind === 'soon';
               const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
               const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
-              const completedChecklists = CHECKLIST_KEYS.filter((ck) => Boolean(item[ck])).length;
-              const checklistPercent = Math.round((completedChecklists / CHECKLIST_KEYS.length) * 100);
+              const {
+                requiredKeys,
+                completedCount: completedChecklists,
+                totalRequired: totalRequiredChecklists,
+                percent: checklistPercent,
+                isCustom: isCustomChecklist
+              } = getProjectChecklistProgress(item);
               const isChecklistOpen = expandedChecklistSpk === item.SPK;
               const driveUrl = item['File CAD Drive'];
               const isPdfDoc =
@@ -1611,22 +1644,45 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       </p>
                     )}
 
-                    {/* Expandable 14 Checklist Accordion */}
+                    {/* Expandable Checklist Accordion */}
                     <div className="border border-slate-200 rounded-xl overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedChecklistSpk(isChecklistOpen ? null : item.SPK)}
-                        className="w-full min-h-[44px] px-3 py-2 bg-slate-50 hover:bg-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-800 transition"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span>Checklist Progress ({completedChecklists}/{CHECKLIST_KEYS.length})</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[11px] font-mono text-blue-700 tabular-nums">{checklistPercent}%</span>
-                          {isChecklistOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                        </div>
-                      </button>
+                      <div className="bg-slate-50 flex items-center justify-between gap-1.5 pr-2">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedChecklistSpk(isChecklistOpen ? null : item.SPK)}
+                          className="flex-1 min-h-[44px] px-3 py-2 hover:bg-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-800 transition min-w-0"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span className="truncate">
+                              Checklist ({completedChecklists}/{totalRequiredChecklists})
+                            </span>
+                            {isCustomChecklist && (
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[9px] font-extrabold shrink-0">
+                                Custom
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] font-mono text-blue-700 tabular-nums">
+                              {totalRequiredChecklists > 0 ? `${checklistPercent}%` : 'N/A'}
+                            </span>
+                            {isChecklistOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                          </div>
+                        </button>
+
+                        {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                          <button
+                            type="button"
+                            onClick={() => openChecklistScopeModal(item)}
+                            title="Atur item checklist yang wajib dikerjakan (Manager)"
+                            className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition"
+                          >
+                            <SlidersHorizontal className="w-3 h-3" />
+                            <span>Atur</span>
+                          </button>
+                        )}
+                      </div>
                       <div className="h-1 w-full bg-slate-200">
                         <div
                           className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all"
@@ -1637,8 +1693,19 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       {isChecklistOpen && (
                         <div className="p-2.5 bg-white divide-y divide-slate-100 space-y-1">
                           {CHECKLIST_KEYS.map((ck) => {
+                            const isRequired = requiredKeys.includes(ck);
                             const val = item[ck] || '';
-                            const isChecked = val !== '';
+                            const isChecked = isRequired && val !== '';
+                            if (!isRequired) {
+                              return (
+                                <div key={ck} className="pt-2 first:pt-0 flex items-center justify-between gap-2 min-h-[38px] opacity-60">
+                                  <span className="text-xs text-slate-400 line-through truncate pl-1">{ck}</span>
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-bold shrink-0">
+                                    N/A (Tidak Wajib)
+                                  </span>
+                                </div>
+                              );
+                            }
                             return (
                               <div key={ck} className="pt-2 first:pt-0 flex items-center justify-between gap-2 min-h-[44px]">
                                 <label className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer py-1">
@@ -1791,6 +1858,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                 <th className="p-3 border-b border-slate-700 text-center">Target Design</th>
                 <th className="p-3 border-b border-slate-700 text-center">Tanggal Penyelesaian</th>
                 <th className="p-3 border-b border-slate-700 text-center">File CAD / PDF</th>
+                <th className="p-3 border-b border-slate-700 text-center">Progress Checklist</th>
 
                 {/* 14 Checklist Columns */}
                 {CHECKLIST_KEYS.map((ck) => (
@@ -1807,7 +1875,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             <tbody className="divide-y divide-slate-200">
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={29} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={30} className="p-8 text-center text-slate-400 italic">
                     Tidak ada proyek yang sesuai dengan kriteria filter.
                   </td>
                 </tr>
@@ -1819,6 +1887,13 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   const isDueSoon = deadlineInfo?.kind === 'soon';
                   const actualFinishDate = item['Tanggal Penyelesaian'] || item['Aktual Engineering'];
                   const isLate = Boolean(actualFinishDate && item['Target Design'] && new Date(actualFinishDate) > new Date(item['Target Design']));
+                  const {
+                    requiredKeys,
+                    completedCount,
+                    totalRequired,
+                    percent: checklistPercent,
+                    isCustom
+                  } = getProjectChecklistProgress(item);
                   const rowBg =
                     isOverdue || isLate
                       ? 'bg-rose-50/70 hover:bg-rose-100/60'
@@ -1947,8 +2022,60 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                         </div>
                       </td>
 
+                      {/* Progress Checklist Column */}
+                      <td className="p-3 text-center">
+                        <div className="inline-flex flex-col items-center gap-1 min-w-[105px]">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                            <span className="font-mono text-slate-800 tabular-nums">
+                              {totalRequired > 0 ? `${completedCount}/${totalRequired}` : '0/0'}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 font-mono text-[10px] tabular-nums">
+                              {totalRequired > 0 ? `${checklistPercent}%` : 'N/A'}
+                            </span>
+                            {isCustom && (
+                              <span
+                                title="Checklist wajib disesuaikan oleh Manager"
+                                className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[9px] font-extrabold"
+                              >
+                                Custom
+                              </span>
+                            )}
+                          </div>
+                          <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all"
+                              style={{ width: `${checklistPercent}%` }}
+                            />
+                          </div>
+                          {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                            <button
+                              type="button"
+                              onClick={() => openChecklistScopeModal(item)}
+                              title="Atur item checklist wajib untuk project ini"
+                              className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <SlidersHorizontal className="w-2.5 h-2.5" />
+                              <span>Atur Wajib</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
                       {/* 14 Checklist item columns */}
                       {CHECKLIST_KEYS.map((ck) => {
+                        const isRequired = requiredKeys.includes(ck);
+                        if (!isRequired) {
+                          return (
+                            <td key={ck} className="p-3 text-center bg-slate-50/70">
+                              <span
+                                title="Item checklist tidak diwajibkan oleh Manager untuk project ini"
+                                className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold select-none"
+                              >
+                                N/A
+                              </span>
+                            </td>
+                          );
+                        }
                         const val = item[ck] || '';
                         const isChecked = val !== '';
                         return (
@@ -1986,9 +2113,19 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       </td>
 
                       {/* Action column */}
-                      <td className="p-3 sticky-col-action text-center space-x-1.5">
+                      <td className="p-3 sticky-col-action text-center space-x-1">
                         {!isReadOnly ? (
-                          <>
+                          <div className="inline-flex items-center gap-1">
+                            {userRole === 'Manager' && onUpdateRequiredChecklists && (
+                              <button
+                                type="button"
+                                onClick={() => openChecklistScopeModal(item)}
+                                className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow text-xs transition"
+                                title="Atur Checklist Wajib (Manager Only)"
+                              >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => onEditClick(item)}
                               className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow text-xs transition"
@@ -2005,7 +2142,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                          </>
+                          </div>
                         ) : (
                           <span className="text-[10px] text-slate-400 italic">Read-Only</span>
                         )}
@@ -2046,6 +2183,153 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         </div>
       </div>
       </>
+      )}
+
+      {/* Manager Quick Modal: Atur Item Checklist Wajib per Project */}
+      {checklistScopeProject && userRole === 'Manager' && onUpdateRequiredChecklists && (
+        <div
+          className="fixed inset-0 bg-slate-950/80 z-[155] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setChecklistScopeProject(null)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-indigo-200 pb-safe"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="theme-header-bg text-white px-5 py-4 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-white/15 border border-white/20 shrink-0">
+                  <ListChecks className="w-5 h-5 text-emerald-300" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold truncate">
+                    Atur Checklist Wajib — {checklistScopeProject.SPK}
+                  </h3>
+                  <p className="text-[11px] text-indigo-100 truncate">
+                    {checklistScopeProject['Nama Project']} • {checklistScopeProject.Customer}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChecklistScopeProject(null)}
+                className="min-w-[38px] min-h-[38px] rounded-xl text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-600">
+                  Pilih item checklist yang berlaku untuk project ini. Item yang tidak dipilih otomatis ditandai <strong className="text-slate-800">N/A</strong>.
+                </p>
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-extrabold tabular-nums">
+                  {scopeDraftKeys.length} / {CHECKLIST_KEYS.length} Aktif
+                </span>
+              </div>
+
+              {/* Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {CHECKLIST_PRESETS.map((preset) => {
+                  const isSame =
+                    preset.keys.length === scopeDraftKeys.length &&
+                    preset.keys.every((k) => scopeDraftKeys.includes(k));
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setScopeDraftKeys([...preset.keys])}
+                      title={preset.description}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition ${
+                        isSame
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setScopeDraftKeys([])}
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition ${
+                    scopeDraftKeys.length === 0
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-slate-50 text-slate-500 border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  Tanpa Checklist
+                </button>
+              </div>
+
+              {/* 14 Checklist Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {CHECKLIST_KEYS.map((ck) => {
+                  const active = scopeDraftKeys.includes(ck);
+                  const alreadyHasDate = Boolean(checklistScopeProject[ck]);
+                  return (
+                    <button
+                      key={ck}
+                      type="button"
+                      onClick={() =>
+                        setScopeDraftKeys((prev) =>
+                          prev.includes(ck)
+                            ? prev.filter((k) => k !== ck)
+                            : CHECKLIST_KEYS.filter((k) => k === ck || prev.includes(k))
+                        )
+                      }
+                      className={`px-3 py-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between gap-2 transition ${
+                        active
+                          ? 'bg-emerald-50/60 border-emerald-300 text-slate-900'
+                          : 'bg-slate-100/80 border-slate-200 text-slate-400 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <span className="block truncate">{ck}</span>
+                        {alreadyHasDate && (
+                          <span className="text-[10px] font-mono text-emerald-700">
+                            Terisi: {checklistScopeProject[ck]}
+                          </span>
+                        )}
+                      </div>
+                      {active ? (
+                        <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <Check className="w-3.5 h-3.5" />
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-600 text-[10px] font-extrabold shrink-0">
+                          N/A
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setChecklistScopeProject(null)}
+                className="min-h-[42px] px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateRequiredChecklists(checklistScopeProject.SPK, scopeDraftKeys);
+                  setChecklistScopeProject(null);
+                }}
+                className="min-h-[42px] px-5 py-2 rounded-xl theme-btn-primary text-xs font-bold flex items-center gap-1.5 shadow transition"
+              >
+                <Check className="w-4 h-4" />
+                <span>Simpan Pengaturan Checklist</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
