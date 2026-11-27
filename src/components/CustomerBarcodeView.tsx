@@ -6,7 +6,8 @@ import {
   DesignFeedbackItem,
   ReviewCostItem,
   ReviewErrorItem,
-  UserRole
+  UserRole,
+  ChecklistKey
 } from '../types/engineering';
 import { PartAttachmentPreviewModal } from './PartAttachmentPreviewModal';
 import { formatFileSize } from '../utils/partAttachmentUtils';
@@ -16,11 +17,15 @@ import {
   aggregateCustomerRecords,
   buildCustomerBarcodeUrl,
   buildCustomerOfflinePayload,
+  getSpkBarcodeId,
+  buildSpkBarcodeUrl,
+  buildSpkOfflinePayload,
   normalizeCustomerKey
 } from '../utils/customerBarcode';
 import {
   CustomerBarcodeGraphic,
   downloadCustomerStickerPng,
+  downloadSpkStickerPng,
   generateBarcodeAssets
 } from './CustomerBarcodeGraphic';
 import {
@@ -46,7 +51,9 @@ import {
   FileText,
   Layers,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ListChecks,
+  Clock
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -60,6 +67,10 @@ interface CustomerBarcodeViewProps {
   userRole: UserRole;
   initialLookupQuery?: string | null;
   onClearInitialLookup?: () => void;
+  initialSpkLookup?: string | null;
+  onClearInitialSpkLookup?: () => void;
+  onChecklistToggle?: (spk: string, key: ChecklistKey, isChecked: boolean) => void;
+  onChecklistDateChange?: (spk: string, key: ChecklistKey, date: string) => void;
   onEditProject: (project: EngineeringProject) => void;
   onOpenCadViewer: (spk: string, projectName: string, customer: string) => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
@@ -74,12 +85,20 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
   userRole,
   initialLookupQuery,
   onClearInitialLookup,
+  initialSpkLookup,
+  onClearInitialSpkLookup,
+  onChecklistToggle,
+  onChecklistDateChange,
   onEditProject,
   onOpenCadViewer,
   showToast
 }) => {
+  const [barcodeViewMode, setBarcodeViewMode] = useState<'customers' | 'spk'>('customers');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
+  const [selectedSpkProjectSpk, setSelectedSpkProjectSpk] = useState<string | null>(null);
+  const [spkStatusFilter, setSpkStatusFilter] = useState<'ALL' | 'In Progress' | 'Revisi' | 'Selesai'>('ALL');
+  const [spkSortOrder, setSpkSortOrder] = useState<'asc' | 'desc'>('asc');
   const [dossierTab, setDossierTab] = useState<'projects' | 'standartPart' | 'kpiCostError' | 'label'>('projects');
   const [dossierSearch, setDossierSearch] = useState('');
   const [dossierSpkSort, setDossierSpkSort] = useState<'asc' | 'desc'>('asc');
@@ -124,6 +143,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         c.customerName.toUpperCase().includes(norm)
     );
     if (found) {
+      setBarcodeViewMode('customers');
       setSelectedCustomerKey(found.key);
       setDossierTab('projects');
       showToast(`Rekam jejak kastamer "${found.customerName}" (${found.barcodeId}) dibuka.`, 'success');
@@ -133,6 +153,27 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     }
     if (onClearInitialLookup) onClearInitialLookup();
   }, [initialLookupQuery, customerRecords, onClearInitialLookup, showToast]);
+
+  // Auto-open specific SPK Progress & Checklist modal when navigated via ?spk_barcode=...
+  useEffect(() => {
+    if (!initialSpkLookup || projects.length === 0) return;
+    const raw = initialSpkLookup.trim();
+    const upper = raw.toUpperCase();
+
+    const found =
+      projects.find((p) => getSpkBarcodeId(p).toUpperCase() === upper) ||
+      projects.find((p) => p.SPK.toUpperCase().includes(upper));
+
+    setBarcodeViewMode('spk');
+    if (found) {
+      setSelectedSpkProjectSpk(found.SPK);
+      showToast(`Progress SPK ${found.SPK} (${found['Nama Project']}) dibuka.`, 'success');
+    } else {
+      setSearchQuery(raw);
+      showToast(`Barcode SPK "${raw}" tidak ditemukan secara eksak, menampilkan pencarian.`, 'info');
+    }
+    if (onClearInitialSpkLookup) onClearInitialSpkLookup();
+  }, [initialSpkLookup, projects, onClearInitialSpkLookup, showToast]);
 
   const filteredRecords = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -147,9 +188,46 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     );
   }, [customerRecords, searchQuery]);
 
+  const filteredSpkProjects = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const list = projects.filter((p) => {
+      if (spkStatusFilter !== 'ALL' && p.Status !== spkStatusFilter) return false;
+      if (!q) return true;
+      return (
+        (p.SPK || '').toLowerCase().includes(q) ||
+        (p['Nomor PO'] || '').toLowerCase().includes(q) ||
+        (p['Nama Project'] || '').toLowerCase().includes(q) ||
+        (p.Customer || '').toLowerCase().includes(q) ||
+        (p.PIC || '').toLowerCase().includes(q) ||
+        (p.Bulan || '').toLowerCase().includes(q) ||
+        (p.Status || '').toLowerCase().includes(q)
+      );
+    });
+    return list.slice().sort((a, b) => {
+      const cmp = (a.SPK || '').localeCompare(b.SPK || '', undefined, { numeric: true, sensitivity: 'base' });
+      return spkSortOrder === 'asc' ? cmp : -cmp;
+    });
+  }, [projects, searchQuery, spkStatusFilter, spkSortOrder]);
+
+  const spkStats = useMemo(() => {
+    const total = projects.length;
+    const done = projects.filter((p) => p.Status === 'Selesai').length;
+    const active = projects.filter((p) => p.Status === 'In Progress' || p.Status === 'Revisi').length;
+    const avgPct =
+      total > 0
+        ? Math.round(projects.reduce((sum, p) => sum + getProjectChecklistProgress(p).percent, 0) / total)
+        : 0;
+    return { total, done, active, avgPct };
+  }, [projects]);
+
   const selectedCustomer = useMemo(
     () => customerRecords.find((c) => c.key === selectedCustomerKey) || null,
     [customerRecords, selectedCustomerKey]
+  );
+
+  const selectedSpkProject = useMemo(
+    () => (selectedSpkProjectSpk ? projects.find((p) => p.SPK === selectedSpkProjectSpk) || null : null),
+    [projects, selectedSpkProjectSpk]
   );
 
   // Reset internal dossier search & SPK sort whenever switching or closing customer
@@ -319,48 +397,90 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     };
   }, [customerRecords]);
 
-  // Resolve scanned text (could be URL, barcodeId, or customer name)
-  const resolveScannedCode = (rawText: string): CustomerRecordSummary | null => {
+  type ScanResolution =
+    | { type: 'spk'; project: EngineeringProject }
+    | { type: 'customer'; customer: CustomerRecordSummary }
+    | null;
+
+  // Resolve scanned text (could be URL for SPK or Customer, offline payload, barcodeId, SPK, or customer name)
+  const resolveScannedCode = (rawText: string): ScanResolution => {
     const trimmed = rawText.trim();
     if (!trimmed) return null;
 
-    // 1. Check URL with ?customer_barcode=... or ?customer=...
+    // 1. Check URL with ?spk_barcode=... / ?spk=... or ?customer_barcode=... / ?customer=...
     try {
       if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
         const parsed = new URL(trimmed);
+        const spkParam = parsed.searchParams.get('spk_barcode') || parsed.searchParams.get('spk');
+        if (spkParam) {
+          const hitProj = projects.find(
+            (p) => getSpkBarcodeId(p).toUpperCase() === spkParam.trim().toUpperCase()
+          );
+          if (hitProj) return { type: 'spk', project: hitProj };
+        }
         const bc = parsed.searchParams.get('customer_barcode');
         const cn = parsed.searchParams.get('customer');
         if (bc) {
           const hit = customerRecords.find((c) => c.barcodeId.toUpperCase() === bc.trim().toUpperCase());
-          if (hit) return hit;
+          if (hit) return { type: 'customer', customer: hit };
         }
         if (cn) {
           const hit = customerRecords.find((c) => c.key === normalizeCustomerKey(cn));
-          if (hit) return hit;
+          if (hit) return { type: 'customer', customer: hit };
         }
       }
     } catch {
       // ignore invalid URL
     }
 
-    // 2. Check structured offline payload line `KODE: KMI-...`
+    // 2. Check structured offline SPK payload `SPK: ...`
+    if (trimmed.includes('KMIL PROGRESS SPK')) {
+      const spkMatch = trimmed.match(/SPK:\s*([^\r\n]+)/i);
+      if (spkMatch) {
+        const hitProj = projects.find(
+          (p) => getSpkBarcodeId(p).toUpperCase() === spkMatch[1].trim().toUpperCase()
+        );
+        if (hitProj) return { type: 'spk', project: hitProj };
+      }
+    }
+
+    // 3. Check structured offline customer payload line `KODE: KMI-...`
     const kodeMatch = trimmed.match(/KODE:\s*(KMI-[A-Z0-9-]+)/i);
     if (kodeMatch) {
       const hit = customerRecords.find((c) => c.barcodeId.toUpperCase() === kodeMatch[1].toUpperCase());
-      if (hit) return hit;
+      if (hit) return { type: 'customer', customer: hit };
     }
 
-    // 3. Direct match by barcodeId, customerName, or SPK
+    // 4. Direct match by SPK first (exact SPK barcode scan)
+    const upper = trimmed.toUpperCase();
+    const exactSpk = projects.find((p) => getSpkBarcodeId(p).toUpperCase() === upper);
+    if (exactSpk) return { type: 'spk', project: exactSpk };
+
+    // 5. Direct match by customer barcodeId or customerName
     const norm = normalizeCustomerKey(trimmed);
-    return (
+    const matchedCustomer =
       customerRecords.find(
         (c) =>
           c.barcodeId.toUpperCase() === norm ||
           c.key === norm ||
-          c.spks.some((s) => s.toUpperCase() === norm) ||
           c.customerName.toUpperCase().includes(norm)
-      ) || null
-    );
+      ) || null;
+    if (matchedCustomer) return { type: 'customer', customer: matchedCustomer };
+
+    return null;
+  };
+
+  const applyScannedResolution = (res: Exclude<ScanResolution, null>) => {
+    if (res.type === 'spk') {
+      setBarcodeViewMode('spk');
+      setSelectedSpkProjectSpk(res.project.SPK);
+      showToast(`Barcode SPK terdeteksi! Membuka progres ${res.project.SPK} (${res.project['Nama Project']}).`, 'success');
+    } else {
+      setBarcodeViewMode('customers');
+      setSelectedCustomerKey(res.customer.key);
+      setDossierTab('projects');
+      showToast(`Barcode terdeteksi! Membuka data ${res.customer.customerName}.`, 'success');
+    }
   };
 
   // Camera Scanner Lifecycle
@@ -423,9 +543,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 if (matched) {
                   stopCamera();
                   setIsScannerOpen(false);
-                  setSelectedCustomerKey(matched.key);
-                  setDossierTab('projects');
-                  showToast(`Barcode terdeteksi! Membuka data ${matched.customerName}.`, 'success');
+                  applyScannedResolution(matched);
                 }
               }
             } catch {
@@ -455,10 +573,9 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     if (e.key === 'Enter' && searchQuery.trim()) {
       const matched = resolveScannedCode(searchQuery);
       if (matched) {
-        setSelectedCustomerKey(matched.key);
-        setDossierTab('projects');
+        applyScannedResolution(matched);
       } else {
-        showToast(`Tidak ada kastamer dengan kode/nama "${searchQuery}".`, 'info');
+        showToast(`Tidak ada kastamer atau SPK dengan kode/nama "${searchQuery}".`, 'info');
       }
     }
   };
@@ -485,6 +602,36 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
       subtitle: `${rec.totalProjects} SPK · ${rec.totalQtyDrawing} Drawing · ${rec.totalStandartPartHandovers} Std Part`
     });
     showToast(`Stiker barcode ${rec.barcodeId} berhasil diunduh.`, 'success');
+  };
+
+  const handleCopySpkLink = async (project: EngineeringProject) => {
+    const spkId = getSpkBarcodeId(project);
+    const url = buildSpkBarcodeUrl(spkId);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedKey(`spk:${spkId}`);
+      showToast(`Link progress SPK ${spkId} disalin ke clipboard!`, 'success');
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch {
+      showToast('Gagal menyalin link SPK. Gunakan tombol unduh PNG atau PDF.', 'error');
+    }
+  };
+
+  const handleDownloadSpkSticker = async (project: EngineeringProject) => {
+    const spkId = getSpkBarcodeId(project);
+    const { completedCount, totalRequired, percent } = getProjectChecklistProgress(project);
+    const qrValue = qrMode === 'url' ? buildSpkBarcodeUrl(spkId) : buildSpkOfflinePayload(project);
+    await downloadSpkStickerPng({
+      spk: spkId,
+      projectName: project['Nama Project'],
+      customerName: project.Customer,
+      pic: project.PIC || '-',
+      status: project.Status,
+      targetDesign: project['Target Design'] || '-',
+      progressText: totalRequired > 0 ? `${completedCount}/${totalRequired} (${percent}%)` : 'Tanpa Checklist',
+      qrValue
+    });
+    showToast(`Stiker barcode progress SPK ${spkId} berhasil diunduh.`, 'success');
   };
 
   // Export Single Customer Complete Dossier PDF
@@ -737,6 +884,94 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
     }
   };
 
+  // Export Multi-Label Sticker Sheet PDF for all filtered SPK Progress Barcodes
+  const handleExportAllSpkBarcodesPDF = async () => {
+    if (filteredSpkProjects.length === 0) return;
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 12;
+      const colGap = 6;
+      const cardW = (pageW - margin * 2 - colGap) / 2;
+      const cardH = 58;
+
+      const drawHeader = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.text('DAFTAR LABEL BARCODE PROGRESS SPK - ENGINEERING KMIL', margin, 12);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          `Total ${filteredSpkProjects.length} SPK · Scan QR atau Code-128 untuk cek & update checklist SPK`,
+          margin,
+          16.5
+        );
+      };
+
+      drawHeader();
+
+      for (let i = 0; i < filteredSpkProjects.length; i++) {
+        const idxOnPage = i % 8;
+        if (i > 0 && idxOnPage === 0) {
+          doc.addPage();
+          drawHeader();
+        }
+
+        const p = filteredSpkProjects[i];
+        const spkId = getSpkBarcodeId(p);
+        const { completedCount, totalRequired, percent } = getProjectChecklistProgress(p);
+        const col = idxOnPage % 2;
+        const row = Math.floor(idxOnPage / 2);
+        const x = margin + col * (cardW + colGap);
+        const y = 21 + row * (cardH + 5);
+
+        const qrVal = buildSpkBarcodeUrl(spkId);
+        const { qrDataUrl, barcodeDataUrl } = await generateBarcodeAssets(spkId, qrVal);
+
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.35);
+        doc.roundedRect(x, y, cardW, cardH, 2, 2, 'S');
+
+        doc.setFillColor(15, 23, 42);
+        doc.rect(x, y, cardW, 7, 'F');
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${spkId} · ${p.Status.toUpperCase()}`, x + 3, y + 4.8);
+
+        doc.addImage(qrDataUrl, 'PNG', x + 3, y + 10, 26, 26);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        const nameLines = doc.splitTextToSize(p['Nama Project'] || spkId, cardW - 35);
+        doc.text(nameLines.slice(0, 2), x + 32, y + 14.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(71, 85, 105);
+        const custShort = (p.Customer || '-').slice(0, 26);
+        doc.text(`${custShort}`, x + 32, y + 24);
+        doc.text(
+          `PIC: ${p.PIC || '-'} · Checklist: ${completedCount}/${totalRequired} (${percent}%)`,
+          x + 32,
+          y + 28.5
+        );
+        doc.text(`Target: ${p['Target Design'] || '-'}`, x + 32, y + 33);
+
+        doc.addImage(barcodeDataUrl, 'PNG', x + 3, y + 38, cardW - 6, 17);
+      }
+
+      doc.save(`Label_Barcode_SPK_Progress_${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast(`Label Barcode SPK PDF (${filteredSpkProjects.length} SPK) berhasil diunduh.`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membuat PDF label barcode SPK.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header & Scanner Controls */}
@@ -745,10 +980,16 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
           <div className="min-w-0">
             <h2 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <QrCode className="w-5 h-5 text-slate-800 shrink-0" />
-              <span>Barcode & Rekam Jejak Terpadu Kastamer</span>
+              <span>
+                {barcodeViewMode === 'spk'
+                  ? 'Barcode Progress per SPK / Project'
+                  : 'Barcode & Rekam Jejak Terpadu Kastamer'}
+              </span>
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Setiap kastamer memiliki kode barcode unik (QR + Code-128) yang mencatat seluruh SPK, checklist drawing, serah terima standart part, feedback kualitas, biaya, dan histori error.
+              {barcodeViewMode === 'spk'
+                ? 'Setiap SPK/Project memiliki QR Code & Barcode Code-128 tersendiri. Scan stiker di map drawing atau meja kerja untuk membuka progres & update checklist langsung.'
+                : 'Setiap kastamer memiliki kode barcode unik (QR + Code-128) yang mencatat seluruh SPK, checklist drawing, serah terima standart part, feedback kualitas, biaya, dan histori error.'}
             </p>
           </div>
 
@@ -762,20 +1003,93 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               <span>Scan Barcode Kamera</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleExportAllBarcodesPDF}
-              disabled={filteredRecords.length === 0}
-              className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-2 transition whitespace-nowrap disabled:opacity-50"
-            >
-              <Printer className="w-4 h-4 shrink-0" />
-              <span>Cetak Semua Label PDF</span>
-            </button>
+            {barcodeViewMode === 'customers' ? (
+              <button
+                type="button"
+                onClick={handleExportAllBarcodesPDF}
+                disabled={filteredRecords.length === 0}
+                className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-2 transition whitespace-nowrap disabled:opacity-50"
+              >
+                <Printer className="w-4 h-4 shrink-0" />
+                <span>Cetak Label Kastamer PDF</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleExportAllSpkBarcodesPDF}
+                disabled={filteredSpkProjects.length === 0}
+                className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-2 transition whitespace-nowrap disabled:opacity-50"
+              >
+                <Printer className="w-4 h-4 shrink-0" />
+                <span>Cetak Label SPK PDF</span>
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Mode Switcher Tabs: Per Kastamer vs Per SPK / Progress */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+          <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setBarcodeViewMode('customers')}
+              className={`flex-1 sm:flex-initial min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
+                barcodeViewMode === 'customers'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <QrCode className="w-3.5 h-3.5 shrink-0" />
+              <span>Barcode per Kastamer ({customerRecords.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBarcodeViewMode('spk')}
+              className={`flex-1 sm:flex-initial min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
+                barcodeViewMode === 'spk'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ListChecks className="w-3.5 h-3.5 shrink-0" />
+              <span>Barcode per SPK / Progress ({projects.length})</span>
+            </button>
+          </div>
+
+          {barcodeViewMode === 'spk' && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['ALL', 'In Progress', 'Revisi', 'Selesai'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setSpkStatusFilter(st)}
+                  className={`min-h-[34px] px-3 py-1 rounded-lg text-[11px] font-semibold transition border ${
+                    spkStatusFilter === st
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {st === 'ALL' ? 'Semua Status' : st}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSpkSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                className="min-h-[34px] px-3 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 flex items-center gap-1"
+              >
+                {spkSortOrder === 'asc' ? (
+                  <ArrowUp className="w-3 h-3 text-blue-600" />
+                ) : (
+                  <ArrowDown className="w-3 h-3 text-blue-600" />
+                )}
+                <span>SPK {spkSortOrder === 'asc' ? 'A→Z' : 'Z→A'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Search / Barcode Gun Input */}
-        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center pt-3 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center pt-1">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -783,7 +1097,11 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Scan barcode gun atau cari nama kastamer, kode KMI-..., SPK, Nomor PO..."
+              placeholder={
+                barcodeViewMode === 'spk'
+                  ? 'Scan barcode SPK atau cari nomor SPK, nama project, PIC, kastamer, PO...'
+                  : 'Scan barcode gun atau cari nama kastamer, kode KMI-..., SPK, Nomor PO...'
+              }
               className="w-full min-h-[44px] sm:min-h-[40px] pl-10 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
             {searchQuery && (
@@ -806,7 +1124,7 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 qrMode === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              QR Link Dossier
+              {barcodeViewMode === 'spk' ? 'QR Link Progress SPK' : 'QR Link Dossier'}
             </button>
             <button
               type="button"
@@ -822,163 +1140,353 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
       </div>
 
       {/* 4 Summary Metrics Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Kastamer Terdaftar</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalCustomers}</p>
+      {barcodeViewMode === 'customers' ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Kastamer Terdaftar</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalCustomers}</p>
+            </div>
+            <QrCode className="w-6 h-6 text-slate-400 shrink-0" />
           </div>
-          <QrCode className="w-6 h-6 text-slate-400 shrink-0" />
-        </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Total Proyek & SPK</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalProjects}</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Total Proyek & SPK</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalProjects}</p>
+            </div>
+            <FolderOpen className="w-6 h-6 text-blue-600 shrink-0" />
           </div>
-          <FolderOpen className="w-6 h-6 text-blue-600 shrink-0" />
-        </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Serah Terima Std Part</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalHandovers}</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Serah Terima Std Part</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalHandovers}</p>
+            </div>
+            <PackageCheck className="w-6 h-6 text-emerald-600 shrink-0" />
           </div>
-          <PackageCheck className="w-6 h-6 text-emerald-600 shrink-0" />
-        </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500">Kasus Revisi & Error</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalErrors}</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Kasus Revisi & Error</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{globalStats.totalErrors}</p>
+            </div>
+            <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
           </div>
-          <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
-        </div>
-      </div>
-
-      {/* Customer Barcode Grid */}
-      {filteredRecords.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2">
-          <QrCode className="w-10 h-10 text-slate-300 mx-auto" />
-          <p className="text-sm font-semibold text-slate-700">Tidak ada kastamer yang cocok dengan pencarian</p>
-          <p className="text-xs text-slate-500">Coba bersihkan kata kunci atau tambahkan proyek baru untuk kastamer terkait.</p>
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="mt-2 min-h-[40px] px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
-            >
-              Reset Pencarian
-            </button>
-          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredRecords.map((rec) => {
-            const qrValue =
-              qrMode === 'url'
-                ? buildCustomerBarcodeUrl(rec.customerName, rec.barcodeId)
-                : buildCustomerOfflinePayload(rec);
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Total Barcode SPK</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.total}</p>
+            </div>
+            <QrCode className="w-6 h-6 text-slate-400 shrink-0" />
+          </div>
 
-            return (
-              <div
-                key={rec.key}
-                className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition flex flex-col justify-between p-4 space-y-4"
-              >
-                <div className="space-y-3">
-                  {/* Title + Clean Unboxed Metadata */}
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                        {rec.customerName}
-                      </h3>
-                      <span className="font-mono text-[11px] font-bold text-slate-700 shrink-0 tabular-nums">
-                        {rec.barcodeId}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-1 tabular-nums">
-                      <span>{rec.totalProjects} SPK</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{rec.totalQtyDrawing} Drawing</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{rec.totalStandartPartHandovers} Std Part</span>
-                    </div>
-                  </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Rata-Rata Progress</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.avgPct}%</p>
+            </div>
+            <ListChecks className="w-6 h-6 text-blue-600 shrink-0" />
+          </div>
 
-                  {/* Dual Real Barcode (QR + Code 128) */}
-                  <CustomerBarcodeGraphic
-                    barcodeId={rec.barcodeId}
-                    qrValue={qrValue}
-                    customerName={rec.customerName}
-                    compact
-                  />
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">SPK Selesai</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.done}</p>
+            </div>
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+          </div>
 
-                  {/* Tabular Metrics Strip */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-slate-100 text-xs">
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">Proyek Selesai</span>
-                      <span className="font-semibold text-slate-900 font-mono tabular-nums">
-                        {rec.doneProjects} / {rec.totalProjects} ({rec.avgChecklistPct}% checklist)
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">Quality & Error</span>
-                      <span
-                        className={`font-semibold font-mono tabular-nums ${
-                          rec.totalErrorCases > 0 ? 'text-amber-700' : 'text-emerald-700'
-                        }`}
-                      >
-                        {rec.totalErrorCases} revisi ({rec.errorRatePct.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-500 block text-[11px]">Realisasi Biaya Engineering</span>
-                      <span className="font-semibold text-slate-900 font-mono tabular-nums">
-                        Rp {rec.totalPengeluaran.toLocaleString('id-ID')} / Rp {rec.totalAnggaran.toLocaleString('id-ID')}
-                        {rec.costEfficiencyPct !== null ? ` (${rec.costEfficiencyPct.toFixed(1)}%)` : ''}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Actions */}
-                <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCustomerKey(rec.key);
-                      setDossierTab('projects');
-                    }}
-                    className="col-span-2 min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-                  >
-                    <FileText className="w-3.5 h-3.5 shrink-0" />
-                    <span>Buka Rekam</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadSticker(rec)}
-                    title="Unduh Stiker PNG"
-                    className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
-                  >
-                    <Download className="w-3.5 h-3.5 shrink-0" />
-                    <span>PNG</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleExportCustomerDossierPDF(rec)}
-                    title="Cetak Dossier PDF"
-                    className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
-                  >
-                    <Printer className="w-3.5 h-3.5 shrink-0" />
-                    <span>PDF</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">In Progress / Revisi</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{spkStats.active}</p>
+            </div>
+            <Clock className="w-6 h-6 text-amber-600 shrink-0" />
+          </div>
         </div>
+      )}
+
+      {/* TAB A: CUSTOMER BARCODE GRID */}
+      {barcodeViewMode === 'customers' && (
+        filteredRecords.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2">
+            <QrCode className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="text-sm font-semibold text-slate-700">Tidak ada kastamer yang cocok dengan pencarian</p>
+            <p className="text-xs text-slate-500">Coba bersihkan kata kunci atau tambahkan proyek baru untuk kastamer terkait.</p>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="mt-2 min-h-[40px] px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
+              >
+                Reset Pencarian
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredRecords.map((rec) => {
+              const qrValue =
+                qrMode === 'url'
+                  ? buildCustomerBarcodeUrl(rec.customerName, rec.barcodeId)
+                  : buildCustomerOfflinePayload(rec);
+
+              return (
+                <div
+                  key={rec.key}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition flex flex-col justify-between p-4 space-y-4"
+                >
+                  <div className="space-y-3">
+                    {/* Title + Clean Unboxed Metadata */}
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                          {rec.customerName}
+                        </h3>
+                        <span className="font-mono text-[11px] font-bold text-slate-700 shrink-0 tabular-nums">
+                          {rec.barcodeId}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-1 tabular-nums">
+                        <span>{rec.totalProjects} SPK</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{rec.totalQtyDrawing} Drawing</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{rec.totalStandartPartHandovers} Std Part</span>
+                      </div>
+                    </div>
+
+                    {/* Dual Real Barcode (QR + Code 128) */}
+                    <CustomerBarcodeGraphic
+                      barcodeId={rec.barcodeId}
+                      qrValue={qrValue}
+                      customerName={rec.customerName}
+                      compact
+                    />
+
+                    {/* Tabular Metrics Strip */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-slate-100 text-xs">
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Proyek Selesai</span>
+                        <span className="font-semibold text-slate-900 font-mono tabular-nums">
+                          {rec.doneProjects} / {rec.totalProjects} ({rec.avgChecklistPct}% checklist)
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Quality & Error</span>
+                        <span
+                          className={`font-semibold font-mono tabular-nums ${
+                            rec.totalErrorCases > 0 ? 'text-amber-700' : 'text-emerald-700'
+                          }`}
+                        >
+                          {rec.totalErrorCases} revisi ({rec.errorRatePct.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-slate-500 block text-[11px]">Realisasi Biaya Engineering</span>
+                        <span className="font-semibold text-slate-900 font-mono tabular-nums">
+                          Rp {rec.totalPengeluaran.toLocaleString('id-ID')} / Rp {rec.totalAnggaran.toLocaleString('id-ID')}
+                          {rec.costEfficiencyPct !== null ? ` (${rec.costEfficiencyPct.toFixed(1)}%)` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomerKey(rec.key);
+                        setDossierTab('projects');
+                      }}
+                      className="col-span-2 min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" />
+                      <span>Buka Rekam</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadSticker(rec)}
+                      title="Unduh Stiker PNG"
+                      className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      <span>PNG</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportCustomerDossierPDF(rec)}
+                      title="Cetak Dossier PDF"
+                      className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                    >
+                      <Printer className="w-3.5 h-3.5 shrink-0" />
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {/* TAB B: SPK / PROJECT PROGRESS BARCODE GRID */}
+      {barcodeViewMode === 'spk' && (
+        filteredSpkProjects.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2">
+            <ListChecks className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="text-sm font-semibold text-slate-700">Tidak ada SPK yang cocok dengan filter atau pencarian</p>
+            <p className="text-xs text-slate-500">Ubah kata kunci pencarian atau pilih status "Semua Status".</p>
+            {(searchQuery || spkStatusFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSpkStatusFilter('ALL');
+                }}
+                className="mt-2 min-h-[40px] px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
+              >
+                Reset Filter SPK
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredSpkProjects.map((p) => {
+              const spkId = getSpkBarcodeId(p);
+              const { completedCount, totalRequired, percent, isCustom } = getProjectChecklistProgress(p);
+              const qrValue = qrMode === 'url' ? buildSpkBarcodeUrl(spkId) : buildSpkOfflinePayload(p);
+
+              return (
+                <div
+                  key={`${p.SPK}-${p.No}`}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition flex flex-col justify-between p-4 space-y-3.5"
+                >
+                  <div className="space-y-3">
+                    {/* Header: SPK + Status */}
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-slate-500">
+                            <span className="font-bold text-slate-900">{spkId}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{p.Bulan}</span>
+                          </div>
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug mt-0.5 line-clamp-2">
+                            {p['Nama Project']}
+                          </h3>
+                        </div>
+
+                        <span
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 border ${
+                            p.Status === 'Selesai'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : p.Status === 'Revisi'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          {p.Status}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-1">
+                        <span className="font-semibold text-slate-700 truncate max-w-[180px]">{p.Customer}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>PIC: {p.PIC || '-'}</span>
+                      </div>
+                    </div>
+
+                    {/* Dual Barcode (QR + Code 128 for SPK) */}
+                    <CustomerBarcodeGraphic
+                      barcodeId={spkId}
+                      qrValue={qrValue}
+                      customerName={p['Nama Project']}
+                      codePrefixLabel="SPK"
+                      compact
+                    />
+
+                    {/* Checklist Progress Strip */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+                          <span>Progress Checklist</span>
+                          {isCustom && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold">
+                              Custom
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 tabular-nums">
+                          {totalRequired > 0 ? `${completedCount}/${totalRequired} (${percent}%)` : 'Tanpa Checklist'}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            percent === 100
+                              ? 'bg-emerald-600'
+                              : percent >= 50
+                              ? 'bg-blue-600'
+                              : 'bg-slate-900'
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                        <span>Target: {p['Target Design'] || '-'}</span>
+                        <span>Qty: {p['Qty Drawing'] || 0} pcs</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSpkProjectSpk(p.SPK)}
+                      className="col-span-2 min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <ListChecks className="w-3.5 h-3.5 shrink-0" />
+                      <span>Buka Progress</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadSpkSticker(p)}
+                      title="Unduh Stiker PNG SPK"
+                      className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      <span>PNG</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopySpkLink(p)}
+                      title="Salin Link Progress SPK"
+                      className="min-h-[42px] px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                    >
+                      {copiedKey === `spk:${spkId}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>Link</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
 
       {/* CUSTOMER COMPLETE RECORD DOSSIER MODAL / BOTTOM SHEET */}
@@ -1370,6 +1878,15 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
 
                               <button
                                 type="button"
+                                onClick={() => setSelectedSpkProjectSpk(p.SPK)}
+                                className="min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Barcode SPK</span>
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={() => onOpenCadViewer(p.SPK, p['Nama Project'], p.Customer)}
                                 className="min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition"
                               >
@@ -1705,15 +2222,297 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
         </div>
       )}
 
+      {/* SPK PROGRESS & INTERACTIVE CHECKLIST BARCODE MODAL */}
+      {selectedSpkProject && (() => {
+        const spkId = getSpkBarcodeId(selectedSpkProject);
+        const {
+          requiredKeys,
+          completedCount,
+          totalRequired,
+          percent,
+          isCustom
+        } = getProjectChecklistProgress(selectedSpkProject);
+        const spkQrVal =
+          qrMode === 'url' ? buildSpkBarcodeUrl(spkId) : buildSpkOfflinePayload(selectedSpkProject);
+        const canEditChecklist = !isReadOnly && Boolean(onChecklistToggle);
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 flex flex-col max-h-[94dvh] overflow-hidden pb-safe">
+              {/* Header */}
+              <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-3 bg-slate-50/70">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 font-mono">
+                    <span className="font-bold text-slate-900">{spkId}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>PO: {selectedSpkProject['Nomor PO'] || '-'}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{selectedSpkProject.Bulan}</span>
+                    <span aria-hidden="true">·</span>
+                    <span
+                      className={`px-2 py-0.5 rounded font-sans font-bold text-[10px] ${
+                        selectedSpkProject.Status === 'Selesai'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : selectedSpkProject.Status === 'Revisi'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                    >
+                      {selectedSpkProject.Status}
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5 truncate">
+                    {selectedSpkProject['Nama Project']}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5 truncate">
+                    Kastamer: <strong className="text-slate-900">{selectedSpkProject.Customer}</strong>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedSpkProjectSpk(null)}
+                  aria-label="Tutup progress SPK"
+                  className="min-w-[40px] min-h-[40px] rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 flex items-center justify-center shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+                {/* Barcode & Info Strip */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                  <div className="lg:col-span-7">
+                    <CustomerBarcodeGraphic
+                      barcodeId={spkId}
+                      qrValue={spkQrVal}
+                      customerName={selectedSpkProject['Nama Project']}
+                      codePrefixLabel="SPK"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between gap-3">
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">PIC Engineer</span>
+                        <span className="font-bold text-slate-900">{selectedSpkProject.PIC || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Qty Drawing</span>
+                        <span className="font-bold font-mono text-slate-900 tabular-nums">
+                          {selectedSpkProject['Qty Drawing'] || 0} pcs
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Target Design</span>
+                        <span className="font-mono font-semibold text-slate-900">
+                          {selectedSpkProject['Target Design'] || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Delivery Proyek</span>
+                        <span className="font-mono font-semibold text-slate-900">
+                          {selectedSpkProject['Delivery Time'] || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => handleCopySpkLink(selectedSpkProject)}
+                        className="min-h-[40px] px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-800 flex items-center justify-center gap-1 transition"
+                      >
+                        {copiedKey === `spk:${spkId}` ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                        <span>Salin Link</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSpkSticker(selectedSpkProject)}
+                        className="min-h-[40px] px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center gap-1 transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Stiker PNG</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar + Interactive Actions */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                          {isCustom
+                            ? `Checklist Wajib Project (${totalRequired} Item)`
+                            : '14 Item Checklist Progress Engineering'}
+                        </h4>
+                        {isCustom && (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                            Custom Manager
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {canEditChecklist
+                          ? 'Centang atau ubah tanggal checklist langsung dari hasil scan barcode ini (tersinkron real-time ke Firebase).'
+                          : 'Mode Viewer (Read-Only): Login dengan PIN Staff/Manager untuk memperbarui progres checklist.'}
+                      </p>
+                    </div>
+
+                    <div className="text-left sm:text-right shrink-0">
+                      <span className="text-lg font-bold font-mono text-slate-900 tabular-nums">
+                        {totalRequired > 0 ? `${completedCount}/${totalRequired} (${percent}%)` : 'Tanpa Checklist'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        percent === 100
+                          ? 'bg-emerald-600'
+                          : percent >= 50
+                          ? 'bg-blue-600'
+                          : 'bg-slate-900'
+                      }`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+
+                  {/* Checklist Items */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                    {CHECKLIST_KEYS.map((key) => {
+                      const isRequired = requiredKeys.includes(key);
+                      const dateVal = String(selectedSpkProject[key] || '').trim();
+                      const isDone = isRequired && Boolean(dateVal);
+
+                      if (!isRequired) {
+                        return (
+                          <div
+                            key={key}
+                            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center justify-between gap-2 text-xs text-slate-400"
+                          >
+                            <span className="font-medium line-through truncate">{key}</span>
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200/70 text-slate-500 shrink-0">
+                              N/A
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={key}
+                          className={`px-3 py-2.5 rounded-xl border flex items-center justify-between gap-2.5 text-xs transition ${
+                            isDone
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                              : 'bg-white border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <label
+                            className={`flex items-center gap-2.5 min-w-0 flex-1 ${
+                              canEditChecklist ? 'cursor-pointer' : 'cursor-default'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isDone}
+                              disabled={!canEditChecklist}
+                              onChange={(e) => {
+                                if (onChecklistToggle) {
+                                  onChecklistToggle(selectedSpkProject.SPK, key, e.target.checked);
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 disabled:opacity-60 shrink-0"
+                            />
+                            <span className="font-semibold truncate">{key}</span>
+                          </label>
+
+                          {canEditChecklist && onChecklistDateChange ? (
+                            <input
+                              type="date"
+                              value={dateVal}
+                              onChange={(e) =>
+                                onChecklistDateChange(selectedSpkProject.SPK, key, e.target.value)
+                              }
+                              className="px-2 py-1 rounded-lg border border-slate-300 bg-white font-mono text-[11px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 shrink-0"
+                            />
+                          ) : (
+                            <span className="font-mono text-[11px] shrink-0">
+                              {isDone ? dateVal : 'Belum'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bottom Quick Actions */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenCadViewer(
+                        selectedSpkProject.SPK,
+                        selectedSpkProject['Nama Project'],
+                        selectedSpkProject.Customer
+                      )
+                    }
+                    className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <Box className="w-3.5 h-3.5" />
+                    <span>3D CAD Viewer</span>
+                  </button>
+
+                  {selectedSpkProject['File CAD Drive'] && (
+                    <a
+                      href={selectedSpkProject['File CAD Drive']}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Buka File Drive CAD</span>
+                    </a>
+                  )}
+
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onEditProject(selectedSpkProject);
+                      }}
+                      className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition ml-auto"
+                    >
+                      <PenSquare className="w-3.5 h-3.5" />
+                      <span>Edit Data Proyek</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* LIVE CAMERA & MANUAL BARCODE SCANNER MODAL */}
       {isScannerOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-950/85 z-[170] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 p-4 sm:p-6 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-slate-900" />
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900">Scanner Barcode Kastamer</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">Scanner Barcode Kastamer & SPK</h3>
                   <p className="text-[11px] text-slate-500">Arahkan kamera ke QR Code atau Barcode Code-128</p>
                 </div>
               </div>
@@ -1755,24 +2554,22 @@ export const CustomerBarcodeView: React.FC<CustomerBarcodeViewProps> = ({
                 if (hit) {
                   setIsScannerOpen(false);
                   setManualScanInput('');
-                  setSelectedCustomerKey(hit.key);
-                  setDossierTab('projects');
-                  showToast(`Membuka rekam jejak ${hit.customerName}.`, 'success');
+                  applyScannedResolution(hit);
                 } else {
-                  showToast(`Kode atau kastamer "${manualScanInput}" tidak ditemukan.`, 'error');
+                  showToast(`Kode SPK atau kastamer "${manualScanInput}" tidak ditemukan.`, 'error');
                 }
               }}
               className="space-y-2.5 pt-2 border-t border-slate-100"
             >
               <label className="block text-xs font-semibold text-slate-700">
-                Input Manual Kode Barcode / Nama Kastamer:
+                Input Manual Nomor SPK / Kode KMI / Nama Kastamer:
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={manualScanInput}
                   onChange={(e) => setManualScanInput(e.target.value)}
-                  placeholder="Cth: KMI-ASTRA-..."
+                  placeholder="Cth: SPK-2026-001 atau KMI-ASTRA-..."
                   className="flex-1 min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
                 <button

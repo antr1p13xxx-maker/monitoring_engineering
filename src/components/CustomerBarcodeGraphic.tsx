@@ -7,6 +7,7 @@ interface CustomerBarcodeGraphicProps {
   qrValue: string;
   customerName: string;
   compact?: boolean;
+  codePrefixLabel?: string;
 }
 
 export async function generateBarcodeAssets(
@@ -122,11 +123,102 @@ export async function downloadCustomerStickerPng(params: {
   link.click();
 }
 
+export async function downloadSpkStickerPng(params: {
+  spk: string;
+  projectName: string;
+  customerName: string;
+  pic: string;
+  status: string;
+  targetDesign: string;
+  progressText: string;
+  qrValue: string;
+}) {
+  const { spk, projectName, customerName, pic, status, targetDesign, progressText, qrValue } = params;
+  const { qrDataUrl, barcodeDataUrl } = await generateBarcodeAssets(spk, qrValue);
+
+  const loadImg = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+
+  const [qrImg, barImg] = await Promise.all([loadImg(qrDataUrl), loadImg(barcodeDataUrl)]);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 760;
+  canvas.height = 360;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+
+  // Header strip
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(12, 12, canvas.width - 24, 52);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('PT. KURNIA MUSTIKA INDAH LESTARI · PROGRESS SPK', 28, 44);
+
+  // Left: QR Code
+  ctx.drawImage(qrImg, 28, 82, 210, 210);
+
+  // Right: SPK & Project Info + Code-128
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText(`SPK: ${spk}  ·  STATUS: ${status.toUpperCase()}`, 260, 102);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 24px sans-serif';
+  const maxWidth = 465;
+  let displayTitle = projectName || spk;
+  while (ctx.measureText(displayTitle).width > maxWidth && displayTitle.length > 5) {
+    displayTitle = displayTitle.slice(0, -4) + '...';
+  }
+  ctx.fillText(displayTitle, 260, 136);
+
+  ctx.fillStyle = '#334155';
+  ctx.font = '14px sans-serif';
+  let sub1 = `${customerName || '-'} · PIC: ${pic || '-'}`;
+  while (ctx.measureText(sub1).width > maxWidth && sub1.length > 5) {
+    sub1 = sub1.slice(0, -4) + '...';
+  }
+  ctx.fillText(sub1, 260, 162);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText(`Progress: ${progressText}  ·  Target: ${targetDesign || '-'}`, 260, 185);
+
+  // Code-128 Linear Barcode
+  const barAspect = barImg.width / Math.max(1, barImg.height);
+  const drawW = Math.min(460, 84 * barAspect);
+  const drawH = drawW / barAspect;
+  ctx.drawImage(barImg, 260, 202, drawW, drawH);
+
+  // Footer note
+  ctx.fillStyle = '#64748b';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('Scan QR / Barcode untuk membuka & update progres checklist SPK ini secara langsung', 28, 326);
+
+  const link = document.createElement('a');
+  link.download = `Barcode_SPK_${spk.replace(/[^a-zA-Z0-9]+/g, '_')}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
 export const CustomerBarcodeGraphic: React.FC<CustomerBarcodeGraphicProps> = ({
   barcodeId,
   qrValue,
   customerName,
-  compact = false
+  compact = false,
+  codePrefixLabel = 'CODE-128'
 }) => {
   const [qrUrl, setQrUrl] = useState<string>('');
   const svgRef = useRef<SVGSVGElement>(null);
@@ -192,7 +284,7 @@ export const CustomerBarcodeGraphic: React.FC<CustomerBarcodeGraphicProps> = ({
 
       <div className="min-w-0 flex-1 flex flex-col items-center sm:items-start justify-center overflow-hidden">
         <span className="text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase truncate max-w-full">
-          CODE-128 · {barcodeId}
+          {codePrefixLabel} · {barcodeId}
         </span>
         <div className="w-full flex justify-center sm:justify-start overflow-hidden mt-1">
           <svg

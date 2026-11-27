@@ -96,6 +96,37 @@ export function buildCustomerOfflinePayload(rec: CustomerRecordSummary): string 
   return lines.join('\n');
 }
 
+export function getSpkBarcodeId(project: EngineeringProject): string {
+  const raw = String(project.SPK || '').trim();
+  return raw || `PROJ-${project.No}`;
+}
+
+export function buildSpkBarcodeUrl(spk: string): string {
+  const cleanSpk = String(spk || '').trim();
+  if (typeof window === 'undefined') {
+    return `?spk_barcode=${encodeURIComponent(cleanSpk)}`;
+  }
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set('spk_barcode', cleanSpk);
+  return url.toString();
+}
+
+export function buildSpkOfflinePayload(project: EngineeringProject): string {
+  const { completedCount, totalRequired, percent } = getProjectChecklistProgress(project);
+  const spkId = getSpkBarcodeId(project);
+  const lines = [
+    `KMIL PROGRESS SPK`,
+    `SPK: ${spkId}`,
+    `PO: ${project['Nomor PO'] || '-'}`,
+    `PROJECT: ${project['Nama Project'] || '-'}`,
+    `KASTAMER: ${project.Customer || '-'}`,
+    `PIC: ${project.PIC || '-'}`,
+    `STATUS: ${project.Status} | TARGET: ${project['Target Design'] || '-'}`,
+    `CHECKLIST: ${completedCount}/${totalRequired} (${percent}%)`
+  ];
+  return lines.join('\n');
+}
+
 export function aggregateCustomerRecords(params: {
   projects: EngineeringProject[];
   standartPartList: SerahTerimaStandartPartItem[];

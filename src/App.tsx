@@ -100,7 +100,12 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'monitoring' | 'barcodes' | 'kpi' | 'appsScript'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('customer_barcode') || params.get('customer')) {
+      if (
+        params.get('customer_barcode') ||
+        params.get('customer') ||
+        params.get('spk_barcode') ||
+        params.get('spk')
+      ) {
         return 'barcodes';
       }
     }
@@ -110,6 +115,13 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       return params.get('customer_barcode') || params.get('customer') || null;
+    }
+    return null;
+  });
+  const [spkLookupQuery, setSpkLookupQuery] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('spk_barcode') || params.get('spk') || null;
     }
     return null;
   });
@@ -1892,6 +1904,10 @@ export default function App() {
             userRole={userRole}
             initialLookupQuery={barcodeLookupQuery}
             onClearInitialLookup={() => setBarcodeLookupQuery(null)}
+            initialSpkLookup={spkLookupQuery}
+            onClearInitialSpkLookup={() => setSpkLookupQuery(null)}
+            onChecklistToggle={handleChecklistToggle}
+            onChecklistDateChange={handleChecklistDateChange}
             onEditProject={(p) => {
               setEditingProject(p);
               setIsDataModalOpen(true);
