@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
-import { WifiOff, RefreshCw, CheckCircle2, Database, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { WifiOff, RefreshCw, CheckCircle2, Database, ChevronUp, ChevronDown, Clock, AlertTriangle, X } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useOfflineSyncStatus } from '../utils/offlineSyncQueue';
+import { FirestoreConnectionStatus, subscribeFirestoreStatus } from '../firebase/firebaseConfig';
 
 export const OfflineIndicator: React.FC = () => {
   const isOnline = useOnlineStatus();
   const { pendingItems, pendingCount, isSyncing, lastSyncedCount, lastSyncError, syncNow } =
     useOfflineSyncStatus();
   const [showDetails, setShowDetails] = useState(false);
+  const [firestoreStatus, setFirestoreStatus] = useState<FirestoreConnectionStatus>('connecting');
+  const [dismissedQuotaBanner, setDismissedQuotaBanner] = useState(false);
 
+  useEffect(() => {
+    return subscribeFirestoreStatus((status) => {
+      setFirestoreStatus(status);
+      if (status === 'connected') {
+        setDismissedQuotaBanner(false);
+      }
+    });
+  }, []);
+
+  const isQuotaExceeded = firestoreStatus === 'quota_exceeded' && !dismissedQuotaBanner;
   const shouldShow =
-    !isOnline || isSyncing || pendingCount > 0 || lastSyncedCount > 0;
+    !isOnline || isSyncing || pendingCount > 0 || lastSyncedCount > 0 || isQuotaExceeded;
 
   if (!shouldShow) return null;
 
@@ -88,6 +101,19 @@ export const OfflineIndicator: React.FC = () => {
               )}
             </button>
           )}
+        </div>
+      ) : isQuotaExceeded ? (
+        <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-rose-600/25 border border-rose-300/40">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          <span>Kuota Harian Firestore Habis — Cache Lokal Aktif</span>
+          <button
+            type="button"
+            onClick={() => setDismissedQuotaBanner(true)}
+            aria-label="Tutup pemberitahuan kuota"
+            className="p-0.5 rounded hover:bg-white/20 shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       ) : isBackOnlineWithQueue ? (
         <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 border border-cyan-300/40">

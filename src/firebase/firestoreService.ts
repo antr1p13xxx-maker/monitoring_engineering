@@ -7,7 +7,13 @@ import {
   getDocs, 
   writeBatch
 } from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import {
+  db,
+  isFirestoreQuotaExceeded,
+  isQuotaExceededError,
+  reportFirestoreConnected,
+  reportFirestoreError
+} from './firebaseConfig';
 import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog, ActiveSessionPresence, TeamChatMessage } from '../types/engineering';
 import {
   enqueueOfflineMutation,
@@ -37,7 +43,8 @@ async function executeOrQueueOffline(params: {
   bypassQueue?: boolean;
   runDirect: () => Promise<void>;
 }): Promise<void> {
-  if (!params.bypassQueue && typeof navigator !== 'undefined' && !navigator.onLine) {
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+  if (!params.bypassQueue && (isOffline || isFirestoreQuotaExceeded())) {
     await enqueueOfflineMutation({
       type: params.type,
       coalesceKey: params.coalesceKey,
@@ -49,8 +56,10 @@ async function executeOrQueueOffline(params: {
 
   try {
     await params.runDirect();
+    reportFirestoreConnected();
   } catch (err) {
-    if (!params.bypassQueue && isNetworkOfflineError(err)) {
+    reportFirestoreError(err);
+    if (!params.bypassQueue && (isNetworkOfflineError(err) || isQuotaExceededError(err))) {
       await enqueueOfflineMutation({
         type: params.type,
         coalesceKey: params.coalesceKey,
@@ -74,6 +83,9 @@ export function subscribeToFirestoreProjects(
   return onSnapshot(
     colRef,
     (snapshot) => {
+      if (!snapshot.metadata.fromCache) {
+        reportFirestoreConnected();
+      }
       const projects: EngineeringProject[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as EngineeringProject;
@@ -84,6 +96,7 @@ export function subscribeToFirestoreProjects(
       onUpdate(projects);
     },
     (error) => {
+      reportFirestoreError(error);
       console.warn('Firestore projects listener notice:', error.message);
       if (onError) onError(error);
     }
@@ -168,6 +181,13 @@ export async function deleteProjectFromFirestore(
  */
 export async function seedFirestoreIfEmpty(initialProjects: EngineeringProject[]): Promise<void> {
   try {
+    if (
+      localStorage.getItem('eng_projects_seeded') === 'true' ||
+      (typeof navigator !== 'undefined' && !navigator.onLine) ||
+      isFirestoreQuotaExceeded()
+    ) {
+      return;
+    }
     const colRef = collection(db, PROJECTS_COLLECTION);
     const snapshot = await getDocs(colRef);
     if (snapshot.empty && initialProjects.length > 0) {
@@ -183,7 +203,9 @@ export async function seedFirestoreIfEmpty(initialProjects: EngineeringProject[]
       await batch.commit();
       console.info(`Seeded ${initialProjects.length} initial projects to Firebase Firestore.`);
     }
+    localStorage.setItem('eng_projects_seeded', 'true');
   } catch (err) {
+    reportFirestoreError(err);
     console.warn('Could not seed initial projects to Firestore:', err);
   }
 }
@@ -196,20 +218,27 @@ export function subscribeToFirestoreKPIs(
   onUpdate: (kpis: Record<number, Record<string, number | null>>) => void
 ) {
   const colRef = collection(db, KPI_COLLECTION);
-  return onSnapshot(colRef, (snapshot) => {
-    const kpiMap: Record<number, Record<string, number | null>> = {};
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.year === year && data.kpiId !== undefined) {
-        try {
-          kpiMap[data.kpiId] = typeof data.months === 'string' ? JSON.parse(data.months) : (data.months || {});
-        } catch {
-          kpiMap[data.kpiId] = data.months || {};
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const kpiMap: Record<number, Record<string, number | null>> = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.year === year && data.kpiId !== undefined) {
+          try {
+            kpiMap[data.kpiId] = typeof data.months === 'string' ? JSON.parse(data.months) : (data.months || {});
+          } catch {
+            kpiMap[data.kpiId] = data.months || {};
+          }
         }
-      }
-    });
-    onUpdate(kpiMap);
-  });
+      });
+      onUpdate(kpiMap);
+    },
+    (error) => {
+      reportFirestoreError(error);
+      console.warn('Firestore KPI listener notice:', error.message);
+    }
+  );
 }
 
 /**
@@ -245,6 +274,14 @@ export async function saveKPIMonthToFirestore(
  */
 export async function seedKPIsIfEmpty(year: string, kpiList: KPIItem[]): Promise<void> {
   try {
+    const seedKey = `eng_kpi_seeded_${year}`;
+    if (
+      localStorage.getItem(seedKey) === 'true' ||
+      (typeof navigator !== 'undefined' && !navigator.onLine) ||
+      isFirestoreQuotaExceeded()
+    ) {
+      return;
+    }
     const colRef = collection(db, KPI_COLLECTION);
     const snapshot = await getDocs(colRef);
     if (snapshot.empty) {
@@ -262,7 +299,9 @@ export async function seedKPIsIfEmpty(year: string, kpiList: KPIItem[]): Promise
       await batch.commit();
       console.info('Seeded default KPI list to Firestore.');
     }
+    localStorage.setItem(seedKey, 'true');
   } catch (err) {
+    reportFirestoreError(err);
     console.warn('Could not seed initial KPIs to Firestore:', err);
   }
 }
@@ -625,6 +664,13 @@ export async function seedStandartPartsIfEmpty(
   initialItems: SerahTerimaStandartPartItem[]
 ): Promise<void> {
   try {
+    if (
+      localStorage.getItem('eng_standart_parts_seeded') === 'true' ||
+      (typeof navigator !== 'undefined' && !navigator.onLine) ||
+      isFirestoreQuotaExceeded()
+    ) {
+      return;
+    }
     const colRef = collection(db, STANDART_PART_COLLECTION);
     const snapshot = await getDocs(colRef);
     if (snapshot.empty && initialItems.length > 0) {
@@ -643,7 +689,9 @@ export async function seedStandartPartsIfEmpty(
       await batch.commit();
       console.info(`Seeded ${initialItems.length} initial Standart Part handovers to Firestore.`);
     }
+    localStorage.setItem('eng_standart_parts_seeded', 'true');
   } catch (err) {
+    reportFirestoreError(err);
     console.warn('Could not seed initial Standart Parts to Firestore:', err);
   }
 }
@@ -1065,6 +1113,7 @@ export function subscribeToFirestoreActiveSessions(
       onUpdate(list);
     },
     (err) => {
+      reportFirestoreError(err);
       console.warn('Firestore Active Sessions listener notice:', err.message);
     }
   );
@@ -1076,24 +1125,32 @@ export function subscribeToFirestoreActiveSessions(
 export async function upsertActiveSessionToFirestore(
   session: ActiveSessionPresence
 ): Promise<void> {
+  if ((typeof navigator !== 'undefined' && !navigator.onLine) || isFirestoreQuotaExceeded()) {
+    return;
+  }
   const docId = (session.sessionId || `sess_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const docRef = doc(db, ACTIVE_SESSIONS_COLLECTION, docId);
-  await setDoc(
-    docRef,
-    {
-      sessionId: docId,
-      staffId: session.staffId || 'viewer',
-      staffName: session.staffName || 'Viewer (Read-Only)',
-      role: session.role || 'Viewer',
-      status: session.status,
-      currentView: session.currentView,
-      editingTarget: session.editingTarget || '',
-      deviceLabel: session.deviceLabel || 'Desktop / PC',
-      loggedInAt: session.loggedInAt,
-      lastHeartbeat: session.lastHeartbeat,
-    },
-    { merge: true }
-  );
+  try {
+    await setDoc(
+      docRef,
+      {
+        sessionId: docId,
+        staffId: session.staffId || 'viewer',
+        staffName: session.staffName || 'Viewer (Read-Only)',
+        role: session.role || 'Viewer',
+        status: session.status,
+        currentView: session.currentView,
+        editingTarget: session.editingTarget || '',
+        deviceLabel: session.deviceLabel || 'Desktop / PC',
+        loggedInAt: session.loggedInAt,
+        lastHeartbeat: session.lastHeartbeat,
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    reportFirestoreError(err);
+    throw err;
+  }
 }
 
 /**

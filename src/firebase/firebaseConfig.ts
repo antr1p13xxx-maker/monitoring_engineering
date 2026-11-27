@@ -42,10 +42,14 @@ function createFirestoreInstance(): Firestore {
   const localCache = persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   });
+  const settings = {
+    localCache,
+    experimentalAutoDetectLongPolling: true
+  };
   try {
     return hasNamedDatabase
-      ? initializeFirestore(app, { localCache }, firebaseConfig.firestoreDatabaseId)
-      : initializeFirestore(app, { localCache });
+      ? initializeFirestore(app, settings, firebaseConfig.firestoreDatabaseId)
+      : initializeFirestore(app, settings);
   } catch {
     return hasNamedDatabase
       ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
@@ -62,6 +66,75 @@ export const auth = getAuth(app);
 signInAnonymously(auth).catch((err) => {
   console.info('Firebase anonymous auth status (optional):', err.message);
 });
+
+export type FirestoreConnectionStatus = 'connecting' | 'connected' | 'offline' | 'quota_exceeded';
+
+let currentFirestoreStatus: FirestoreConnectionStatus =
+  typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'connecting';
+const firestoreStatusListeners = new Set<(status: FirestoreConnectionStatus) => void>();
+
+function setFirestoreStatus(next: FirestoreConnectionStatus): void {
+  if (currentFirestoreStatus === next) return;
+  currentFirestoreStatus = next;
+  firestoreStatusListeners.forEach((cb) => {
+    try {
+      cb(next);
+    } catch {
+      // Ignore listener error
+    }
+  });
+}
+
+export function getFirestoreStatus(): FirestoreConnectionStatus {
+  return currentFirestoreStatus;
+}
+
+export function isFirestoreQuotaExceeded(): boolean {
+  return currentFirestoreStatus === 'quota_exceeded';
+}
+
+export function subscribeFirestoreStatus(
+  listener: (status: FirestoreConnectionStatus) => void
+): () => void {
+  firestoreStatusListeners.add(listener);
+  listener(currentFirestoreStatus);
+  return () => {
+    firestoreStatusListeners.delete(listener);
+  };
+}
+
+export function isQuotaExceededError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const code = String((err as { code?: string }).code || '').toLowerCase();
+  const msg = String((err as { message?: string }).message || '').toLowerCase();
+  return (
+    code === 'resource-exhausted' ||
+    msg.includes('quota exceeded') ||
+    msg.includes('resource_exhausted')
+  );
+}
+
+export function reportFirestoreError(err: unknown): void {
+  if (isQuotaExceededError(err)) {
+    setFirestoreStatus('quota_exceeded');
+    return;
+  }
+  const code = String((err as { code?: string }).code || '').toLowerCase();
+  const msg = String((err as { message?: string }).message || '').toLowerCase();
+  if (
+    code === 'unavailable' ||
+    msg.includes('client is offline') ||
+    msg.includes('could not reach cloud firestore')
+  ) {
+    if (currentFirestoreStatus !== 'quota_exceeded') {
+      setFirestoreStatus('offline');
+    }
+  }
+}
+
+export function reportFirestoreConnected(): void {
+  setFirestoreStatus('connected');
+}
 
 export function saveCustomFirebaseConfig(newConfig: Partial<typeof configData>): void {
   try {
@@ -84,15 +157,24 @@ export function resetToDefaultFirebaseConfig(): void {
 
 // Test Connection to Firestore (Skill Mandatory Requirement)
 export async function testFirestoreConnection(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    setFirestoreStatus('offline');
+    return false;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
+    setFirestoreStatus('connected');
     console.info('Firebase Firestore connected successfully to project:', firebaseConfig.projectId);
     return true;
-  } catch (error: any) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client is offline or network issue:', error.message);
+  } catch (error: unknown) {
+    reportFirestoreError(error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (isQuotaExceededError(error)) {
+      console.warn('Firestore daily Spark quota exceeded. Operating with local cache until quota resets.');
+    } else if (msg.includes('the client is offline')) {
+      console.warn('Firebase client is offline or network issue:', msg);
     } else {
-      console.info('Firestore handshake:', error.message);
+      console.info('Firestore handshake:', msg);
     }
     return false;
   }

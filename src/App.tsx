@@ -69,6 +69,7 @@ import {
   sendTeamChatMessageToFirestore,
   deleteTeamChatMessageFromFirestore
 } from './firebase/firestoreService';
+import { isFirestoreQuotaExceeded } from './firebase/firebaseConfig';
 import { 
   EngineeringProject, 
   KPIItem, 
@@ -644,18 +645,39 @@ export default function App() {
 
   const activeOnlineSessions = rawOnlineSessions.filter((s) => {
     const hb = Date.parse(s.lastHeartbeat);
-    return !Number.isNaN(hb) && presenceNowMs - hb <= 90_000;
+    return !Number.isNaN(hb) && presenceNowMs - hb <= 150_000;
   });
 
-  // Real-time Heartbeat Publisher & Unload Cleanup
+  const lastPresenceSigRef = useRef<string>('');
+  const lastPresenceAtRef = useRef<number>(0);
+
+  // Real-time Heartbeat Publisher & Unload Cleanup (throttled to conserve Firestore quota)
   useEffect(() => {
-    const publishPresence = () => {
+    const publishPresence = (force = false) => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (isFirestoreQuotaExceeded()) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+
+      const staffId = activeStaff?.id || 'viewer';
+      const staffName = activeStaff ? activeStaff.name : viewerNickname.trim() || 'Tamu (Viewer)';
+      const role = activeStaff ? activeStaff.role : 'Viewer';
+      const status: ActiveSessionPresence['status'] = activeEditingTarget ? 'editing' : 'online';
+      const sig = `${staffId}|${staffName}|${role}|${status}|${effectivePresenceView}|${activeEditingTarget || ''}`;
+      const now = Date.now();
+
+      if (!force && sig === lastPresenceSigRef.current && now - lastPresenceAtRef.current < 45_000) {
+        return;
+      }
+
+      lastPresenceSigRef.current = sig;
+      lastPresenceAtRef.current = now;
+
       const payload: ActiveSessionPresence = {
         sessionId,
-        staffId: activeStaff?.id || 'viewer',
-        staffName: activeStaff ? activeStaff.name : viewerNickname.trim() || 'Tamu (Viewer)',
-        role: activeStaff ? activeStaff.role : 'Viewer',
-        status: activeEditingTarget ? 'editing' : 'online',
+        staffId,
+        staffName,
+        role,
+        status,
         currentView: effectivePresenceView,
         editingTarget: activeEditingTarget || undefined,
         deviceLabel,
@@ -667,11 +689,11 @@ export default function App() {
       );
     };
 
-    publishPresence();
-    const hbInterval = setInterval(publishPresence, 20000);
+    publishPresence(false);
+    const hbInterval = setInterval(() => publishPresence(true), 60_000);
     const handleVisibilityOrFocus = () => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-        publishPresence();
+        publishPresence(false);
       }
     };
     window.addEventListener('focus', handleVisibilityOrFocus);
