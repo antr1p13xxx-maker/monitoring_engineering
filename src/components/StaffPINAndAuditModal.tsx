@@ -28,7 +28,10 @@ import {
   Smartphone,
   Monitor,
   PenLine,
-  Clock
+  Clock,
+  Calendar,
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -127,6 +130,60 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
   const [auditSearch, setAuditSearch] = useState('');
   const [auditModuleFilter, setAuditModuleFilter] = useState<string>('ALL');
   const [auditStaffFilter, setAuditStaffFilter] = useState<string>('ALL');
+  const [auditDateFrom, setAuditDateFrom] = useState<string>('');
+  const [auditDateTo, setAuditDateTo] = useState<string>('');
+
+  const extractLogDateStr = (ts?: string): string => {
+    if (!ts) return '';
+    const match = ts.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(ts);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+  };
+
+  const toLocalDateStr = (d: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const applyQuickDatePreset = (preset: 'all' | 'today' | '7days' | 'thisMonth') => {
+    const today = new Date();
+    const todayStr = toLocalDateStr(today);
+    if (preset === 'all') {
+      setAuditDateFrom('');
+      setAuditDateTo('');
+    } else if (preset === 'today') {
+      setAuditDateFrom(todayStr);
+      setAuditDateTo(todayStr);
+    } else if (preset === '7days') {
+      const past = new Date(today);
+      past.setDate(past.getDate() - 6);
+      setAuditDateFrom(toLocalDateStr(past));
+      setAuditDateTo(todayStr);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      setAuditDateFrom(toLocalDateStr(firstDay));
+      setAuditDateTo(todayStr);
+    }
+  };
+
+  const resetAllAuditFilters = () => {
+    setAuditSearch('');
+    setAuditModuleFilter('ALL');
+    setAuditStaffFilter('ALL');
+    setAuditDateFrom('');
+    setAuditDateTo('');
+  };
+
+  const hasActiveAuditFilters = Boolean(
+    auditSearch.trim() ||
+      auditModuleFilter !== 'ALL' ||
+      auditStaffFilter !== 'ALL' ||
+      auditDateFrom ||
+      auditDateTo
+  );
 
   const uniqueLogUsers = useMemo(() => {
     const names = new Set<string>();
@@ -137,6 +194,21 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
     return Array.from(names).sort();
   }, [auditLogs]);
 
+  const moduleLogCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: auditLogs.length,
+      Monitoring: 0,
+      'Standart Part': 0,
+      KPI: 0,
+      'Staff & PIN': 0
+    };
+    auditLogs.forEach((log) => {
+      const mod = log.module || 'KPI';
+      counts[mod] = (counts[mod] || 0) + 1;
+    });
+    return counts;
+  }, [auditLogs]);
+
   const filteredLogs = useMemo(() => {
     const q = auditSearch.trim().toLowerCase();
     return auditLogs.filter((log) => {
@@ -144,6 +216,14 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
       if (auditModuleFilter !== 'ALL' && mod !== auditModuleFilter) return false;
       const actor = log.staffName || log.user || '';
       if (auditStaffFilter !== 'ALL' && actor !== auditStaffFilter) return false;
+
+      if (auditDateFrom || auditDateTo) {
+        const logDate = extractLogDateStr(log.timestamp);
+        if (!logDate) return false;
+        if (auditDateFrom && logDate < auditDateFrom) return false;
+        if (auditDateTo && logDate > auditDateTo) return false;
+      }
+
       if (!q) return true;
       return (
         (log.user || '').toLowerCase().includes(q) ||
@@ -154,7 +234,7 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
         (log.newValue || '').toLowerCase().includes(q)
       );
     });
-  }, [auditLogs, auditSearch, auditModuleFilter, auditStaffFilter]);
+  }, [auditLogs, auditSearch, auditModuleFilter, auditStaffFilter, auditDateFrom, auditDateTo]);
 
   const loggedInSessions = useMemo(
     () => onlineSessions.filter((s) => s.role !== 'Viewer'),
@@ -904,65 +984,206 @@ export const StaffPINAndAuditModal: React.FC<StaffPINAndAuditModalProps> = ({
 
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              {/* Filter Bar */}
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center gap-2.5">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={auditSearch}
-                    onChange={(e) => setAuditSearch(e.target.value)}
-                    placeholder="Cari nama staff, SPK, project, part name, nilai..."
-                    className="w-full min-h-[40px] pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 sm:flex items-center gap-2">
-                  <select
-                    value={auditModuleFilter}
-                    onChange={(e) => setAuditModuleFilter(e.target.value)}
-                    className="min-h-[40px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-semibold text-slate-800"
-                  >
-                    <option value="ALL">Semua Modul</option>
-                    <option value="Monitoring">Monitoring SPK</option>
-                    <option value="Standart Part">Standart Part</option>
-                    <option value="KPI">KPI Engineering</option>
-                    <option value="Staff & PIN">Staff & PIN</option>
-                  </select>
-
-                  <select
-                    value={auditStaffFilter}
-                    onChange={(e) => setAuditStaffFilter(e.target.value)}
-                    className="min-h-[40px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-semibold text-slate-800"
-                  >
-                    <option value="ALL">Semua Staff</option>
-                    {uniqueLogUsers.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+              {/* Filter Bar: Search, Module Category, Staff, Date Range & Quick Presets */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                {/* Row 1: Module Category Quick Pills */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 inline-flex items-center gap-1 mr-1">
+                      <Filter className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Kategori Modul:</span>
+                    </span>
+                    {[
+                      { id: 'ALL', label: 'Semua' },
+                      { id: 'Monitoring', label: 'Monitoring' },
+                      { id: 'Standart Part', label: 'Standart Part' },
+                      { id: 'KPI', label: 'KPI' },
+                      { id: 'Staff & PIN', label: 'Staff & PIN' }
+                    ].map((cat) => {
+                      const active = auditModuleFilter === cat.id;
+                      const count = moduleLogCounts[cat.id] || 0;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setAuditModuleFilter(cat.id)}
+                          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 ${
+                            active
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'
+                          }`}
+                        >
+                          <span>{cat.label}</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono tabular-nums ${
+                              active ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200'
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   {isManager && (
                     <button
                       type="button"
                       onClick={handleExportAuditExcel}
-                      className="col-span-2 sm:col-span-1 min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center space-x-1.5 shrink-0"
+                      className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center space-x-1.5 shrink-0 transition"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
-                      <span>Ekspor Excel</span>
+                      <span>Ekspor Excel ({filteredLogs.length})</span>
                     </button>
                   )}
+                </div>
+
+                {/* Row 2: Search, Module Dropdown & Staff Dropdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+                  <div className="relative lg:col-span-6">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      placeholder="Cari nama staff, SPK, project, part name, nilai..."
+                      className="w-full min-h-[40px] pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    <select
+                      value={auditModuleFilter}
+                      onChange={(e) => setAuditModuleFilter(e.target.value)}
+                      aria-label="Filter kategori modul audit"
+                      className="w-full min-h-[40px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="ALL">Semua Modul ({auditLogs.length})</option>
+                      <option value="Monitoring">Monitoring SPK ({moduleLogCounts.Monitoring || 0})</option>
+                      <option value="Standart Part">Standart Part ({moduleLogCounts['Standart Part'] || 0})</option>
+                      <option value="KPI">KPI Engineering ({moduleLogCounts.KPI || 0})</option>
+                      <option value="Staff & PIN">Staff & PIN ({moduleLogCounts['Staff & PIN'] || 0})</option>
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    <select
+                      value={auditStaffFilter}
+                      onChange={(e) => setAuditStaffFilter(e.target.value)}
+                      aria-label="Filter pelaku staff audit"
+                      className="w-full min-h-[40px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="ALL">Semua Staff</option>
+                      {uniqueLogUsers.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 3: Date Range Filter & Quick Date Presets */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-600 inline-flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Rentang Tanggal:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="date"
+                        value={auditDateFrom}
+                        max={auditDateTo || undefined}
+                        onChange={(e) => setAuditDateFrom(e.target.value)}
+                        aria-label="Dari tanggal"
+                        title="Dari tanggal"
+                        className="min-h-[36px] px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs font-bold text-slate-400">s/d</span>
+                      <input
+                        type="date"
+                        value={auditDateTo}
+                        min={auditDateFrom || undefined}
+                        onChange={(e) => setAuditDateTo(e.target.value)}
+                        aria-label="Sampai tanggal"
+                        title="Sampai tanggal"
+                        className="min-h-[36px] px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    {/* Quick Date Presets */}
+                    <div className="flex flex-wrap items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => applyQuickDatePreset('today')}
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 text-[10px] font-bold transition"
+                      >
+                        Hari Ini
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyQuickDatePreset('7days')}
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 text-[10px] font-bold transition"
+                      >
+                        7 Hari Terakhir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyQuickDatePreset('thisMonth')}
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 text-[10px] font-bold transition"
+                      >
+                        Bulan Ini
+                      </button>
+                      {(auditDateFrom || auditDateTo) && (
+                        <button
+                          type="button"
+                          onClick={() => applyQuickDatePreset('all')}
+                          className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold transition"
+                        >
+                          Hapus Tanggal
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Summary Count & Reset */}
+                  <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px]">
+                    <span className="text-slate-600 font-medium">
+                      Menampilkan <strong className="text-slate-900 tabular-nums">{filteredLogs.length}</strong> dari{' '}
+                      <strong className="text-slate-900 tabular-nums">{auditLogs.length}</strong> log
+                    </span>
+                    {hasActiveAuditFilters && (
+                      <button
+                        type="button"
+                        onClick={resetAllAuditFilters}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold inline-flex items-center gap-1 transition"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset Filter</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Audit Entries List */}
               {filteredLogs.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2">
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center space-y-2.5">
                   <Users className="w-10 h-10 text-slate-300 mx-auto" />
                   <p className="text-xs font-bold text-slate-700">
-                    Belum ada catatan audit yang cocok dengan filter.
+                    Belum ada catatan audit yang cocok dengan filter modul/tanggal yang dipilih.
                   </p>
+                  {hasActiveAuditFilters && (
+                    <button
+                      type="button"
+                      onClick={resetAllAuditFilters}
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold inline-flex items-center gap-1.5 transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Tampilkan Semua Log</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
