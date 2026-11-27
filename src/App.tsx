@@ -14,6 +14,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { CustomerBarcodeView } from './components/CustomerBarcodeView';
 import { ThemeSettingsModal } from './components/ThemeSettingsModal';
 import { StaffPINAndAuditModal } from './components/StaffPINAndAuditModal';
+import { TeamChatPanel } from './components/TeamChatPanel';
 import {
   ThemeConfig,
   DEFAULT_THEME_CONFIG,
@@ -57,7 +58,10 @@ import {
   saveAuditLogToFirestore,
   subscribeToFirestoreActiveSessions,
   upsertActiveSessionToFirestore,
-  removeActiveSessionFromFirestore
+  removeActiveSessionFromFirestore,
+  subscribeToFirestoreTeamChat,
+  sendTeamChatMessageToFirestore,
+  deleteTeamChatMessageFromFirestore
 } from './firebase/firestoreService';
 import { 
   EngineeringProject, 
@@ -71,7 +75,8 @@ import {
   AuditLog,
   SerahTerimaStandartPartItem,
   KPIApprovalRequest,
-  ActiveSessionPresence
+  ActiveSessionPresence,
+  TeamChatMessage
 } from './types/engineering';
 import { 
   INITIAL_PROJECTS, 
@@ -169,6 +174,19 @@ export default function App() {
   const [childEditingTarget, setChildEditingTarget] = useState<string | null>(null);
   const [rawOnlineSessions, setRawOnlineSessions] = useState<ActiveSessionPresence[]>([]);
   const [presenceNowMs, setPresenceNowMs] = useState<number>(() => Date.now());
+
+  // Real-Time Team Chat State
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [activeChatRoomId, setActiveChatRoomId] = useState<string>('global');
+  const [chatMessages, setChatMessages] = useState<TeamChatMessage[]>([]);
+  const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({});
+  const [viewerNickname, setViewerNickname] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('eng_viewer_chat_name') || '';
+    } catch {
+      return '';
+    }
+  });
 
   // Database State (Projects)
   const [projects, setProjects] = useState<EngineeringProject[]>(() => {
@@ -360,7 +378,23 @@ export default function App() {
   const projectsRef = useRef<EngineeringProject[]>(projects);
   projectsRef.current = projects;
 
-  // Real-time Firestore listener for Staff Accounts & Global Audit Logs
+  const currentIdentityKey = activeStaff ? `stf_${activeStaff.id}` : `ses_${sessionId}`;
+  const currentChatDisplayName = activeStaff
+    ? activeStaff.name
+    : viewerNickname.trim() || 'Tamu (Viewer)';
+
+  const isChatOpenRef = useRef<boolean>(isChatOpen);
+  isChatOpenRef.current = isChatOpen;
+  const activeChatRoomIdRef = useRef<string>(activeChatRoomId);
+  activeChatRoomIdRef.current = activeChatRoomId;
+  const currentIdentityKeyRef = useRef<string>(currentIdentityKey);
+  currentIdentityKeyRef.current = currentIdentityKey;
+  const currentSessionIdRef = useRef<string>(sessionId);
+  currentSessionIdRef.current = sessionId;
+  const seenChatIdsRef = useRef<Set<string>>(new Set());
+  const chatInitializedRef = useRef<boolean>(false);
+
+  // Real-time Firestore listener for Staff Accounts, Audit Logs, Presence & Team Chat
   useEffect(() => {
     let isMounted = true;
     let unsubStaff: (() => void) | undefined;
@@ -384,6 +418,63 @@ export default function App() {
       setRawOnlineSessions(sessions);
     });
 
+    const unsubTeamChat = subscribeToFirestoreTeamChat((msgs) => {
+      setChatMessages(msgs);
+
+      if (!chatInitializedRef.current) {
+        msgs.forEach((m) => seenChatIdsRef.current.add(m.id));
+        chatInitializedRef.current = true;
+        return;
+      }
+
+      const myIdKey = currentIdentityKeyRef.current;
+      const mySessionId = currentSessionIdRef.current;
+      const newlyUnreadRooms: Record<string, number> = {};
+      let latestIncoming: TeamChatMessage | null = null;
+
+      msgs.forEach((m) => {
+        if (seenChatIdsRef.current.has(m.id)) return;
+        seenChatIdsRef.current.add(m.id);
+
+        const senderKey =
+          m.senderStaffId !== 'viewer' ? `stf_${m.senderStaffId}` : `ses_${m.senderSessionId}`;
+        const isFromMe = senderKey === myIdKey || m.senderSessionId === mySessionId;
+        if (isFromMe) return;
+
+        const isRelevantToMe =
+          m.roomId === 'global' ||
+          m.roomId.includes(`__${myIdKey}`) ||
+          m.recipientKey === myIdKey;
+        if (!isRelevantToMe) return;
+
+        const isViewingThisRoom =
+          isChatOpenRef.current && activeChatRoomIdRef.current === m.roomId;
+        if (!isViewingThisRoom) {
+          newlyUnreadRooms[m.roomId] = (newlyUnreadRooms[m.roomId] || 0) + 1;
+          latestIncoming = m;
+        }
+      });
+
+      if (Object.keys(newlyUnreadRooms).length > 0) {
+        setUnreadByRoom((prev) => {
+          const next = { ...prev };
+          Object.entries(newlyUnreadRooms).forEach(([rId, cnt]) => {
+            next[rId] = (next[rId] || 0) + cnt;
+          });
+          return next;
+        });
+
+        if (latestIncoming && !isChatOpenRef.current) {
+          const incomingMsg: TeamChatMessage = latestIncoming;
+          const preview =
+            incomingMsg.text.length > 55
+              ? `${incomingMsg.text.slice(0, 55)}...`
+              : incomingMsg.text;
+          showToast(`Pesan baru dari ${incomingMsg.senderName}: "${preview}"`, 'info');
+        }
+      }
+    });
+
     const tickTimer = setInterval(() => {
       setPresenceNowMs(Date.now());
     }, 10000);
@@ -393,6 +484,7 @@ export default function App() {
       if (unsubStaff) unsubStaff();
       unsubAuditLogs();
       unsubActiveSessions();
+      unsubTeamChat();
       clearInterval(tickTimer);
     };
   }, []);
@@ -401,6 +493,91 @@ export default function App() {
   useEffect(() => {
     setChildEditingTarget(null);
   }, [currentView]);
+
+  // Clear unread counter for active chat room whenever panel opens or room changes
+  useEffect(() => {
+    if (!isChatOpen) return;
+    setUnreadByRoom((prev) => {
+      if (!prev[activeChatRoomId]) return prev;
+      const next = { ...prev };
+      delete next[activeChatRoomId];
+      return next;
+    });
+  }, [isChatOpen, activeChatRoomId]);
+
+  const totalUnreadChatCount = Object.values(unreadByRoom).reduce((acc, n) => acc + n, 0);
+
+  const visibleChatMessages = chatMessages.filter(
+    (m) =>
+      m.roomId === 'global' ||
+      m.roomId.includes(`__${currentIdentityKey}`) ||
+      m.recipientKey === currentIdentityKey ||
+      m.senderSessionId === sessionId ||
+      (activeStaff && m.senderStaffId === activeStaff.id)
+  );
+
+  const handleChangeViewerNickname = (name: string) => {
+    const cleaned = name.trim().slice(0, 40);
+    setViewerNickname(cleaned);
+    try {
+      if (cleaned) {
+        sessionStorage.setItem('eng_viewer_chat_name', cleaned);
+      } else {
+        sessionStorage.removeItem('eng_viewer_chat_name');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSendChatMessage = async (payload: {
+    roomId: string;
+    text: string;
+    recipientKey?: string;
+    recipientName?: string;
+    relatedSpk?: string;
+    replyTo?: TeamChatMessage | null;
+  }) => {
+    const newMsg: TeamChatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      roomId: payload.roomId,
+      senderSessionId: sessionId,
+      senderStaffId: activeStaff?.id || 'viewer',
+      senderName: currentChatDisplayName,
+      senderRole: userRole,
+      ...(payload.recipientKey ? { recipientKey: payload.recipientKey } : {}),
+      ...(payload.recipientName ? { recipientName: payload.recipientName } : {}),
+      text: payload.text,
+      ...(payload.relatedSpk ? { relatedSpk: payload.relatedSpk } : {}),
+      ...(payload.replyTo
+        ? {
+            replyToId: payload.replyTo.id,
+            replyToSender: payload.replyTo.senderName,
+            replyToPreview: payload.replyTo.text.slice(0, 180)
+          }
+        : {}),
+      createdAt: new Date().toISOString()
+    };
+
+    seenChatIdsRef.current.add(newMsg.id);
+    setChatMessages((prev) => [...prev, newMsg].slice(-300));
+    try {
+      await sendTeamChatMessageToFirestore(newMsg);
+    } catch (err) {
+      console.warn('Firestore chat send error:', err);
+      showToast('Gagal mengirim pesan chat ke server. Periksa koneksi Anda.', 'error');
+    }
+  };
+
+  const handleDeleteChatMessage = async (messageId: string) => {
+    setChatMessages((prev) => prev.filter((m) => m.id !== messageId));
+    try {
+      await deleteTeamChatMessageFromFirestore(messageId);
+    } catch (err) {
+      console.warn('Firestore chat delete error:', err);
+      showToast('Gagal menghapus pesan chat.', 'error');
+    }
+  };
 
   const effectivePresenceView: ActiveSessionPresence['currentView'] =
     currentView === 'monitoring' && monitoringSubTab === 'standartPartHandover'
@@ -426,7 +603,7 @@ export default function App() {
       const payload: ActiveSessionPresence = {
         sessionId,
         staffId: activeStaff?.id || 'viewer',
-        staffName: activeStaff ? activeStaff.name : 'Tamu (Viewer)',
+        staffName: activeStaff ? activeStaff.name : viewerNickname.trim() || 'Tamu (Viewer)',
         role: activeStaff ? activeStaff.role : 'Viewer',
         status: activeEditingTarget ? 'editing' : 'online',
         currentView: effectivePresenceView,
@@ -458,6 +635,7 @@ export default function App() {
   }, [
     sessionId,
     activeStaff,
+    viewerNickname,
     activeEditingTarget,
     effectivePresenceView,
     deviceLabel,
@@ -1928,6 +2106,8 @@ export default function App() {
         onOpenVercelModal={() => setIsVercelModalOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenStaffPinModal={(tab) => setStaffPinModalState({ isOpen: true, tab })}
+        onOpenChat={() => setIsChatOpen(true)}
+        unreadChatCount={totalUnreadChatCount}
         onlineSessions={activeOnlineSessions}
         externalRolePickerOpen={mobileRolePickerOpen}
         onCloseExternalRolePicker={() => setMobileRolePickerOpen(false)}
@@ -2133,6 +2313,31 @@ export default function App() {
         onToggleStaffActive={handleToggleStaffActive}
         onDeleteStaff={handleDeleteStaffAccount}
         showToast={showToast}
+      />
+
+      {/* Real-Time Online Team Chat Drawer */}
+      <TeamChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={visibleChatMessages}
+        onlineSessions={activeOnlineSessions}
+        currentSessionId={sessionId}
+        currentIdentityKey={currentIdentityKey}
+        currentDisplayName={currentChatDisplayName}
+        currentRole={userRole}
+        viewerNickname={viewerNickname}
+        onChangeViewerNickname={handleChangeViewerNickname}
+        projects={projects}
+        activeRoomId={activeChatRoomId}
+        onSelectRoom={setActiveChatRoomId}
+        onSendMessage={handleSendChatMessage}
+        onDeleteMessage={handleDeleteChatMessage}
+        onJumpToSpk={(spk) => {
+          setSpkLookupQuery(spk);
+          setCurrentView('barcodes');
+          setIsChatOpen(false);
+        }}
+        unreadByRoom={unreadByRoom}
       />
 
       {/* Mobile Bottom Navigation Bar */}

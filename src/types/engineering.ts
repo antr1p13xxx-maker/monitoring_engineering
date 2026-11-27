@@ -205,3 +205,21 @@ export interface KPIApprovalRequest {
   };
 }
 
+export interface TeamChatMessage {
+  id: string;
+  roomId: string;
+  senderSessionId: string;
+  senderStaffId: string;
+  senderName: string;
+  senderRole: UserRole;
+  recipientKey?: string;
+  recipientName?: string;
+  text: string;
+  relatedSpk?: string;
+  replyToId?: string;
+  replyToSender?: string;
+  replyToPreview?: string;
+  createdAt: string;
+}
+
+

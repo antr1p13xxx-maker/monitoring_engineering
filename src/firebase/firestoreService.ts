@@ -8,7 +8,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog, ActiveSessionPresence } from '../types/engineering';
+import { EngineeringProject, KPIItem, SerahTerimaStandartPartItem, StandartPartAttachment, DesignFeedbackItem, ReviewCostItem, ReviewErrorItem, KPIApprovalRequest, StaffAccount, AuditLog, ActiveSessionPresence, TeamChatMessage } from '../types/engineering';
 
 const PROJECTS_COLLECTION = 'engineering_projects';
 const KPI_COLLECTION = 'kpi_records';
@@ -20,6 +20,7 @@ const KPI_APPROVAL_COLLECTION = 'kpi_approval_requests';
 const STAFF_ACCOUNTS_COLLECTION = 'staff_accounts';
 const AUDIT_LOGS_COLLECTION = 'activity_audit_logs';
 const ACTIVE_SESSIONS_COLLECTION = 'active_sessions';
+const TEAM_CHAT_COLLECTION = 'team_chat_messages';
 
 /**
  * Real-time listener untuk semua data proyek monitoring engineering.
@@ -985,5 +986,100 @@ export async function removeActiveSessionFromFirestore(sessionId: string): Promi
   const docId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   if (!docId) return;
   const docRef = doc(db, ACTIVE_SESSIONS_COLLECTION, docId);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Real-time listener untuk pesan Chat Tim Engineering yang sedang online.
+ */
+export function subscribeToFirestoreTeamChat(
+  onUpdate: (messages: TeamChatMessage[]) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, TEAM_CHAT_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: TeamChatMessage[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.text && data.createdAt && data.senderName) {
+          list.push({
+            id: String(data.id || docSnap.id),
+            roomId: String(data.roomId || 'global'),
+            senderSessionId: String(data.senderSessionId || ''),
+            senderStaffId: String(data.senderStaffId || 'viewer'),
+            senderName: String(data.senderName || 'User'),
+            senderRole: data.senderRole || 'Viewer',
+            recipientKey: data.recipientKey ? String(data.recipientKey) : undefined,
+            recipientName: data.recipientName ? String(data.recipientName) : undefined,
+            text: String(data.text),
+            relatedSpk: data.relatedSpk ? String(data.relatedSpk) : undefined,
+            replyToId: data.replyToId ? String(data.replyToId) : undefined,
+            replyToSender: data.replyToSender ? String(data.replyToSender) : undefined,
+            replyToPreview: data.replyToPreview ? String(data.replyToPreview) : undefined,
+            createdAt: String(data.createdAt),
+          });
+        }
+      });
+
+      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      onUpdate(list.slice(-300));
+    },
+    (error) => {
+      console.warn('Firestore Team Chat listener notice:', error.message);
+      if (onError) onError(error);
+    }
+  );
+}
+
+/**
+ * Mengirim 1 pesan chat baru secara real-time ke Firestore.
+ */
+export async function sendTeamChatMessageToFirestore(
+  message: TeamChatMessage
+): Promise<void> {
+  const docId = (message.id || `msg_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const docRef = doc(db, TEAM_CHAT_COLLECTION, docId);
+  const payload: Record<string, string> = {
+    id: docId,
+    roomId: String(message.roomId || 'global').slice(0, 160),
+    senderSessionId: String(message.senderSessionId || 'unknown').slice(0, 120),
+    senderStaffId: String(message.senderStaffId || 'viewer').slice(0, 120),
+    senderName: String(message.senderName || 'Tamu (Viewer)').slice(0, 120),
+    senderRole: String(message.senderRole || 'Viewer').slice(0, 40),
+    text: String(message.text).slice(0, 2000),
+    createdAt: String(message.createdAt || new Date().toISOString()).slice(0, 64),
+  };
+
+  if (message.recipientKey) {
+    payload.recipientKey = String(message.recipientKey).slice(0, 120);
+  }
+  if (message.recipientName) {
+    payload.recipientName = String(message.recipientName).slice(0, 120);
+  }
+  if (message.relatedSpk) {
+    payload.relatedSpk = String(message.relatedSpk).slice(0, 120);
+  }
+  if (message.replyToId) {
+    payload.replyToId = String(message.replyToId).slice(0, 120);
+  }
+  if (message.replyToSender) {
+    payload.replyToSender = String(message.replyToSender).slice(0, 120);
+  }
+  if (message.replyToPreview) {
+    payload.replyToPreview = String(message.replyToPreview).slice(0, 240);
+  }
+
+  await setDoc(docRef, payload);
+}
+
+/**
+ * Menghapus 1 pesan chat dari Firestore.
+ */
+export async function deleteTeamChatMessageFromFirestore(messageId: string): Promise<void> {
+  const docId = messageId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  if (!docId) return;
+  const docRef = doc(db, TEAM_CHAT_COLLECTION, docId);
   await deleteDoc(docRef);
 }

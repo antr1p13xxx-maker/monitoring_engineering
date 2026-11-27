@@ -66,6 +66,37 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(sessionId);
     }
 
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['id', 'roomId', 'senderSessionId', 'senderStaffId', 'senderName', 'senderRole', 'text', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'roomId', 'senderSessionId', 'senderStaffId', 'senderName', 'senderRole',
+          'recipientKey', 'recipientName', 'text', 'relatedSpk',
+          'replyToId', 'replyToSender', 'replyToPreview', 'createdAt'
+        ])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.roomId is string && data.roomId.size() > 0 && data.roomId.size() <= 160
+        && data.senderSessionId is string && data.senderSessionId.size() > 0 && data.senderSessionId.size() <= 128
+        && data.senderStaffId is string && data.senderStaffId.size() > 0 && data.senderStaffId.size() <= 128
+        && data.senderName is string && data.senderName.size() > 0 && data.senderName.size() <= 120
+        && data.senderRole is string && data.senderRole.size() > 0 && data.senderRole.size() <= 40
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 2000
+        && data.createdAt is string && data.createdAt.size() > 0 && data.createdAt.size() <= 64
+        && (!('recipientKey' in data) || (data.recipientKey is string && data.recipientKey.size() <= 128))
+        && (!('recipientName' in data) || (data.recipientName is string && data.recipientName.size() <= 120))
+        && (!('relatedSpk' in data) || (data.relatedSpk is string && data.relatedSpk.size() <= 120))
+        && (!('replyToId' in data) || (data.replyToId is string && data.replyToId.size() <= 128))
+        && (!('replyToSender' in data) || (data.replyToSender is string && data.replyToSender.size() <= 120))
+        && (!('replyToPreview' in data) || (data.replyToPreview is string && data.replyToPreview.size() <= 240));
+    }
+
+    // Real-Time Team Chat Messages Collection
+    match /team_chat_messages/{messageId} {
+      allow read: if true;
+      allow create: if isValidId(messageId) && isValidChatMessage(request.resource.data);
+      allow update: if false;
+      allow delete: if isValidId(messageId);
+    }
+
     // Connection testing endpoint
     match /test/{docId} {
       allow read, write: if true;

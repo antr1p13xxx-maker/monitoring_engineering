@@ -166,6 +166,28 @@
         "lastHeartbeat": { "type": "string", "description": "Waktu detak aktivitas terakhir" }
       },
       "required": ["sessionId", "staffName", "role", "status", "lastHeartbeat"]
+    },
+    "team_chat_messages": {
+      "title": "Team Chat Messages",
+      "description": "Pesan obrolan real-time antar user dan staff yang sedang online di aplikasi.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik pesan chat" },
+        "roomId": { "type": "string", "description": "ID room chat (global atau dm__idA__idB)" },
+        "senderSessionId": { "type": "string", "description": "Session ID pengirim" },
+        "senderStaffId": { "type": "string", "description": "Staff ID pengirim atau viewer" },
+        "senderName": { "type": "string", "description": "Nama pengirim" },
+        "senderRole": { "type": "string", "description": "Role pengirim" },
+        "recipientKey": { "type": "string", "description": "Kunci identitas penerima untuk DM" },
+        "recipientName": { "type": "string", "description": "Nama penerima untuk DM" },
+        "text": { "type": "string", "description": "Isi pesan chat" },
+        "relatedSpk": { "type": "string", "description": "Nomor SPK proyek yang ditautkan (opsional)" },
+        "replyToId": { "type": "string", "description": "ID pesan yang dibalas" },
+        "replyToSender": { "type": "string", "description": "Nama pengirim pesan yang dibalas" },
+        "replyToPreview": { "type": "string", "description": "Cuplikan pesan yang dibalas" },
+        "createdAt": { "type": "string", "description": "Timestamp ISO waktu pengiriman pesan" }
+      },
+      "required": ["id", "roomId", "senderSessionId", "senderStaffId", "senderName", "senderRole", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -200,6 +222,10 @@
     "/active_sessions/{sessionId}": {
       "schema": "#/entities/active_sessions",
       "description": "Status kehadiran real-time staff yang sedang online, login, dan mengedit data."
+    },
+    "/team_chat_messages/{messageId}": {
+      "schema": "#/entities/team_chat_messages",
+      "description": "Pesan obrolan real-time antar pengguna yang sedang online."
     }
   }
 }

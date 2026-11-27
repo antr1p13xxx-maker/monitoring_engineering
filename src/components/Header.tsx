@@ -22,7 +22,8 @@ import {
   EyeOff,
   LogOut,
   ChevronDown,
-  Activity
+  Activity,
+  MessageCircle
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { MonitoringLogo } from './MonitoringLogo';
@@ -41,6 +42,8 @@ interface HeaderProps {
   onOpenVercelModal?: () => void;
   onOpenThemeModal?: () => void;
   onOpenStaffPinModal?: (tab: 'staff' | 'audit' | 'online') => void;
+  onOpenChat?: () => void;
+  unreadChatCount?: number;
   onlineSessions?: ActiveSessionPresence[];
   externalRolePickerOpen?: boolean;
   onCloseExternalRolePicker?: () => void;
@@ -60,11 +63,14 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenVercelModal,
   onOpenThemeModal,
   onOpenStaffPinModal,
+  onOpenChat,
+  unreadChatCount = 0,
   onlineSessions = [],
   externalRolePickerOpen = false,
   onCloseExternalRolePicker
 }) => {
   const loggedInOnlineCount = onlineSessions.filter((s) => s.role !== 'Viewer').length;
+  const totalOnlineCount = onlineSessions.length;
   const editingOnlineCount = onlineSessions.filter((s) => s.status === 'editing').length;
   const [timeString, setTimeString] = useState<string>('');
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
@@ -224,6 +230,28 @@ export const Header: React.FC<HeaderProps> = ({
               className="min-w-[38px] min-h-[38px] rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center active:scale-95 transition"
             >
               <Palette className="w-4 h-4" />
+            </button>
+          )}
+
+          {onOpenChat && (
+            <button
+              type="button"
+              onClick={onOpenChat}
+              aria-label="Buka Chat Tim Online"
+              title={`Chat Tim Online (${totalOnlineCount} online${unreadChatCount > 0 ? `, ${unreadChatCount} pesan baru` : ''})`}
+              className={`relative min-h-[38px] px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-1 active:scale-95 transition ${
+                unreadChatCount > 0
+                  ? 'bg-rose-500/25 hover:bg-rose-500/35 border-rose-400/60 text-white shadow-sm'
+                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-100'
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5 shrink-0 text-cyan-300" />
+              <span className="tabular-nums">{totalOnlineCount}</span>
+              {unreadChatCount > 0 && (
+                <span className="px-1.5 min-w-[16px] h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center leading-none shadow animate-pulse">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </button>
           )}
 
@@ -417,6 +445,31 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Palette className="w-3.5 h-3.5" />
               <span>Tema</span>
+            </button>
+          )}
+
+          {/* Real-Time Team Chat Button (Available for All Online Users) */}
+          {onOpenChat && (
+            <button
+              type="button"
+              onClick={onOpenChat}
+              title={`Buka Chat Tim Online (${totalOnlineCount} pengguna sedang aktif)`}
+              className={`relative px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all border shadow-sm cursor-pointer whitespace-nowrap ${
+                unreadChatCount > 0
+                  ? 'bg-rose-500/25 hover:bg-rose-500/35 text-white border-rose-400/60'
+                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 border-cyan-400/40'
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Chat Tim</span>
+              <span className="px-1.5 py-0.2 rounded bg-white/15 text-[10px] font-extrabold tabular-nums">
+                {totalOnlineCount}
+              </span>
+              {unreadChatCount > 0 && (
+                <span className="px-1.5 min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center leading-none shadow animate-pulse">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </button>
           )}
 
