@@ -1204,7 +1204,10 @@ export default function App() {
     const actor = getActorLabel();
     const nowStr = formatNowTimestamp();
 
+    const normalizedInputSpk = String(formData.SPK || '').trim();
+
     if (isEdit && editingProject) {
+      const nextSpk = normalizedInputSpk || editingProject.SPK;
       const nextRequiredChecklists =
         userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
           ? getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists })
@@ -1213,6 +1216,7 @@ export default function App() {
       const updatedProject: EngineeringProject = {
         ...editingProject,
         ...formData,
+        SPK: nextSpk,
         ...(nextRequiredChecklists !== undefined ? { requiredChecklists: nextRequiredChecklists } : {}),
         lastModifiedBy: actor,
         lastModifiedAt: nowStr
@@ -1220,6 +1224,9 @@ export default function App() {
       setProjects((prev) =>
         prev.map((p) => (p.SPK === editingProject.SPK ? updatedProject : p))
       );
+      if (nextSpk !== editingProject.SPK) {
+        deleteProjectFromFirestore(editingProject.SPK).catch(() => {});
+      }
       saveProjectToFirestore(updatedProject).catch((err) => console.warn('Firestore save error:', err));
 
       // Detect modified fields for Audit Log
@@ -1273,12 +1280,51 @@ export default function App() {
             }
           });
         } else {
-          showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
+          showToast(`Data SPK ${updatedProject.SPK} berhasil diperbarui di Firebase.`);
         }
       } else {
-        showToast(`Data SPK ${formData.SPK || editingProject.SPK} berhasil diperbarui di Firebase.`);
+        showToast(`Data SPK ${updatedProject.SPK} berhasil diperbarui di Firebase.`);
       }
     } else {
+      const targetSpk =
+        normalizedInputSpk || `SPK-${new Date().getFullYear()}-${String(projects.length + 1).padStart(3, '0')}`;
+      const existingBySpk = projectsRef.current.find(
+        (p) => String(p.SPK || '').trim().toLowerCase() === targetSpk.toLowerCase()
+      );
+
+      if (existingBySpk) {
+        const mergedRequiredChecklists =
+          userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
+            ? getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists })
+            : existingBySpk.requiredChecklists;
+
+        const mergedProject: EngineeringProject = {
+          ...existingBySpk,
+          ...formData,
+          SPK: existingBySpk.SPK,
+          ...(mergedRequiredChecklists !== undefined ? { requiredChecklists: mergedRequiredChecklists } : {}),
+          lastModifiedBy: actor,
+          lastModifiedAt: nowStr
+        };
+
+        setProjects((prev) =>
+          prev.map((p) => (p.SPK === existingBySpk.SPK ? mergedProject : p))
+        );
+        saveProjectToFirestore(mergedProject).catch((err) => console.warn('Firestore save error:', err));
+        appendAuditLog({
+          module: 'Monitoring',
+          actionType: 'update',
+          target: mergedProject.SPK,
+          activity: `Perbarui SPK lama ${mergedProject.SPK} (${mergedProject['Nama Project']})`,
+          newValue: `${mergedProject.Customer} • PIC: ${mergedProject.PIC} • Qty: ${mergedProject['Qty Drawing']}`,
+          month: mergedProject.Bulan
+        });
+        showToast(`SPK lama ${mergedProject.SPK} berhasil diperbarui tanpa duplikasi (checklist tetap terjaga).`);
+        setIsDataModalOpen(false);
+        setEditingProject(null);
+        return;
+      }
+
       const initialRequired =
         userRole === 'Manager' && Array.isArray(formData.requiredChecklists)
           ? getProjectRequiredChecklists({ requiredChecklists: formData.requiredChecklists })
@@ -1287,8 +1333,8 @@ export default function App() {
       const newProject: EngineeringProject = {
         No: projects.length + 1,
         Bulan: formData.Bulan || 'Oktober',
-        SPK: formData.SPK || `SPK-2026-${String(projects.length + 1).padStart(3, '0')}`,
-        'Nomor PO': formData['Nomor PO'] || `PO/2026/${String(projects.length + 1).padStart(3, '0')}`,
+        SPK: targetSpk,
+        'Nomor PO': formData['Nomor PO'] || `PO/${new Date().getFullYear()}/${String(projects.length + 1).padStart(3, '0')}`,
         Customer: formData.Customer || 'Klien Baru',
         Status: (formData.Status as any) || 'In Progress',
         'Delivery Time': formData['Delivery Time'] || new Date().toISOString().split('T')[0],
@@ -2388,6 +2434,8 @@ export default function App() {
         }}
         onSave={handleSaveProject}
         initialData={editingProject}
+        existingProjects={projects}
+        onSwitchToEdit={(proj) => setEditingProject(proj)}
         userRole={userRole}
       />
 

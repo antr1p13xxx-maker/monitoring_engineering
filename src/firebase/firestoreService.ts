@@ -103,6 +103,15 @@ export function subscribeToFirestoreProjects(
   );
 }
 
+function buildProjectDocId(spk?: string): string {
+  const sanitized = String(spk || '')
+    .trim()
+    .replace(/[\/\\#\s]+/g, '_')
+    .replace(/^\.+|\.+$/g, '_')
+    .slice(0, 120);
+  return sanitized || `PROJ_${Date.now()}`;
+}
+
 /**
  * Menyimpan atau memperbarui data proyek ke Firestore.
  */
@@ -110,7 +119,7 @@ export async function saveProjectToFirestore(
   project: EngineeringProject,
   options?: { bypassQueue?: boolean }
 ): Promise<void> {
-  const docId = (project.SPK || `PROJ_${Date.now()}`).replace(/\//g, '_');
+  const docId = buildProjectDocId(project.SPK);
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
   await executeOrQueueOffline({
     type: 'project_save',
@@ -137,7 +146,7 @@ export async function updateChecklistInFirestore(
   lastModifiedBy?: string,
   options?: { bypassQueue?: boolean }
 ): Promise<void> {
-  const docId = spk.replace(/\//g, '_');
+  const docId = buildProjectDocId(spk);
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
   await executeOrQueueOffline({
     type: 'checklist_update',
@@ -162,7 +171,7 @@ export async function deleteProjectFromFirestore(
   spk: string,
   options?: { bypassQueue?: boolean }
 ): Promise<void> {
-  const docId = spk.replace(/\//g, '_');
+  const docId = buildProjectDocId(spk);
   const docRef = doc(db, PROJECTS_COLLECTION, docId);
   await executeOrQueueOffline({
     type: 'project_delete',
@@ -193,7 +202,7 @@ export async function seedFirestoreIfEmpty(initialProjects: EngineeringProject[]
     if (snapshot.empty && initialProjects.length > 0) {
       const batch = writeBatch(db);
       initialProjects.forEach((proj) => {
-        const docId = (proj.SPK || `PROJ_${Date.now()}`).replace(/\//g, '_');
+        const docId = buildProjectDocId(proj.SPK);
         const docRef = doc(db, PROJECTS_COLLECTION, docId);
         batch.set(docRef, {
           ...proj,
@@ -1476,9 +1485,7 @@ export async function bulkRestoreBackupToFirestore(
   }> = [];
 
   projects.forEach((proj) => {
-    const docId = String(proj.SPK || `PROJ_${Date.now()}`)
-      .replace(/\//g, '_')
-      .slice(0, 120);
+    const docId = buildProjectDocId(proj.SPK);
     operations.push({
       ref: doc(db, PROJECTS_COLLECTION, docId),
       data: {

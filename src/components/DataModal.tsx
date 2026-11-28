@@ -1,26 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChecklistKey, EngineeringProject, UserRole } from '../types/engineering';
-import { CHECKLIST_KEYS, CHECKLIST_PRESETS, getProjectRequiredChecklists } from '../data/initialData';
-import { PenSquare, Plus, X, Save, ListChecks, Check, Lock } from 'lucide-react';
+import { CHECKLIST_KEYS, CHECKLIST_PRESETS, MONTH_FULL_NAMES, MONTH_NAMES, getProjectRequiredChecklists } from '../data/initialData';
+import { PenSquare, Plus, X, Save, ListChecks, Check, Lock, AlertCircle, CopyPlus } from 'lucide-react';
 
 interface DataModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<EngineeringProject>, isEdit: boolean) => void;
   initialData?: EngineeringProject | null;
+  existingProjects?: EngineeringProject[];
+  onSwitchToEdit?: (project: EngineeringProject) => void;
   userRole?: UserRole;
 }
+
+const INDONESIAN_MONTHS = MONTH_NAMES.map((abbr) => MONTH_FULL_NAMES[abbr]);
+
+const getMonthNameFromDate = (dateStr?: string): string | null => {
+  if (!dateStr) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr.trim());
+  if (!match) return null;
+  const idx = Number(match[2]) - 1;
+  return INDONESIAN_MONTHS[idx] || null;
+};
 
 export const DataModal: React.FC<DataModalProps> = ({
   isOpen,
   onClose,
   onSave,
   initialData,
+  existingProjects = [],
+  onSwitchToEdit,
   userRole = 'Viewer'
 }) => {
   const isManager = userRole === 'Manager';
   const isSupervisor = userRole === 'Supervisor';
   const canConfigureChecklist = isManager || isSupervisor;
+  const [bulanTouched, setBulanTouched] = useState(false);
   const [formData, setFormData] = useState<Partial<EngineeringProject>>({
     Bulan: 'Oktober',
     SPK: '',
@@ -39,17 +54,21 @@ export const DataModal: React.FC<DataModalProps> = ({
   });
 
   useEffect(() => {
+    setBulanTouched(false);
     if (initialData) {
       setFormData({
         ...initialData,
         requiredChecklists: getProjectRequiredChecklists(initialData)
       });
     } else {
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentMonthName = INDONESIAN_MONTHS[now.getMonth()] || 'Oktober';
+      const currentYear = now.getFullYear();
       setFormData({
-        Bulan: 'Oktober',
-        SPK: `SPK-2026-${String(Math.floor(Math.random() * 900) + 100)}`,
-        'Nomor PO': `PO/2026/${String(Math.floor(Math.random() * 900) + 100)}`,
+        Bulan: currentMonthName,
+        SPK: `SPK-${currentYear}-${String(Math.floor(Math.random() * 900) + 100)}`,
+        'Nomor PO': `PO/${currentYear}/${String(Math.floor(Math.random() * 900) + 100)}`,
         Customer: '',
         Status: 'In Progress',
         'Delivery Time': today,
@@ -65,6 +84,31 @@ export const DataModal: React.FC<DataModalProps> = ({
       });
     }
   }, [initialData, isOpen]);
+
+  const trimmedInputSpk = String(formData.SPK || '').trim();
+
+  const existingSpkMatch = useMemo(() => {
+    if (initialData || !trimmedInputSpk) return null;
+    const normalized = trimmedInputSpk.toLowerCase();
+    return (
+      existingProjects.find(
+        (p) => String(p.SPK || '').trim().toLowerCase() === normalized
+      ) || null
+    );
+  }, [initialData, trimmedInputSpk, existingProjects]);
+
+  const suggestedSubSpk = useMemo(() => {
+    if (!existingSpkMatch) return '';
+    const base = existingSpkMatch.SPK.trim();
+    for (let i = 1; i <= 50; i++) {
+      const candidate = `${base}-R${i}`;
+      const taken = existingProjects.some(
+        (p) => String(p.SPK || '').trim().toLowerCase() === candidate.toLowerCase()
+      );
+      if (!taken) return candidate;
+    }
+    return `${base}-${Date.now().toString().slice(-3)}`;
+  }, [existingSpkMatch, existingProjects]);
 
   if (!isOpen) return null;
 
@@ -102,6 +146,7 @@ export const DataModal: React.FC<DataModalProps> = ({
     onSave(
       {
         ...formData,
+        SPK: trimmedInputSpk,
         requiredChecklists: activeRequiredChecklists
       },
       !!initialData
@@ -110,10 +155,26 @@ export const DataModal: React.FC<DataModalProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'number' ? Number(value) : value
-    }));
+    if (name === 'Bulan') {
+      setBulanTouched(true);
+    }
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: type === 'number' ? Number(value) : value
+      };
+      if (
+        !initialData &&
+        !bulanTouched &&
+        (name === 'Target Design' || name === 'Permintaan Drawing/Design' || name === 'Delivery Time')
+      ) {
+        const inferredMonth = getMonthNameFromDate(value);
+        if (inferredMonth) {
+          next.Bulan = inferredMonth;
+        }
+      }
+      return next;
+    });
   };
 
   return (
@@ -178,8 +239,12 @@ export const DataModal: React.FC<DataModalProps> = ({
                 value={formData.SPK || ''}
                 onChange={handleChange}
                 required
-                placeholder="Cth: SPK-2026-021"
-                className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                placeholder="Cth: SPK-2025-021 atau SPK/2024/01"
+                className={`w-full text-base sm:text-xs bg-slate-50 border rounded-xl p-2.5 focus:ring-2 focus:outline-none font-mono ${
+                  existingSpkMatch
+                    ? 'border-amber-400 focus:ring-amber-500'
+                    : 'border-slate-300 focus:ring-blue-500'
+                }`}
               />
             </div>
 
@@ -195,6 +260,47 @@ export const DataModal: React.FC<DataModalProps> = ({
                 className="w-full text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
               />
             </div>
+
+            {existingSpkMatch && (
+              <div className="md:col-span-3 rounded-xl border border-amber-300 bg-amber-50/90 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-start gap-2 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-amber-950 min-w-0">
+                    <p className="font-bold">
+                      SPK Lama &ldquo;{existingSpkMatch.SPK}&rdquo; sudah terdaftar ({existingSpkMatch['Nama Project']} · {existingSpkMatch.Bulan}).
+                    </p>
+                    <p className="text-amber-800">
+                      Jika disimpan langsung, data SPK lama akan diperbarui tanpa menghapus checklist yang sudah ada. Atau pilih muat data / buat Sub-SPK baru.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {onSwitchToEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onSwitchToEdit(existingSpkMatch)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold flex items-center gap-1 transition"
+                    >
+                      <PenSquare className="w-3 h-3" />
+                      <span>Muat &amp; Edit SPK Ini</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        SPK: suggestedSubSpk
+                      }))
+                    }
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold flex items-center gap-1 transition"
+                  >
+                    <CopyPlus className="w-3 h-3" />
+                    <span>Sub-SPK ({suggestedSubSpk})</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">Customer / Klien *</label>

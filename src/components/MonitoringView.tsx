@@ -192,7 +192,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
   // Filters state
   const [filterMonth, setFilterMonth] = useState<string>('ALL');
-  const [filterYear, setFilterYear] = useState<string>('2026');
+  const [filterYear, setFilterYear] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterDueSoonOnly, setFilterDueSoonOnly] = useState<boolean>(false);
@@ -234,6 +234,25 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
     if (val === 'Q4') return ['Oktober', 'November', 'Desember'];
     return [val];
   };
+
+  const availableProjectYears = useMemo(() => {
+    const yearSet = new Set<string>(['2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030']);
+    projects.forEach((p) => {
+      const dateCandidates = [
+        p['Delivery Time'],
+        p['Target Design'],
+        p['Permintaan Drawing/Design'],
+        p['Tanggal Penyelesaian']
+      ];
+      dateCandidates.forEach((ds) => {
+        const m = /^(\d{4})/.exec(String(ds || '').trim());
+        if (m) yearSet.add(m[1]);
+      });
+      const spkMatch = /(20\d{2})/.exec(String(p.SPK || ''));
+      if (spkMatch) yearSet.add(spkMatch[1]);
+    });
+    return Array.from(yearSet).sort((a, b) => a.localeCompare(b));
+  }, [projects]);
 
   // Filtered dataset for statistics & table
   const filteredProjects = useMemo(() => {
@@ -1306,7 +1325,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
             type="button"
             onClick={() => setShowMobileFilters((v) => !v)}
             className={`min-h-[42px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition ${
-              showMobileFilters || filterStatus || filterMonth !== 'ALL' || (filterYear && filterYear !== '2026')
+              showMobileFilters || filterStatus || filterMonth !== 'ALL' || Boolean(filterYear)
                 ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
                 : 'bg-slate-50 border-slate-300 text-slate-700'
             }`}
@@ -1360,12 +1379,12 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               }}
               className="text-base sm:text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-blue-600"
             >
-              <option value="">Semua Tahun (2026-2030)</option>
-              <option value="2026">Tahun 2026</option>
-              <option value="2027">Tahun 2027</option>
-              <option value="2028">Tahun 2028</option>
-              <option value="2029">Tahun 2029</option>
-              <option value="2030">Tahun 2030</option>
+              <option value="">Semua Tahun</option>
+              {availableProjectYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  Tahun {yr}
+                </option>
+              ))}
             </select>
           </div>
 
