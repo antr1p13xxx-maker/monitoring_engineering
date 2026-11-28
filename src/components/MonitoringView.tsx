@@ -50,6 +50,7 @@ import { chartValueLabelsPlugin } from '../utils/chartPlugin';
 import { calculateProjectMilestoneOverdue, MilestoneOverdueResult } from '../utils/milestoneOverdue';
 import { AIInsightsSection } from './AIInsightsSection';
 import { ThreeDChart } from './ThreeDChart';
+import { HighlightedText } from './HighlightedText';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, BarController, LineController, Title, Tooltip, Legend);
 
@@ -1338,9 +1339,16 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         {/* Search & Filter Inputs (Always visible sm+, toggleable on mobile) */}
         <div className={`${showMobileFilters ? 'grid' : 'hidden sm:grid'} grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-slate-100`}>
           <div className="hidden sm:block sm:col-span-3">
-            <label className="block text-[10px] font-bold text-slate-500 mb-1">
-              Pencarian (SPK, Customer, Nama Project)
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block text-[10px] font-bold text-slate-500">
+                Pencarian (SPK, Customer, Nama Project, PO, PIC)
+              </label>
+              {searchQuery.trim() && (
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded">
+                  {filteredProjects.length} hasil disorot
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               <input
@@ -1768,7 +1776,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                           #{globalIdx}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[11px] font-bold">
-                          {item.SPK}
+                          <HighlightedText text={item.SPK} query={searchQuery} />
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-semibold">
                           {item.Bulan}
@@ -1817,11 +1825,13 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                     {/* Project Title & Client */}
                     <div>
                       <h4 className="text-sm font-extrabold text-slate-900 leading-snug">
-                        {item['Nama Project']}
+                        <HighlightedText text={item['Nama Project']} query={searchQuery} />
                       </h4>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-600">
                         <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
-                          <span>{item.Customer}</span>
+                          <span>
+                            <HighlightedText text={item.Customer} query={searchQuery} />
+                          </span>
                           {onOpenCustomerBarcode && item.Customer && (
                             <button
                               type="button"
@@ -1833,11 +1843,18 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                             </button>
                           )}
                         </span>
-                        <span>• PIC: <strong className="text-slate-800">{item.PIC}</strong></span>
+                        <span>
+                          • PIC:{' '}
+                          <strong className="text-slate-800">
+                            <HighlightedText text={item.PIC} query={searchQuery} />
+                          </strong>
+                        </span>
                         <span>• Qty: <strong className="text-blue-700 tabular-nums">{item['Qty Drawing']}</strong></span>
                       </div>
                       {item['Nomor PO'] && (
-                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">PO: {item['Nomor PO']}</p>
+                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                          PO: <HighlightedText text={item['Nomor PO']} query={searchQuery} />
+                        </p>
                       )}
                       {item.lastModifiedBy && (
                         <p className="text-[10px] text-indigo-700 font-semibold mt-1">
@@ -1894,7 +1911,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
                     {item.keterangan && (
                       <p className="text-[11px] text-slate-600 bg-amber-50/70 border border-amber-100 rounded-xl px-3 py-2">
-                        {item.keterangan}
+                        <HighlightedText text={item.keterangan} query={searchQuery} />
                       </p>
                     )}
 
@@ -2181,7 +2198,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       <td className="p-3 sticky-col-2 text-center font-semibold text-indigo-700">{item.Bulan}</td>
                       <td className="p-3 sticky-col-3 font-bold text-blue-600 font-mono">
                         <div className="flex flex-col items-start gap-0.5">
-                          <span>{item.SPK}</span>
+                          <span>
+                            <HighlightedText text={item.SPK} query={searchQuery} />
+                          </span>
                           {isOverdue && (
                             <span
                               title={milestoneStatus.warningMessage}
@@ -2197,10 +2216,14 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                           )}
                         </div>
                       </td>
-                      <td className="p-3 sticky-col-4 font-mono text-slate-700 truncate" title={item['Nomor PO']}>{item['Nomor PO']}</td>
+                      <td className="p-3 sticky-col-4 font-mono text-slate-700 truncate" title={item['Nomor PO']}>
+                        <HighlightedText text={item['Nomor PO']} query={searchQuery} />
+                      </td>
                       <td className="p-3 sticky-col-5 font-medium text-slate-800" title={item.Customer}>
                         <div className="flex items-center justify-between gap-1.5 max-w-[170px]">
-                          <span className="truncate">{item.Customer}</span>
+                          <span className="truncate">
+                            <HighlightedText text={item.Customer} query={searchQuery} />
+                          </span>
                           {onOpenCustomerBarcode && item.Customer && (
                             <button
                               type="button"
@@ -2226,10 +2249,10 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       </td>
                       <td className="p-3 sticky-col-7 text-center font-mono text-slate-600">{item['Delivery Time']}</td>
                       <td className="p-3 sticky-col-8 font-semibold text-slate-800 max-w-[220px] truncate" title={item['Nama Project']}>
-                        {item['Nama Project']}
+                        <HighlightedText text={item['Nama Project']} query={searchQuery} />
                       </td>
                       <td className="p-3 sticky-col-9 text-slate-700 font-medium truncate" title={item.PIC}>
-                        {item.PIC}
+                        <HighlightedText text={item.PIC} query={searchQuery} />
                       </td>
                       <td className="p-3 text-right font-bold text-slate-800">{item['Qty Drawing']}</td>
                       <td className="p-3 text-center font-mono text-slate-600">{item['Permintaan Drawing/Design'] || '-'}</td>
@@ -2411,7 +2434,9 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                       })}
 
                       <td className="p-3 max-w-xs truncate text-slate-600" title={item.keterangan}>
-                        <div className="truncate">{item.keterangan || '-'}</div>
+                        <div className="truncate">
+                          <HighlightedText text={item.keterangan} fallback="-" query={searchQuery} />
+                        </div>
                         {item.lastModifiedBy && (
                           <div
                             className="text-[10px] text-indigo-600 font-semibold truncate mt-0.5"

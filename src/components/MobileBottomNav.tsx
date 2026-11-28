@@ -49,6 +49,28 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     ? 'Drafter'
     : 'Viewer';
 
+  const triggerHapticFeedback = (durationMs = 12) => {
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        return;
+      }
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(durationMs);
+      }
+    } catch {
+      // Ignore vibration errors in unsupported or restricted browser contexts
+    }
+  };
+
+  const handleNavClick = (callback: () => void, isAlreadyActive = false) => {
+    triggerHapticFeedback(isAlreadyActive ? 8 : 14);
+    callback();
+  };
+
   return (
     <nav
       aria-label="Navigasi Utama Mobile"
@@ -57,7 +79,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <div className="grid grid-cols-5 gap-1 px-1 pt-1.5">
         <button
           type="button"
-          onClick={onSelectMonitoring}
+          onClick={() => handleNavClick(onSelectMonitoring, isDrawingActive)}
           className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isDrawingActive
               ? 'theme-mobile-nav-active shadow-sm'
@@ -70,7 +92,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
         <button
           type="button"
-          onClick={onSelectStandartPart}
+          onClick={() => handleNavClick(onSelectStandartPart, isStandartPartActive)}
           className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isStandartPartActive
               ? 'theme-mobile-nav-active shadow-sm'
@@ -83,7 +105,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
         <button
           type="button"
-          onClick={onSelectBarcodes}
+          onClick={() => handleNavClick(onSelectBarcodes, isBarcodeActive)}
           className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isBarcodeActive
               ? 'theme-mobile-nav-active shadow-sm'
@@ -96,7 +118,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
         <button
           type="button"
-          onClick={onSelectKPI}
+          onClick={() => handleNavClick(onSelectKPI, isKpiActive)}
           className={`relative min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
             isKpiActive
               ? 'theme-mobile-nav-active shadow-sm'
@@ -115,7 +137,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {userRole === 'Manager' ? (
           <button
             type="button"
-            onClick={onSelectAppsScript}
+            onClick={() => handleNavClick(onSelectAppsScript, isGasActive)}
             className={`min-h-[46px] rounded-xl border border-transparent flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-all active:scale-95 ${
               isGasActive
                 ? 'theme-mobile-nav-active shadow-sm'
@@ -128,7 +150,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         ) : (
           <button
             type="button"
-            onClick={onOpenRolePicker}
+            onClick={() => handleNavClick(onOpenRolePicker, false)}
             className="min-h-[46px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-200 hover:text-white transition-all active:scale-95"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
